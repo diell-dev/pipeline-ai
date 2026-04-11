@@ -2,7 +2,7 @@
 
 import { useAuthStore } from '@/stores/auth-store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Settings, Palette, Bell, Shield, Building } from 'lucide-react'
+import { Settings, Palette, Bell, Shield, Building, Mail } from 'lucide-react'
 import Link from 'next/link'
 import { hasPermission } from '@/lib/permissions'
 
@@ -25,6 +25,13 @@ const settingSections = [
     description: 'Customize colors, logo, and the look of your reports.',
     icon: Palette,
     href: '/settings/branding',
+    permission: 'settings:manage' as const,
+  },
+  {
+    title: 'Email Integration',
+    description: 'Configure how reports and invoices are emailed to clients.',
+    icon: Mail,
+    href: '/settings/email',
     permission: 'settings:manage' as const,
   },
   {

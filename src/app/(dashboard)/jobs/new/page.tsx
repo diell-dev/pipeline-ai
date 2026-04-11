@@ -215,7 +215,16 @@ export default function NewJobPage() {
         },
       })
 
-      toast.success('Job submitted successfully!')
+      toast.success('Job submitted! AI is generating report & invoice...')
+
+      // 5. Trigger AI report + invoice generation (fire-and-forget)
+      // This runs in the background — the field tech doesn't need to wait
+      fetch(`/api/jobs/${job.id}/generate`, { method: 'POST' })
+        .then((res) => {
+          if (!res.ok) console.error('AI generation request failed')
+        })
+        .catch((err) => console.error('AI generation trigger error:', err))
+
       router.push('/jobs')
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error'

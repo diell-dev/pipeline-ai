@@ -30,6 +30,10 @@ import {
   RotateCcw,
   Loader2,
   Image as ImageIcon,
+  FileText,
+  Receipt,
+  RefreshCw,
+  DollarSign,
 } from 'lucide-react'
 import type { Job, JobStatus, JobPriority } from '@/types/database'
 
@@ -76,6 +80,7 @@ export default function JobDetailPage() {
   const [showRejectForm, setShowRejectForm] = useState(false)
   const [showRevisionForm, setShowRevisionForm] = useState(false)
   const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null)
+  const [regenerating, setRegenerating] = useState(false)
 
   useEffect(() => {
     async function loadJob() {
@@ -157,6 +162,44 @@ export default function JobDetailPage() {
       toast.error('Failed to update job status')
     } finally {
       setActionLoading(false)
+    }
+  }
+
+  async function handleRegenerate() {
+    if (!job) return
+    setRegenerating(true)
+    try {
+      // Reset status to submitted so the API will accept it
+      const supabase = createClient()
+      await supabase
+        .from('jobs')
+        .update({ status: 'submitted' })
+        .eq('id', job.id)
+
+      const res = await fetch(`/api/jobs/${job.id}/generate`, { method: 'POST' })
+      if (!res.ok) throw new Error('Generation failed')
+      const result = await res.json()
+      toast.success('Report & invoice regenerated!')
+
+      // Reload the job to get fresh data
+      const { data } = await supabase
+        .from('jobs')
+        .select(`
+          *,
+          clients:client_id ( company_name, primary_contact_name ),
+          sites:site_id ( name, address, borough ),
+          submitter:submitted_by ( full_name, email ),
+          approver:approved_by ( full_name )
+        `)
+        .eq('id', job.id)
+        .single()
+
+      if (data) setJob(data as JobDetail)
+    } catch (err) {
+      console.error('Regeneration failed:', err)
+      toast.error('Failed to regenerate. Please try again.')
+    } finally {
+      setRegenerating(false)
     }
   }
 
@@ -310,6 +353,199 @@ export default function JobDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* AI Processing Status */}
+      {job.status === 'ai_generating' && (
+        <Card className="border-purple-200 bg-purple-50">
+          <CardContent className="flex items-center gap-3 py-6">
+            <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
+            <div>
+              <p className="font-medium text-purple-700">AI is generating report & invoice...</p>
+              <p className="text-sm text-purple-600">This usually takes 10-30 seconds. Refresh to check.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* AI Generated Report */}
+      {job.ai_report_content && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <FileText className="h-4 w-4" /> AI-Generated Report
+              </CardTitle>
+              {canApprove && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRegenerate}
+                  disabled={regenerating}
+                >
+                  {regenerating ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                  ) : (
+                    <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                  )}
+                  Regenerate
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(() => {
+              const report = job.ai_report_content as Record<string, unknown>
+              return (
+                <>
+                  {report.summary && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-1">Summary</h4>
+                      <p className="text-sm text-muted-foreground">{report.summary as string}</p>
+                    </div>
+                  )}
+
+                  {Array.isArray(report.work_performed) && report.work_performed.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-1">Work Performed</h4>
+                      <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                        {(report.work_performed as string[]).map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {Array.isArray(report.findings) && report.findings.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-1">Findings</h4>
+                      <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                        {(report.findings as string[]).map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {Array.isArray(report.recommendations) && report.recommendations.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-1">Recommendations</h4>
+                      <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                        {(report.recommendations as string[]).map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {report.condition_assessment && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-1">Condition Assessment</h4>
+                      <p className="text-sm text-muted-foreground">{report.condition_assessment as string}</p>
+                    </div>
+                  )}
+
+                  {report.next_steps && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-1">Next Steps</h4>
+                      <p className="text-sm text-muted-foreground">{report.next_steps as string}</p>
+                    </div>
+                  )}
+
+                  <div className="pt-2 border-t text-xs text-muted-foreground">
+                    Generated by {(report.generated_by as string) || 'AI'} on{' '}
+                    {report.generated_at
+                      ? new Date(report.generated_at as string).toLocaleString()
+                      : 'N/A'}
+                  </div>
+                </>
+              )
+            })()}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* AI Generated Invoice */}
+      {job.ai_invoice_content && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Receipt className="h-4 w-4" /> Auto-Generated Invoice
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(() => {
+              const inv = job.ai_invoice_content as Record<string, unknown>
+              const lineItems = (inv.line_items as Array<Record<string, unknown>>) || []
+              return (
+                <>
+                  <div className="flex items-center justify-between text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Invoice #:</span>{' '}
+                      <span className="font-mono font-medium">{inv.invoice_number as string}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Due:</span>{' '}
+                      {inv.due_date
+                        ? new Date(inv.due_date as string).toLocaleDateString()
+                        : 'N/A'}
+                    </div>
+                  </div>
+
+                  {/* Line items table */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-zinc-50">
+                        <tr>
+                          <th className="text-left p-2 font-medium">Service</th>
+                          <th className="text-center p-2 font-medium">Qty</th>
+                          <th className="text-right p-2 font-medium">Price</th>
+                          <th className="text-right p-2 font-medium">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lineItems.map((item, i) => (
+                          <tr key={i} className="border-t">
+                            <td className="p-2">
+                              <div className="font-medium">{item.service as string}</div>
+                              <div className="text-xs text-muted-foreground">{item.code as string}</div>
+                            </td>
+                            <td className="p-2 text-center">{item.quantity as number}</td>
+                            <td className="p-2 text-right">${Number(item.unit_price).toFixed(2)}</td>
+                            <td className="p-2 text-right">${Number(item.total).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Totals */}
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Subtotal</span>
+                      <span>${Number(inv.subtotal).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Tax ({inv.tax_rate as number}%)</span>
+                      <span>${Number(inv.tax_amount).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-base pt-1 border-t">
+                      <span className="flex items-center gap-1">
+                        <DollarSign className="h-4 w-4" />
+                        Total
+                      </span>
+                      <span>${Number(inv.total_amount).toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-muted-foreground">
+                    Payment terms: {(inv.payment_terms as string || 'net_30').replace('_', ' ')}
+                  </div>
+                </>
+              )
+            })()}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Rejection / Revision notes */}
       {job.rejection_notes && (

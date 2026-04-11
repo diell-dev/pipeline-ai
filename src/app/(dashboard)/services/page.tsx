@@ -319,7 +319,7 @@ export default function ServicesPage() {
                 <Label htmlFor="unit">Pricing Unit *</Label>
                 <Select
                   value={formData.unit}
-                  onValueChange={(value: ServiceUnit) => setFormData({ ...formData, unit: value })}
+                  onValueChange={(value) => value && setFormData({ ...formData, unit: value as ServiceUnit })}
                 >
                   <SelectTrigger>
                     <SelectValue />

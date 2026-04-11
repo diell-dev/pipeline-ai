@@ -103,8 +103,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 
   field_tech: [
     'jobs:create', 'jobs:view_own', 'jobs:edit_own',
-    'clients:view', // read-only
-    'sites:view', // read-only
+    'clients:view', 'clients:create', // can add new clients in the field
+    'sites:view', 'sites:create', // can add new sites in the field
     'services:view',
     'documents:view_own',
   ],

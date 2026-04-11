@@ -127,6 +127,13 @@ export default function JobDetailPage() {
         updateData.approved_at = new Date().toISOString()
       }
 
+      // Guard: if job is already approved/sent, prevent duplicate approval
+      if (newStatus === 'approved' && ['approved', 'sent', 'completed'].includes(job.status)) {
+        toast.error('This job has already been approved.')
+        setActionLoading(false)
+        return
+      }
+
       const { error } = await supabase
         .from('jobs')
         .update(updateData)
@@ -152,7 +159,43 @@ export default function JobDetailPage() {
         })
       }
 
-      toast.success(`Job ${newStatus.replace('_', ' ')}`)
+      // AUTO-SEND: When approved, automatically send report + invoice to client
+      if (newStatus === 'approved') {
+        toast.success('Approved! Sending report & invoice to client...')
+        try {
+          const sendRes = await fetch(`/api/jobs/${job.id}/send`, { method: 'POST' })
+          const sendResult = await sendRes.json()
+          if (sendRes.ok && sendResult.success) {
+            toast.success(`Sent to ${sendResult.sentTo}`)
+            // Refresh job to get 'sent' status
+            const { data: refreshed } = await supabase
+              .from('jobs')
+              .select(`
+                *,
+                clients:client_id ( company_name, primary_contact_name ),
+                sites:site_id ( name, address, borough ),
+                submitter:submitted_by ( full_name, email ),
+                approver:approved_by ( full_name )
+              `)
+              .eq('id', job.id)
+              .single()
+            if (refreshed) {
+              setJob(refreshed as JobDetail)
+              setShowRejectForm(false)
+              setShowRevisionForm(false)
+              setActionLoading(false)
+              return
+            }
+          } else {
+            toast.error(sendResult.error || 'Email send failed — you can retry manually')
+          }
+        } catch {
+          toast.error('Failed to send email — job is approved, email can be retried')
+        }
+      } else {
+        toast.success(`Job ${newStatus.replace('_', ' ')}`)
+      }
+
       setJob({ ...job, status: newStatus, ...updateData } as JobDetail)
       setShowRejectForm(false)
       setShowRevisionForm(false)
@@ -566,6 +609,22 @@ export default function JobDetailPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-orange-600">{job.revision_request}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Sent confirmation */}
+      {job.status === 'sent' && (
+        <Card className="border-teal-200 bg-teal-50">
+          <CardContent className="flex items-center gap-3 py-6">
+            <CheckCircle2 className="h-5 w-5 text-teal-600" />
+            <div>
+              <p className="font-medium text-teal-700">Report & invoice sent to client</p>
+              <p className="text-sm text-teal-600">
+                Sent on {job.sent_at ? new Date(job.sent_at).toLocaleString() : 'N/A'}
+                {job.approver && ` — Approved by ${job.approver.full_name}`}
+              </p>
+            </div>
           </CardContent>
         </Card>
       )}

@@ -71,6 +71,8 @@ export interface OrganizationSettings {
   invoice_theme?: InvoiceTheme
   header?: DocHeaderFooterLayout
   footer?: DocHeaderFooterLayout
+  invoice_prefix?: string // e.g. "NYSD", "INV", custom prefix for invoice numbers
+  invoice_next_number?: number // next sequential number (auto-increments)
 }
 
 export interface Organization {

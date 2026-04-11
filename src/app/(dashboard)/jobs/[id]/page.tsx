@@ -513,6 +513,7 @@ export default function JobDetailPage() {
   const canApprove = user?.role ? hasPermission(user.role, 'jobs:approve') : false
   const canReject = user?.role ? hasPermission(user.role, 'jobs:reject') : false
   const canEdit = user?.role ? hasPermission(user.role, 'jobs:edit_all') : false
+  const canDelete = user?.role ? hasPermission(user.role, 'jobs:delete') : false
 
   const [job, setJob] = useState<JobDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -531,6 +532,8 @@ export default function JobDetailPage() {
   const [savingEdit, setSavingEdit] = useState(false)
   const [showDownloadMenu, setShowDownloadMenu] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const refreshJob = useCallback(async () => {
     const supabase = createClient()
@@ -831,6 +834,25 @@ export default function JobDetailPage() {
     )
   }
 
+  // ===== DELETE JOB (owner only) =====
+  async function handleDeleteJob() {
+    if (!job) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/jobs/${job.id}/delete`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to delete job')
+      toast.success('Job deleted and invoice voided')
+      router.push('/jobs')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      toast.error(message)
+    } finally {
+      setDeleting(false)
+      setShowDeleteConfirm(false)
+    }
+  }
+
   const statusConf = STATUS_CONFIG[job.status]
   const priorityConf = PRIORITY_CONFIG[job.priority]
   // Statuses where manual editing is allowed
@@ -870,7 +892,58 @@ export default function JobDetailPage() {
             </p>
           </div>
         </div>
+        {canDelete && job.status !== 'cancelled' && (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setShowDeleteConfirm(true)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Job
+          </Button>
+        )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="py-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-red-900">Delete this job?</h3>
+                <p className="text-sm text-red-700 mt-1">
+                  This will cancel the job and void its associated invoice.
+                  The invoice number will be preserved but marked as void.
+                  This action cannot be undone.
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleDeleteJob}
+                    disabled={deleting}
+                  >
+                    {deleting ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...</>
+                    ) : (
+                      'Yes, Delete Job'
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    disabled={deleting}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Info Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

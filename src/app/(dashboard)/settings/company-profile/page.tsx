@@ -186,6 +186,8 @@ export default function CompanyProfilePage() {
   const [invoiceTheme, setInvoiceTheme] = useState<InvoiceTheme>('modern')
   const [header, setHeader] = useState<DocHeaderFooterLayout>(DEFAULT_HEADER)
   const [footer, setFooter] = useState<DocHeaderFooterLayout>(DEFAULT_FOOTER)
+  const [invoicePrefix, setInvoicePrefix] = useState('NYSD')
+  const [invoiceNextNumber, setInvoiceNextNumber] = useState(1)
 
   // Initialize from org data
   useEffect(() => {
@@ -204,6 +206,8 @@ export default function CompanyProfilePage() {
     setInvoiceTheme(settings.invoice_theme || 'modern')
     setHeader(settings.header || DEFAULT_HEADER)
     setFooter(settings.footer || DEFAULT_FOOTER)
+    setInvoicePrefix(settings.invoice_prefix || 'NYSD')
+    setInvoiceNextNumber(settings.invoice_next_number || 1)
   }, [organization])
 
   // Upload logo
@@ -268,6 +272,8 @@ export default function CompanyProfilePage() {
         invoice_theme: invoiceTheme,
         header,
         footer,
+        invoice_prefix: invoicePrefix.trim().toUpperCase() || 'NYSD',
+        invoice_next_number: invoiceNextNumber,
       }
 
       const { error } = await supabase
@@ -566,6 +572,57 @@ export default function CompanyProfilePage() {
                 </button>
               )
             })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ======== SECTION 3.5: Invoice Numbering ======== */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Hash className="h-4 w-4" /> Invoice Numbering
+          </CardTitle>
+          <CardDescription>
+            Customize your invoice number format. Numbers auto-increment and are never reused — even voided invoices keep their number.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="invoice_prefix">Prefix</Label>
+              <Input
+                id="invoice_prefix"
+                value={invoicePrefix}
+                onChange={(e) => setInvoicePrefix(e.target.value.replace(/[^A-Za-z0-9-_]/g, '').slice(0, 10))}
+                placeholder="NYSD"
+                className="font-mono uppercase"
+              />
+              <p className="text-xs text-muted-foreground">
+                Letters, numbers, hyphens, underscores. Max 10 characters.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invoice_next_number">Next Invoice Number</Label>
+              <Input
+                id="invoice_next_number"
+                type="number"
+                min={1}
+                value={invoiceNextNumber}
+                onChange={(e) => setInvoiceNextNumber(Math.max(1, parseInt(e.target.value) || 1))}
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                The sequence number for the next invoice generated.
+              </p>
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div className="p-3 bg-zinc-50 rounded-lg border">
+            <p className="text-xs text-muted-foreground mb-1">Preview — next invoice will be:</p>
+            <p className="font-mono text-sm font-semibold">
+              {(invoicePrefix || 'NYSD').toUpperCase()}-{new Date().toISOString().slice(0, 10).replace(/-/g, '')}-{String(invoiceNextNumber).padStart(3, '0')}
+            </p>
           </div>
         </CardContent>
       </Card>

@@ -165,7 +165,9 @@ export default function JobDetailPage() {
         try {
           const sendRes = await fetch(`/api/jobs/${job.id}/send`, { method: 'POST' })
           const sendResult = await sendRes.json()
-          if (sendRes.ok && sendResult.success) {
+          if (sendResult.alreadySent) {
+            toast.success('Already sent to client by another approver')
+          } else if (sendRes.ok && sendResult.success) {
             toast.success(`Sent to ${sendResult.sentTo}`)
             // Refresh job to get 'sent' status
             const { data: refreshed } = await supabase

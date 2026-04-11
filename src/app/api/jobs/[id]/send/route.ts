@@ -47,6 +47,14 @@ export async function POST(
       return NextResponse.json({ error: 'Job not found' }, { status: 404 })
     }
 
+    // Prevent double-sends: if already sent/completed, stop immediately
+    if (['sent', 'completed'].includes(job.status)) {
+      return NextResponse.json(
+        { error: 'Already sent to client', alreadySent: true },
+        { status: 409 }
+      )
+    }
+
     if (job.status !== 'approved') {
       return NextResponse.json(
         { error: `Job must be approved before sending. Current status: ${job.status}` },
@@ -115,6 +123,8 @@ export async function POST(
 
       if (sendError) {
         console.error('Resend error:', sendError)
+        // Revert status so it can be retried
+        await supabase.from('jobs').update({ status: 'approved' }).eq('id', jobId)
         return NextResponse.json(
           { error: `Email failed: ${sendError.message}` },
           { status: 500 }
@@ -132,15 +142,30 @@ export async function POST(
       emailSent = true // Mark as sent for dev purposes
     }
 
-    // 5. Update job status
+    // 5. Atomic status update: only set to 'sent' if still 'approved'
+    // This prevents race conditions if two users try to approve/send simultaneously
     if (emailSent) {
-      await supabase
+      const { data: updated, error: updateErr } = await supabase
         .from('jobs')
         .update({
           status: 'sent',
           sent_at: new Date().toISOString(),
         })
         .eq('id', jobId)
+        .eq('status', 'approved') // Only succeeds if still approved
+        .select('id')
+        .single()
+
+      if (updateErr || !updated) {
+        // Another request already sent this — that's fine, not an error
+        return NextResponse.json({
+          success: true,
+          emailSent: false,
+          alreadySent: true,
+          sentTo: clientEmail,
+          status: 'sent',
+        })
+      }
 
       // Log activity
       await supabase.from('activity_log').insert({

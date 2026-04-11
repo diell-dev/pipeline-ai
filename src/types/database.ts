@@ -34,10 +34,14 @@ export type JobStatus =
   | 'revision_requested'
   | 'revised'
   | 'rejected'
+  | 'completed'
+  | 'cancelled'
+
+export type JobPriority = 'normal' | 'urgent' | 'emergency'
 
 export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'partially_paid' | 'overdue' | 'void'
 
-export type PaymentMethod = 'check' | 'ach' | 'wire' | 'cash' | 'other'
+export type PaymentMethod = 'check' | 'ach' | 'wire' | 'credit_card' | 'cash' | 'other'
 
 export type MatchStatus = 'unmatched' | 'suggested' | 'confirmed' | 'rejected'
 
@@ -172,8 +176,13 @@ export interface Job {
   client_id: string
   site_id: string
   submitted_by: string // user id
+  assigned_to: string | null // technician user id (for dispatch)
   status: JobStatus
+  priority: JobPriority
   service_date: string
+  scheduled_time: string | null // ISO time for dispatch scheduling
+  arrival_time: string | null // when tech arrived on site
+  completion_time: string | null // when job was finished
   tech_notes: string | null
   photos: string[] // storage URLs
   ai_report_content: Record<string, unknown> | null
@@ -187,6 +196,7 @@ export interface Job {
   revision_request: string | null
   created_at: string
   updated_at: string
+  deleted_at: string | null // soft delete for archiving
 }
 
 export interface JobLineItem {
@@ -210,6 +220,7 @@ export interface Invoice {
   client_id: string
   invoice_number: string
   amount: number
+  tax_rate: number // percentage, e.g. 8.875 for NYC
   tax_amount: number
   total_amount: number
   status: InvoiceStatus
@@ -248,6 +259,8 @@ export type ActivityAction =
   | 'job_submitted'
   | 'job_approved'
   | 'job_rejected'
+  | 'job_completed'
+  | 'job_cancelled'
   | 'invoice_sent'
   | 'invoice_paid'
   | 'payment_recorded'

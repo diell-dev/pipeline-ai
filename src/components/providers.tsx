@@ -26,40 +26,48 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const supabase = createClient()
 
     async function loadSession() {
-      setLoading(true)
+      try {
+        setLoading(true)
 
-      const { data: { user: authUser } } = await supabase.auth.getUser()
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
 
-      if (!authUser) {
+        if (authError || !authUser) {
+          clearSession()
+          return
+        }
+
+        // Fetch the user profile with organization data
+        const { data: profile, error: profileError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', authUser.id)
+          .single()
+
+        if (profileError || !profile) {
+          console.error('Failed to load user profile:', profileError?.message)
+          clearSession()
+          return
+        }
+
+        // Fetch the organization
+        const { data: org, error: orgError } = await supabase
+          .from('organizations')
+          .select('*')
+          .eq('id', profile.organization_id)
+          .single()
+
+        if (orgError || !org) {
+          console.error('Failed to load organization:', orgError?.message)
+          clearSession()
+          return
+        }
+
+        // Cast required: Supabase returns generic row types, our interfaces are stricter
+        setSession(profile as User, org as Organization)
+      } catch (err) {
+        console.error('Session load failed:', err)
         clearSession()
-        return
       }
-
-      // Fetch the user profile with organization data
-      const { data: profile } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', authUser.id)
-        .single()
-
-      if (!profile) {
-        clearSession()
-        return
-      }
-
-      // Fetch the organization
-      const { data: org } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('id', profile.organization_id)
-        .single()
-
-      if (!org) {
-        clearSession()
-        return
-      }
-
-      setSession(profile as User, org as Organization)
     }
 
     loadSession()

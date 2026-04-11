@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
-import { hasPermission } from '@/lib/permissions'
+import { hasPermission, hasAnyPermission, type Permission } from '@/lib/permissions'
 import {
   LayoutDashboard,
   ClipboardList,
@@ -24,6 +25,7 @@ interface NavItem {
   href: string
   icon: React.ElementType
   permission?: Parameters<typeof hasPermission>[1]
+  anyPermission?: Permission[] // show if user has ANY of these
 }
 
 const navItems: NavItem[] = [
@@ -31,22 +33,24 @@ const navItems: NavItem[] = [
   { label: 'Jobs', href: '/jobs', icon: ClipboardList, permission: 'jobs:view_own' },
   { label: 'Clients', href: '/clients', icon: Building2, permission: 'clients:view' },
   { label: 'Services', href: '/services', icon: Wrench, permission: 'services:view' },
-  { label: 'Invoices', href: '/invoices', icon: FileText, permission: 'invoices:view_all' },
-  { label: 'Finances', href: '/finances', icon: DollarSign, permission: 'financials:view' },
+  { label: 'Invoices', href: '/invoices', icon: FileText, anyPermission: ['invoices:view_all', 'invoices:view_own'] },
+  { label: 'Finances', href: '/finances', icon: DollarSign, anyPermission: ['financials:view', 'financials:view_limited'] },
   { label: 'Team', href: '/team', icon: Users, permission: 'users:view' },
   { label: 'Settings', href: '/settings', icon: Settings, permission: 'settings:view' },
 ]
 
 export function AppSidebar() {
   const pathname = usePathname()
-  const { user, organization, theme } = useAuthStore()
+  const { user, organization } = useAuthStore()
   const [collapsed, setCollapsed] = useState(false)
 
   // Filter nav items by user permissions
   const visibleItems = navItems.filter((item) => {
-    if (!item.permission) return true
+    if (!item.permission && !item.anyPermission) return true
     if (!user) return false
-    return hasPermission(user.role, item.permission)
+    if (item.anyPermission) return hasAnyPermission(user.role, item.anyPermission)
+    if (item.permission) return hasPermission(user.role, item.permission)
+    return false
   })
 
   return (
@@ -63,10 +67,12 @@ export function AppSidebar() {
       {/* Logo / Org Name */}
       <div className="flex h-16 items-center px-4 border-b border-white/10">
         {organization?.logo_url ? (
-          <img
+          <Image
             src={organization.logo_url}
-            alt={organization.name}
-            className={cn('h-8 object-contain', collapsed ? 'mx-auto' : '')}
+            alt={organization?.name || 'Organization'}
+            width={120}
+            height={32}
+            className={cn('h-8 w-auto object-contain', collapsed ? 'mx-auto' : '')}
           />
         ) : (
           <>

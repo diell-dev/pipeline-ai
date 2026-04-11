@@ -140,7 +140,7 @@ export const TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
  * Get the tier config for an organization
  */
 export function getTierConfig(tier: SubscriptionTier): TierConfig {
-  return TIER_CONFIGS[tier]
+  return TIER_CONFIGS[tier] || TIER_CONFIGS.basic
 }
 
 /**

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
 import { getRoleLabel } from '@/lib/permissions'
+import { getTierConfig } from '@/lib/tier-limits'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -22,11 +23,16 @@ export function AppHeader() {
   const { user, organization } = useAuthStore()
 
   async function handleSignOut() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    toast.success('Signed out')
-    router.push('/login')
-    router.refresh()
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+      toast.success('Signed out')
+      router.push('/login')
+      router.refresh()
+    } catch {
+      toast.error('Failed to sign out. Please try again.')
+    }
   }
 
   return (
@@ -34,13 +40,7 @@ export function AppHeader() {
       {/* Left: breadcrumb area (will be dynamic per page) */}
       <div className="flex items-center gap-2">
         <Badge variant="outline" className="text-xs">
-          {organization?.tier === 'basic'
-            ? 'Starter'
-            : organization?.tier === 'professional'
-              ? 'Growth'
-              : organization?.tier === 'business'
-                ? 'Full Operations'
-                : ''}
+          {organization?.tier ? getTierConfig(organization.tier).label : ''}
         </Badge>
       </div>
 

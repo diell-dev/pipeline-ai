@@ -12,14 +12,17 @@ export function useThemeBrand(theme: BrandTheme | null) {
     const activeTheme = theme || DEFAULT_THEME
     applyTheme(document.documentElement, activeTheme)
 
-    // Cleanup: remove custom properties when unmounting
+    // Cleanup: remove ALL custom properties set by generateThemeCSS
     return () => {
       const el = document.documentElement
-      el.style.removeProperty('--brand-primary')
-      el.style.removeProperty('--brand-accent')
-      el.style.removeProperty('--brand-secondary')
-      el.style.removeProperty('--brand-btn-bg')
-      el.style.removeProperty('--brand-btn-fg')
+      const vars = [
+        '--brand-primary', '--brand-accent', '--brand-secondary',
+        '--sidebar', '--sidebar-foreground', '--sidebar-primary',
+        '--sidebar-primary-foreground', '--sidebar-accent',
+        '--sidebar-accent-foreground', '--sidebar-border',
+        '--brand-btn-bg', '--brand-btn-fg',
+      ]
+      vars.forEach((v) => el.style.removeProperty(v))
     }
   }, [theme])
 }

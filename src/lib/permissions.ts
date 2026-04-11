@@ -94,7 +94,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'sites:view', 'sites:create', 'sites:edit',
     'services:view',
     'pricing:view',
-    'invoices:view_own', 'invoices:view_all',
+    'invoices:view_own', 'invoices:view_all', 'invoices:mark_paid',
     'financials:view_limited',
     'users:view',
     'settings:view',

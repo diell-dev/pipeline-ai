@@ -151,11 +151,17 @@ CREATE TABLE jobs (
   client_id UUID NOT NULL REFERENCES clients(id),
   site_id UUID NOT NULL REFERENCES sites(id),
   submitted_by UUID NOT NULL REFERENCES users(id),
+  assigned_to UUID REFERENCES users(id), -- technician assigned to this job
   status TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN (
     'submitted', 'ai_generating', 'pending_review', 'approved',
-    'sent', 'revision_requested', 'revised', 'rejected'
+    'sent', 'revision_requested', 'revised', 'rejected',
+    'completed', 'cancelled'
   )),
+  priority TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('normal', 'urgent', 'emergency')),
   service_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  scheduled_time TIMESTAMPTZ, -- when job is scheduled for dispatch
+  arrival_time TIMESTAMPTZ, -- when tech arrived on site
+  completion_time TIMESTAMPTZ, -- when work was finished
   tech_notes TEXT,
   photos JSONB NOT NULL DEFAULT '[]',
   ai_report_content JSONB,
@@ -168,7 +174,8 @@ CREATE TABLE jobs (
   rejection_notes TEXT,
   revision_request TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ -- soft delete for archiving
 );
 
 CREATE INDEX idx_jobs_org ON jobs(organization_id);
@@ -176,7 +183,10 @@ CREATE INDEX idx_jobs_status ON jobs(organization_id, status);
 CREATE INDEX idx_jobs_client ON jobs(client_id);
 CREATE INDEX idx_jobs_site ON jobs(site_id);
 CREATE INDEX idx_jobs_submitted_by ON jobs(submitted_by);
+CREATE INDEX idx_jobs_assigned_to ON jobs(assigned_to);
 CREATE INDEX idx_jobs_service_date ON jobs(organization_id, service_date DESC);
+CREATE INDEX idx_jobs_priority ON jobs(organization_id, priority) WHERE status NOT IN ('completed', 'cancelled');
+CREATE INDEX idx_jobs_active ON jobs(organization_id) WHERE deleted_at IS NULL;
 
 -- ============================================================
 -- JOB LINE ITEMS
@@ -185,7 +195,7 @@ CREATE TABLE job_line_items (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   job_id UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
   service_catalog_id UUID NOT NULL REFERENCES service_catalog(id),
-  quantity INTEGER NOT NULL DEFAULT 1,
+  quantity DECIMAL(10, 2) NOT NULL DEFAULT 1,
   unit_price DECIMAL(10, 2) NOT NULL,
   total_price DECIMAL(10, 2) NOT NULL,
   notes TEXT
@@ -203,13 +213,14 @@ CREATE TABLE invoices (
   client_id UUID NOT NULL REFERENCES clients(id),
   invoice_number TEXT NOT NULL,
   amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
+  tax_rate DECIMAL(5, 3) NOT NULL DEFAULT 0, -- percentage e.g. 8.875 for NYC
   tax_amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
   total_amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'paid', 'partially_paid', 'overdue', 'void')),
   due_date DATE NOT NULL,
   paid_date DATE,
   paid_amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
-  payment_method TEXT CHECK (payment_method IN ('check', 'ach', 'wire', 'cash', 'other')),
+  payment_method TEXT CHECK (payment_method IN ('check', 'ach', 'wire', 'credit_card', 'cash', 'other')),
   notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -258,6 +269,75 @@ CREATE TABLE activity_log (
 
 CREATE INDEX idx_activity_org ON activity_log(organization_id, created_at DESC);
 CREATE INDEX idx_activity_entity ON activity_log(entity_type, entity_id);
+
+-- ============================================================
+-- SECURITY TRIGGERS — Prevent privilege escalation
+-- ============================================================
+
+-- Prevent users from escalating their own role or switching organizations
+-- RLS only checks row-level access; this trigger enforces column-level security
+CREATE OR REPLACE FUNCTION prevent_user_self_escalation()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- If the user is updating their own record (not an admin updating someone else)
+  IF OLD.id = auth.uid() THEN
+    -- Prevent role changes on self-update
+    IF NEW.role IS DISTINCT FROM OLD.role THEN
+      RAISE EXCEPTION 'Cannot change your own role';
+    END IF;
+    -- Prevent organization changes
+    IF NEW.organization_id IS DISTINCT FROM OLD.organization_id THEN
+      RAISE EXCEPTION 'Cannot change your own organization';
+    END IF;
+    -- Prevent deactivating yourself
+    IF NEW.is_active IS DISTINCT FROM OLD.is_active THEN
+      RAISE EXCEPTION 'Cannot change your own active status';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_prevent_user_escalation
+  BEFORE UPDATE ON users
+  FOR EACH ROW
+  EXECUTE FUNCTION prevent_user_self_escalation();
+
+-- Prevent owners from changing billing/tier fields on their org
+-- These should only be changed by the billing system (service role)
+CREATE OR REPLACE FUNCTION protect_org_billing_fields()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Only service_role (bypasses RLS) should change these fields
+  -- Regular authenticated users cannot modify billing/tier data
+  IF current_setting('request.jwt.claims', true)::jsonb->>'role' = 'authenticated' THEN
+    IF NEW.tier IS DISTINCT FROM OLD.tier THEN
+      RAISE EXCEPTION 'Subscription tier can only be changed through the billing system';
+    END IF;
+    IF NEW.stripe_customer_id IS DISTINCT FROM OLD.stripe_customer_id THEN
+      RAISE EXCEPTION 'Stripe customer ID can only be changed through the billing system';
+    END IF;
+    IF NEW.stripe_subscription_id IS DISTINCT FROM OLD.stripe_subscription_id THEN
+      RAISE EXCEPTION 'Stripe subscription ID can only be changed through the billing system';
+    END IF;
+    IF NEW.max_users IS DISTINCT FROM OLD.max_users THEN
+      RAISE EXCEPTION 'User limits can only be changed through the billing system';
+    END IF;
+    IF NEW.max_ai_generations_per_month IS DISTINCT FROM OLD.max_ai_generations_per_month THEN
+      RAISE EXCEPTION 'AI generation limits can only be changed through the billing system';
+    END IF;
+    IF NEW.storage_limit_gb IS DISTINCT FROM OLD.storage_limit_gb THEN
+      RAISE EXCEPTION 'Storage limits can only be changed through the billing system';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_protect_org_billing
+  BEFORE UPDATE ON organizations
+  FOR EACH ROW
+  EXECUTE FUNCTION protect_org_billing_fields();
 
 -- ============================================================
 -- AUTO-UPDATE updated_at TRIGGER
@@ -313,6 +393,13 @@ $$ LANGUAGE sql SECURITY DEFINER STABLE;
 CREATE POLICY "Users can view own org" ON organizations
   FOR SELECT USING (id = auth.user_org_id());
 
+-- ORGANIZATIONS: owners and super_admins can update their org (branding, settings)
+CREATE POLICY "Owners can update own org" ON organizations
+  FOR UPDATE USING (
+    id = auth.user_org_id()
+    AND auth.user_role() IN ('super_admin', 'owner')
+  );
+
 -- USERS: see users in same org
 CREATE POLICY "Users can view org members" ON users
   FOR SELECT USING (organization_id = auth.user_org_id());
@@ -352,12 +439,24 @@ CREATE POLICY "Staff can update clients" ON clients
     AND auth.user_role() IN ('super_admin', 'owner', 'office_manager')
   );
 
--- SITES: org-scoped
+-- SITES: org-scoped (all org members can view, staff can manage)
 CREATE POLICY "Org members can view sites" ON sites
   FOR SELECT USING (organization_id = auth.user_org_id());
 
-CREATE POLICY "Staff can manage sites" ON sites
-  FOR ALL USING (
+CREATE POLICY "Staff can insert sites" ON sites
+  FOR INSERT WITH CHECK (
+    organization_id = auth.user_org_id()
+    AND auth.user_role() IN ('super_admin', 'owner', 'office_manager')
+  );
+
+CREATE POLICY "Staff can update sites" ON sites
+  FOR UPDATE USING (
+    organization_id = auth.user_org_id()
+    AND auth.user_role() IN ('super_admin', 'owner', 'office_manager')
+  );
+
+CREATE POLICY "Staff can delete sites" ON sites
+  FOR DELETE USING (
     organization_id = auth.user_org_id()
     AND auth.user_role() IN ('super_admin', 'owner', 'office_manager')
   );
@@ -415,7 +514,7 @@ CREATE POLICY "Staff can update jobs" ON jobs
     )
   );
 
--- JOB LINE ITEMS: through job org
+-- JOB LINE ITEMS: through job org, role-restricted writes
 CREATE POLICY "View job line items" ON job_line_items
   FOR SELECT USING (
     EXISTS (
@@ -424,11 +523,36 @@ CREATE POLICY "View job line items" ON job_line_items
     )
   );
 
-CREATE POLICY "Manage job line items" ON job_line_items
-  FOR ALL USING (
+CREATE POLICY "Staff can manage job line items" ON job_line_items
+  FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM jobs j
       WHERE j.id = job_id AND j.organization_id = auth.user_org_id()
+      AND (
+        auth.user_role() IN ('super_admin', 'owner', 'office_manager')
+        OR j.submitted_by = auth.uid()
+      )
+    )
+  );
+
+CREATE POLICY "Staff can update job line items" ON job_line_items
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM jobs j
+      WHERE j.id = job_id AND j.organization_id = auth.user_org_id()
+      AND (
+        auth.user_role() IN ('super_admin', 'owner', 'office_manager')
+        OR j.submitted_by = auth.uid()
+      )
+    )
+  );
+
+CREATE POLICY "Staff can delete job line items" ON job_line_items
+  FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM jobs j
+      WHERE j.id = job_id AND j.organization_id = auth.user_org_id()
+      AND auth.user_role() IN ('super_admin', 'owner', 'office_manager')
     )
   );
 

@@ -153,8 +153,9 @@ export async function POST(
       // ignore revert error
     }
 
+    const errMsg = err instanceof Error ? err.message : String(err)
     return NextResponse.json(
-      { error: 'AI generation failed. Job status reverted to submitted.' },
+      { error: 'AI generation failed. Job status reverted to submitted.', detail: errMsg },
       { status: 500 }
     )
   }

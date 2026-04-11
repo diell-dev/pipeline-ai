@@ -70,16 +70,16 @@ export function AppHeader() {
               </p>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => router.push('/settings/profile')}>
+            <DropdownMenuItem onClick={() => router.push('/settings/profile')}>
               <User className="mr-2 h-4 w-4" />
               Profile
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => router.push('/settings')}>
+            <DropdownMenuItem onClick={() => router.push('/settings')}>
               <Settings className="mr-2 h-4 w-4" />
               Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={handleSignOut} variant="destructive">
+            <DropdownMenuItem onClick={handleSignOut} variant="destructive">
               <LogOut className="mr-2 h-4 w-4" />
               Sign out
             </DropdownMenuItem>

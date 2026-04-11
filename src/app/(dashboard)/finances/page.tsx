@@ -307,24 +307,24 @@ export default function FinancesPage() {
     : null
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Finances</h1>
-        <p className="text-muted-foreground text-sm">
+        <h1 className="text-xl md:text-2xl font-bold tracking-tight">Finances</h1>
+        <p className="text-muted-foreground text-sm hidden sm:block">
           Revenue tracking, payment status, and financial overview.
         </p>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <Card>
           <CardContent className="pt-4 pb-3 px-4">
             <div className="flex items-center gap-2 text-muted-foreground mb-1">
               <TrendingUp className="h-4 w-4" />
               <span className="text-xs font-medium">Revenue This Month</span>
             </div>
-            <p className="text-2xl font-bold">
+            <p className="text-lg md:text-2xl font-bold">
               ${(stats?.revenueThisMonth || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </p>
             {revenueChange !== null && (
@@ -341,7 +341,7 @@ export default function FinancesPage() {
               <Clock className="h-4 w-4" />
               <span className="text-xs font-medium">Outstanding</span>
             </div>
-            <p className="text-2xl font-bold text-amber-600">
+            <p className="text-lg md:text-2xl font-bold text-amber-600">
               ${(stats?.outstanding || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
@@ -356,7 +356,7 @@ export default function FinancesPage() {
               <CheckCircle2 className="h-4 w-4" />
               <span className="text-xs font-medium">Collected</span>
             </div>
-            <p className="text-2xl font-bold text-green-600">
+            <p className="text-lg md:text-2xl font-bold text-green-600">
               ${(stats?.collected || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
@@ -393,7 +393,7 @@ export default function FinancesPage() {
               </Button>
             )}
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2 md:gap-3">
             {/* Status filter */}
             <select
               value={statusFilter}
@@ -517,13 +517,13 @@ export default function FinancesPage() {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[600px]">
                   <thead className="bg-zinc-50 border-y">
                     <tr>
-                      <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Invoice</th>
-                      <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Client</th>
+                      <th className="text-left px-3 md:px-4 py-2.5 font-medium text-muted-foreground">Invoice</th>
+                      <th className="text-left px-3 md:px-4 py-2.5 font-medium text-muted-foreground">Client</th>
                       <th
-                        className="text-left px-4 py-2.5 font-medium text-muted-foreground cursor-pointer hover:text-foreground"
+                        className="text-left px-3 md:px-4 py-2.5 font-medium text-muted-foreground cursor-pointer hover:text-foreground"
                         onClick={() => toggleSort('status')}
                       >
                         <span className="flex items-center gap-1">
@@ -531,16 +531,16 @@ export default function FinancesPage() {
                         </span>
                       </th>
                       <th
-                        className="text-right px-4 py-2.5 font-medium text-muted-foreground cursor-pointer hover:text-foreground"
+                        className="text-right px-3 md:px-4 py-2.5 font-medium text-muted-foreground cursor-pointer hover:text-foreground"
                         onClick={() => toggleSort('total_amount')}
                       >
                         <span className="flex items-center justify-end gap-1">
                           Amount <ArrowUpDown className="h-3 w-3" />
                         </span>
                       </th>
-                      <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Paid</th>
+                      <th className="text-right px-3 md:px-4 py-2.5 font-medium text-muted-foreground hidden sm:table-cell">Paid</th>
                       <th
-                        className="text-right px-4 py-2.5 font-medium text-muted-foreground cursor-pointer hover:text-foreground"
+                        className="text-right px-3 md:px-4 py-2.5 font-medium text-muted-foreground cursor-pointer hover:text-foreground hidden md:table-cell"
                         onClick={() => toggleSort('due_date')}
                       >
                         <span className="flex items-center justify-end gap-1">
@@ -548,14 +548,14 @@ export default function FinancesPage() {
                         </span>
                       </th>
                       <th
-                        className="text-right px-4 py-2.5 font-medium text-muted-foreground cursor-pointer hover:text-foreground"
+                        className="text-right px-3 md:px-4 py-2.5 font-medium text-muted-foreground cursor-pointer hover:text-foreground hidden lg:table-cell"
                         onClick={() => toggleSort('created_at')}
                       >
                         <span className="flex items-center justify-end gap-1">
                           Created <ArrowUpDown className="h-3 w-3" />
                         </span>
                       </th>
-                      <th className="px-4 py-2.5"></th>
+                      <th className="px-3 md:px-4 py-2.5"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -568,34 +568,34 @@ export default function FinancesPage() {
 
                       return (
                         <tr key={inv.id} className="border-b hover:bg-zinc-50/50 transition-colors">
-                          <td className="px-4 py-3">
+                          <td className="px-3 md:px-4 py-3">
                             <span className="font-mono text-xs font-medium">{inv.invoice_number}</span>
                           </td>
-                          <td className="px-4 py-3">
-                            <span className="text-sm">{inv.clients?.company_name || '—'}</span>
+                          <td className="px-3 md:px-4 py-3">
+                            <span className="text-sm truncate max-w-[120px] block">{inv.clients?.company_name || '—'}</span>
                           </td>
-                          <td className="px-4 py-3">
-                            <Badge className={isOverdue && inv.status !== 'overdue' ? STATUS_CONFIG.overdue.className : statusConf.className} variant="outline">
+                          <td className="px-3 md:px-4 py-3">
+                            <Badge className={`text-[10px] md:text-xs ${isOverdue && inv.status !== 'overdue' ? STATUS_CONFIG.overdue.className : statusConf.className}`} variant="outline">
                               {isOverdue && inv.status !== 'overdue' ? 'Overdue' : statusConf.label}
                             </Badge>
                           </td>
-                          <td className="px-4 py-3 text-right font-medium">
+                          <td className="px-3 md:px-4 py-3 text-right font-medium">
                             ${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                           </td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-3 md:px-4 py-3 text-right hidden sm:table-cell">
                             {paid > 0 ? (
                               <span className="text-green-600">${paid.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
                           </td>
-                          <td className={`px-4 py-3 text-right text-xs ${isOverdue ? 'text-red-600 font-medium' : 'text-muted-foreground'}`}>
+                          <td className={`px-3 md:px-4 py-3 text-right text-xs hidden md:table-cell ${isOverdue ? 'text-red-600 font-medium' : 'text-muted-foreground'}`}>
                             {new Date(inv.due_date).toLocaleDateString()}
                           </td>
-                          <td className="px-4 py-3 text-right text-xs text-muted-foreground">
+                          <td className="px-3 md:px-4 py-3 text-right text-xs text-muted-foreground hidden lg:table-cell">
                             {new Date(inv.created_at).toLocaleDateString()}
                           </td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-3 md:px-4 py-3 text-right">
                             <Button
                               variant="ghost"
                               size="sm"

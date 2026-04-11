@@ -206,17 +206,17 @@ export default function InvoicesPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Invoices</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-xl md:text-2xl font-bold tracking-tight">Invoices</h1>
+        <p className="text-muted-foreground text-sm hidden sm:block">
           Track invoices, payment status, and outstanding balances.
         </p>
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative w-72">
+      <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+        <div className="relative w-full sm:w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Filter by client..."
@@ -297,18 +297,18 @@ export default function InvoicesPage() {
       ) : (
         <>
           {/* Table */}
-          <div className="border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="border rounded-lg overflow-x-auto">
+            <table className="w-full text-sm min-w-[500px]">
               <thead>
                 <tr className="border-b bg-zinc-50">
-                  <th className="text-left font-medium px-4 py-3">Invoice #</th>
-                  <th className="text-left font-medium px-4 py-3">Client</th>
-                  <th className="text-left font-medium px-4 py-3">Date</th>
-                  <th className="text-left font-medium px-4 py-3">Due</th>
-                  <th className="text-right font-medium px-4 py-3">Amount</th>
-                  <th className="text-right font-medium px-4 py-3">Paid</th>
-                  <th className="text-center font-medium px-4 py-3">Status</th>
-                  {canDeleteInvoice && <th className="text-center font-medium px-4 py-3 w-20"></th>}
+                  <th className="text-left font-medium px-3 md:px-4 py-3">Invoice #</th>
+                  <th className="text-left font-medium px-3 md:px-4 py-3">Client</th>
+                  <th className="text-left font-medium px-3 md:px-4 py-3 hidden sm:table-cell">Date</th>
+                  <th className="text-left font-medium px-3 md:px-4 py-3 hidden md:table-cell">Due</th>
+                  <th className="text-right font-medium px-3 md:px-4 py-3">Amount</th>
+                  <th className="text-right font-medium px-3 md:px-4 py-3 hidden sm:table-cell">Paid</th>
+                  <th className="text-center font-medium px-3 md:px-4 py-3">Status</th>
+                  {canDeleteInvoice && <th className="text-center font-medium px-3 md:px-4 py-3 w-20"></th>}
                 </tr>
               </thead>
               <tbody>
@@ -329,22 +329,22 @@ export default function InvoicesPage() {
                         }
                       }}
                     >
-                      <td className="px-4 py-3 font-mono text-xs font-medium">
+                      <td className="px-3 md:px-4 py-3 font-mono text-xs font-medium">
                         {inv.invoice_number}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 md:px-4 py-3 max-w-[120px] truncate">
                         {inv.clients?.company_name || '—'}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="px-3 md:px-4 py-3 text-muted-foreground hidden sm:table-cell">
                         {formatDate(inv.created_at)}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="px-3 md:px-4 py-3 text-muted-foreground hidden md:table-cell">
                         {formatDate(inv.due_date)}
                       </td>
-                      <td className="px-4 py-3 text-right font-medium">
+                      <td className="px-3 md:px-4 py-3 text-right font-medium">
                         {formatCurrency(inv.total_amount)}
                       </td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">
+                      <td className="px-3 md:px-4 py-3 text-right text-muted-foreground hidden sm:table-cell">
                         {inv.paid_amount > 0 ? formatCurrency(inv.paid_amount) : '—'}
                       </td>
                       <td className="px-4 py-3 text-center">

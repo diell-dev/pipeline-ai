@@ -867,27 +867,27 @@ export default function JobDetailPage() {
   const invoiceWasEdited = invoiceMeta?.manually_edited === true
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => router.push('/jobs')}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-2 md:gap-3 min-w-0">
+          <Button variant="ghost" size="icon" className="shrink-0 mt-0.5" onClick={() => router.push('/jobs')}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-bold tracking-tight">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
+              <h1 className="text-lg md:text-2xl font-bold tracking-tight truncate">
                 {job.clients?.company_name || 'Job Details'}
               </h1>
-              <Badge className={statusConf.className}>{statusConf.label}</Badge>
+              <Badge className={`text-[10px] md:text-xs ${statusConf.className}`}>{statusConf.label}</Badge>
               {job.priority !== 'normal' && (
-                <Badge className={priorityConf.className}>
-                  <AlertTriangle className="h-3 w-3 mr-1" />
+                <Badge className={`text-[10px] md:text-xs ${priorityConf.className}`}>
+                  <AlertTriangle className="h-3 w-3 mr-0.5" />
                   {priorityConf.label}
                 </Badge>
               )}
             </div>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-xs md:text-sm text-muted-foreground mt-1">
               Job ID: {job.id.slice(0, 8)}...
             </p>
           </div>
@@ -896,10 +896,11 @@ export default function JobDetailPage() {
           <Button
             variant="destructive"
             size="sm"
+            className="shrink-0"
             onClick={() => setShowDeleteConfirm(true)}
           >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete Job
+            <Trash2 className="h-4 w-4 md:mr-2" />
+            <span className="hidden md:inline">Delete Job</span>
           </Button>
         )}
       </div>
@@ -1033,7 +1034,30 @@ export default function JobDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="border rounded-lg overflow-hidden">
+            {/* Mobile: stacked cards */}
+            <div className="space-y-2 md:hidden">
+              {job.job_line_items.map((li, idx) => {
+                const name = li.service_catalog?.name || li.description || 'Service'
+                const code = li.service_catalog?.code || ''
+                const qty = li.quantity || 1
+                const price = li.unit_price || 0
+                const total = li.total_price || qty * price
+                return (
+                  <div key={idx} className="border rounded-lg p-3 space-y-1">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="font-medium text-sm">{name}</span>
+                        {code && <span className="text-xs text-muted-foreground ml-1.5">({code})</span>}
+                      </div>
+                      <span className="font-semibold text-sm">${total.toFixed(2)}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{qty} x ${price.toFixed(2)}</p>
+                  </div>
+                )
+              })}
+            </div>
+            {/* Desktop: table */}
+            <div className="border rounded-lg overflow-hidden hidden md:block">
               <table className="w-full text-sm">
                 <thead className="bg-zinc-50">
                   <tr>

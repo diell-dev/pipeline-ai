@@ -14,10 +14,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
-import { Bell, LogOut, User, Settings } from 'lucide-react'
+import { Bell, LogOut, User, Settings, Menu } from 'lucide-react'
 import { toast } from 'sonner'
 
-export function AppHeader() {
+export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   const router = useRouter()
   const { user, organization } = useAuthStore()
 
@@ -35,20 +35,28 @@ export function AppHeader() {
   }
 
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-white px-6">
-      {/* Left: breadcrumb area (will be dynamic per page) */}
+    <header className="flex h-14 items-center justify-between border-b bg-white px-4 md:px-6">
+      {/* Left: hamburger + breadcrumb area */}
       <div className="flex items-center gap-2">
-        <Badge variant="outline" className="text-xs">
+        {/* Mobile hamburger */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
+          onClick={onMenuClick}
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+        <Badge variant="outline" className="text-xs hidden sm:inline-flex">
           {organization?.tier ? getTierConfig(organization.tier).label : ''}
         </Badge>
       </div>
 
       {/* Right: notifications + user menu */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
         {/* Notification bell */}
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-4 w-4" />
-          {/* Notification badge — will be dynamic */}
         </Button>
 
         {/* User dropdown */}

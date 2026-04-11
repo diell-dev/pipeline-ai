@@ -153,21 +153,22 @@ export default function ClientsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Clients</h1>
-          <p className="text-muted-foreground text-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">Clients</h1>
+          <p className="text-muted-foreground text-sm hidden sm:block">
             {canCreate
               ? 'Manage client accounts, contacts, and sites.'
               : 'View client information.'}
           </p>
         </div>
         {canCreate && (
-          <Button onClick={() => setShowAddDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Client
+          <Button onClick={() => setShowAddDialog(true)} size="sm" className="shrink-0">
+            <Plus className="mr-1 h-4 w-4" />
+            <span className="hidden sm:inline">Add Client</span>
+            <span className="sm:hidden">Add</span>
           </Button>
         )}
       </div>

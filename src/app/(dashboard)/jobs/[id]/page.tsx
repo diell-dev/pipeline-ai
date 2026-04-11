@@ -251,17 +251,26 @@ function ReportEditor({
   )
 }
 
+interface ServiceCatalogItem {
+  id: string
+  name: string
+  code: string
+  default_price: number
+}
+
 // ===== INVOICE EDIT COMPONENT =====
 function InvoiceEditor({
   invoice,
   onSave,
   onCancel,
   saving,
+  services = [],
 }: {
   invoice: Record<string, unknown>
   onSave: (updated: Record<string, unknown>) => void
   onCancel: () => void
   saving: boolean
+  services?: ServiceCatalogItem[]
 }) {
   const [lineItems, setLineItems] = useState<EditableLineItem[]>(() => {
     const items = (invoice.line_items as Array<Record<string, unknown>>) || []
@@ -274,6 +283,28 @@ function InvoiceEditor({
     }))
   })
   const taxRate = Number(invoice.tax_rate) || 8.875
+  const [openDropdownIndex, setOpenDropdownIndex] = useState<number | null>(null)
+  const [serviceSearches, setServiceSearches] = useState<Record<number, string>>({})
+
+  function getFilteredServices(index: number): ServiceCatalogItem[] {
+    const search = serviceSearches[index]?.toLowerCase() || ''
+    if (!search) return services
+    return services.filter((s) => s.name.toLowerCase().includes(search))
+  }
+
+  function selectService(index: number, service: ServiceCatalogItem) {
+    updateItem(index, 'service', service.name)
+    updateItem(index, 'code', service.code)
+    updateItem(index, 'unit_price', service.default_price)
+    setOpenDropdownIndex(null)
+    setServiceSearches({ ...serviceSearches, [index]: '' })
+  }
+
+  function handleServiceInput(index: number, value: string) {
+    updateItem(index, 'service', value)
+    setServiceSearches({ ...serviceSearches, [index]: value })
+    setOpenDropdownIndex(index)
+  }
 
   function recalcItem(item: EditableLineItem): EditableLineItem {
     return { ...item, total: item.quantity * item.unit_price }
@@ -332,15 +363,43 @@ function InvoiceEditor({
       {/* Editable line items */}
       <div className="space-y-2">
         {lineItems.map((item, i) => (
-          <div key={i} className="grid grid-cols-12 gap-2 items-end">
-            <div className="col-span-4">
+          <div key={i} className="grid grid-cols-12 gap-2 items-end relative">
+            <div className="col-span-4 relative">
               {i === 0 && <Label className="text-xs">Service</Label>}
               <Input
                 value={item.service}
-                onChange={(e) => updateItem(i, 'service', e.target.value)}
-                placeholder="Service name"
+                onChange={(e) => handleServiceInput(i, e.target.value)}
+                onFocus={() => setOpenDropdownIndex(i)}
+                placeholder="Service name or search catalog"
                 className="text-sm"
               />
+              {openDropdownIndex === i && services.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-48 overflow-auto">
+                  {getFilteredServices(i).map((service) => (
+                    <button
+                      key={service.id}
+                      type="button"
+                      onClick={() => selectService(i, service)}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-50 transition-colors border-b last:border-0"
+                    >
+                      <div className="font-medium">{service.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {service.code} - ${service.default_price.toFixed(2)}
+                      </div>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenDropdownIndex(null)
+                      setServiceSearches({ ...serviceSearches, [i]: '' })
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50 transition-colors text-amber-700 font-medium border-t"
+                  >
+                    Custom Service
+                  </button>
+                </div>
+              )}
             </div>
             <div className="col-span-2">
               {i === 0 && <Label className="text-xs">Code</Label>}
@@ -447,6 +506,7 @@ export default function JobDetailPage() {
   const [showRevisionForm, setShowRevisionForm] = useState(false)
   const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null)
   const [regenerating, setRegenerating] = useState(false)
+  const [services, setServices] = useState<ServiceCatalogItem[]>([])
 
   // Manual edit states
   const [editingReport, setEditingReport] = useState(false)
@@ -480,12 +540,24 @@ export default function JobDetailPage() {
         toast.error('Failed to load job details')
       } else {
         setJob(data as JobDetail)
+
+        // Load service catalog if we have org
+        if (organization?.id) {
+          const { data: servicesData } = await supabase
+            .from('service_catalog')
+            .select('id, name, code, default_price')
+            .eq('organization_id', organization.id)
+            .eq('is_active', true)
+            .order('name')
+
+          setServices((servicesData || []) as ServiceCatalogItem[])
+        }
       }
       setLoading(false)
     }
 
     if (jobId) loadJob()
-  }, [jobId])
+  }, [jobId, organization])
 
   // ===== SAVE REPORT EDIT =====
   async function handleSaveReport(updatedReport: Record<string, unknown>) {
@@ -1056,6 +1128,7 @@ export default function JobDetailPage() {
                 onSave={handleSaveInvoice}
                 onCancel={() => setEditingInvoice(false)}
                 saving={savingEdit}
+                services={services}
               />
             ) : (
               (() => {

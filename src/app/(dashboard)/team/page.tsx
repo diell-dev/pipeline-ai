@@ -85,7 +85,7 @@ export default function TeamPage() {
         console.error('Failed to load team:', error.message)
         toast.error('Failed to load team members')
       } else {
-        setMembers(data || [])
+        setMembers((data || []).filter((m: any) => m.role !== 'super_admin'))
       }
       setLoading(false)
     }

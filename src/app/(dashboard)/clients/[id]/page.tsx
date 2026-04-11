@@ -8,6 +8,7 @@
  * Field techs see read-only view.
  */
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
@@ -267,70 +268,78 @@ export default function ClientDetailPage() {
       {/* Stats Cards */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Card>
-            <CardContent className="pt-4 pb-3 px-4">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                <ClipboardList className="h-4 w-4" />
-                <span className="text-xs font-medium">Jobs</span>
-              </div>
-              <p className="text-2xl font-bold">{stats.jobsCompleted}</p>
-              <p className="text-xs text-muted-foreground">
-                of {stats.totalJobs} completed
-              </p>
-            </CardContent>
-          </Card>
+          <Link href={`/jobs?client=${clientId}`}>
+            <Card className="cursor-pointer hover:shadow-md transition-shadow">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <ClipboardList className="h-4 w-4" />
+                  <span className="text-xs font-medium">Jobs</span>
+                </div>
+                <p className="text-2xl font-bold">{stats.jobsCompleted}</p>
+                <p className="text-xs text-muted-foreground">
+                  of {stats.totalJobs} completed
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card>
-            <CardContent className="pt-4 pb-3 px-4">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                <FileText className="h-4 w-4" />
-                <span className="text-xs font-medium">Reports</span>
-              </div>
-              <p className="text-2xl font-bold">{stats.totalReports}</p>
-              <p className="text-xs text-muted-foreground">AI-generated</p>
-            </CardContent>
-          </Card>
+          <Link href={`/jobs?client=${clientId}&has_report=true`}>
+            <Card className="cursor-pointer hover:shadow-md transition-shadow">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <FileText className="h-4 w-4" />
+                  <span className="text-xs font-medium">Reports</span>
+                </div>
+                <p className="text-2xl font-bold">{stats.totalReports}</p>
+                <p className="text-xs text-muted-foreground">AI-generated</p>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card>
-            <CardContent className="pt-4 pb-3 px-4">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                <DollarSign className="h-4 w-4" />
-                <span className="text-xs font-medium">Invoices</span>
-              </div>
-              <p className="text-2xl font-bold">{stats.totalInvoices}</p>
-              <div className="flex gap-2 mt-0.5">
-                {stats.invoicesPaid > 0 && (
-                  <Badge className="text-[10px] bg-green-100 text-green-700 border-0">
-                    {stats.invoicesPaid} paid
-                  </Badge>
-                )}
-                {stats.invoicesUnpaid > 0 && (
-                  <Badge className="text-[10px] bg-amber-100 text-amber-700 border-0">
-                    {stats.invoicesUnpaid} unpaid
-                  </Badge>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className={stats.unpaidBalance > 0 ? 'border-amber-200 bg-amber-50/50' : ''}>
-            <CardContent className="pt-4 pb-3 px-4">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                {stats.unpaidBalance > 0 ? (
-                  <AlertCircle className="h-4 w-4 text-amber-600" />
-                ) : (
+          <Link href={`/invoices?client=${clientId}`}>
+            <Card className="cursor-pointer hover:shadow-md transition-shadow">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
                   <DollarSign className="h-4 w-4" />
-                )}
-                <span className="text-xs font-medium">Unpaid Balance</span>
-              </div>
-              <p className={`text-2xl font-bold ${stats.unpaidBalance > 0 ? 'text-amber-700' : 'text-green-700'}`}>
-                {formatCurrency(stats.unpaidBalance)}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                of {formatCurrency(stats.totalInvoiced)} total
-              </p>
-            </CardContent>
-          </Card>
+                  <span className="text-xs font-medium">Invoices</span>
+                </div>
+                <p className="text-2xl font-bold">{stats.totalInvoices}</p>
+                <div className="flex gap-2 mt-0.5">
+                  {stats.invoicesPaid > 0 && (
+                    <Badge className="text-[10px] bg-green-100 text-green-700 border-0">
+                      {stats.invoicesPaid} paid
+                    </Badge>
+                  )}
+                  {stats.invoicesUnpaid > 0 && (
+                    <Badge className="text-[10px] bg-amber-100 text-amber-700 border-0">
+                      {stats.invoicesUnpaid} unpaid
+                    </Badge>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href={`/invoices?client=${clientId}&status=unpaid`}>
+            <Card className={`cursor-pointer hover:shadow-md transition-shadow ${stats.unpaidBalance > 0 ? 'border-amber-200 bg-amber-50/50' : ''}`}>
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  {stats.unpaidBalance > 0 ? (
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                  ) : (
+                    <DollarSign className="h-4 w-4" />
+                  )}
+                  <span className="text-xs font-medium">Unpaid Balance</span>
+                </div>
+                <p className={`text-2xl font-bold ${stats.unpaidBalance > 0 ? 'text-amber-700' : 'text-green-700'}`}>
+                  {formatCurrency(stats.unpaidBalance)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  of {formatCurrency(stats.totalInvoiced)} total
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
       )}
 

@@ -10,7 +10,7 @@
  * Links to /jobs/new for job creation.
  */
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
 import { hasPermission } from '@/lib/permissions'
@@ -56,6 +56,7 @@ interface JobWithRelations extends Job {
 
 export default function JobsPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, organization } = useAuthStore()
   const canCreate = user?.role ? hasPermission(user.role, 'jobs:create') : false
   const canViewAll = user?.role ? hasPermission(user.role, 'jobs:view_all') : false
@@ -63,6 +64,7 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<JobWithRelations[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | JobStatus>('all')
+  const clientFilter = searchParams.get('client')
 
   useEffect(() => {
     if (!organization || !user) return
@@ -88,6 +90,11 @@ export default function JobsPage() {
         query = query.eq('submitted_by', user!.id)
       }
 
+      // Client filter from query param
+      if (clientFilter) {
+        query = query.eq('client_id', clientFilter)
+      }
+
       // Status filter
       if (filter !== 'all') {
         query = query.eq('status', filter)
@@ -104,7 +111,7 @@ export default function JobsPage() {
     }
 
     loadJobs()
-  }, [organization, user, canViewAll, filter])
+  }, [organization, user, canViewAll, filter, clientFilter])
 
   return (
     <div className="p-6 space-y-6">

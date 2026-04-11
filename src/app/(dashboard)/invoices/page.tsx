@@ -10,6 +10,7 @@
  * - Status badges (paid, unpaid, overdue, etc.)
  */
 import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
 import { Card, CardContent } from '@/components/ui/card'
@@ -56,6 +57,7 @@ const PAGE_SIZE = 15
 
 export default function InvoicesPage() {
   const { organization } = useAuthStore()
+  const searchParams = useSearchParams()
 
   const [invoices, setInvoices] = useState<InvoiceRow[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -64,9 +66,12 @@ export default function InvoicesPage() {
   const [totalCount, setTotalCount] = useState(0)
 
   // Filter
-  const [selectedClientId, setSelectedClientId] = useState<string>('')
+  const clientIdFromParam = searchParams.get('client')
+  const statusFromParam = searchParams.get('status')
+  const [selectedClientId, setSelectedClientId] = useState<string>(clientIdFromParam || '')
   const [clientSearch, setClientSearch] = useState('')
   const [showClientDropdown, setShowClientDropdown] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<InvoiceStatus | ''>((statusFromParam as InvoiceStatus) || '')
 
   // Load clients for filter
   useEffect(() => {
@@ -82,10 +87,18 @@ export default function InvoicesPage() {
         .order('company_name')
 
       setClients(data || [])
+
+      // If client filter is in query param, set the display name
+      if (clientIdFromParam && data) {
+        const client = data.find((c) => c.id === clientIdFromParam)
+        if (client) {
+          setClientSearch(client.company_name)
+        }
+      }
     }
 
     loadClients()
-  }, [organization])
+  }, [organization, clientIdFromParam])
 
   // Load invoices
   useEffect(() => {
@@ -105,6 +118,10 @@ export default function InvoicesPage() {
         query = query.eq('client_id', selectedClientId)
       }
 
+      if (statusFilter) {
+        query = query.eq('status', statusFilter)
+      }
+
       const from = page * PAGE_SIZE
       const to = from + PAGE_SIZE - 1
 
@@ -121,7 +138,7 @@ export default function InvoicesPage() {
     }
 
     loadInvoices()
-  }, [organization, page, selectedClientId])
+  }, [organization, page, selectedClientId, statusFilter])
 
   // Filtered client list for dropdown
   const filteredClients = useMemo(() => {
@@ -167,8 +184,8 @@ export default function InvoicesPage() {
         </p>
       </div>
 
-      {/* Client Filter */}
-      <div className="flex items-center gap-3">
+      {/* Filters */}
+      <div className="flex items-center gap-3 flex-wrap">
         <div className="relative w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -207,6 +224,23 @@ export default function InvoicesPage() {
             </div>
           )}
         </div>
+
+        <select
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter((e.target.value as InvoiceStatus) || '')
+            setPage(0)
+          }}
+          className="flex h-9 rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <option value="">All Status</option>
+          <option value="draft">Draft</option>
+          <option value="sent">Sent</option>
+          <option value="paid">Paid</option>
+          <option value="partially_paid">Partially Paid</option>
+          <option value="overdue">Overdue</option>
+          <option value="void">Void</option>
+        </select>
 
         <p className="text-sm text-muted-foreground">
           {totalCount} invoice{totalCount !== 1 ? 's' : ''} total

@@ -51,6 +51,28 @@ export type SubscriptionTier = 'basic' | 'professional' | 'business'
 // Organization (multi-tenant root)
 // ============================================================
 
+export type InvoiceTheme = 'modern' | 'classic' | 'minimal' | 'bold'
+
+export type DocPillarType = 'logo' | 'company_info' | 'page_number' | 'empty'
+export type DocPillarAlignment = 'left' | 'center' | 'right'
+
+export interface DocPillar {
+  type: DocPillarType
+  alignment: DocPillarAlignment
+}
+
+export interface DocHeaderFooterLayout {
+  left: DocPillar
+  center: DocPillar
+  right: DocPillar
+}
+
+export interface OrganizationSettings {
+  invoice_theme?: InvoiceTheme
+  header?: DocHeaderFooterLayout
+  footer?: DocHeaderFooterLayout
+}
+
 export interface Organization {
   id: string
   name: string
@@ -61,6 +83,13 @@ export interface Organization {
   primary_color: string // hex, e.g. "#05093d"
   accent_color: string  // hex, e.g. "#00ff85"
   secondary_color: string | null
+  // Company info
+  company_phone: string | null
+  company_email: string | null
+  company_website: string | null
+  company_address: string | null
+  // Document settings (invoice theme, header/footer layout)
+  settings: OrganizationSettings
   // Limits
   max_users: number
   max_ai_generations_per_month: number
@@ -203,10 +232,12 @@ export interface JobLineItem {
   id: string
   job_id: string
   service_catalog_id: string
+  description: string | null
   quantity: number
   unit_price: number
   total_price: number
   notes: string | null
+  created_at: string
 }
 
 // ============================================================

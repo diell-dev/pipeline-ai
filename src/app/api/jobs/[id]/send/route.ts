@@ -13,6 +13,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { getApiUser, apiHasPermission } from '@/lib/api-auth'
 
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -27,6 +28,15 @@ export async function POST(
   const { id: jobId } = await params
 
   try {
+    // ── Auth check: must have send permission ──
+    const auth = await getApiUser()
+    if (!auth.authenticated) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
+    }
+    if (!apiHasPermission(auth.role, 'jobs:send')) {
+      return NextResponse.json({ error: 'You do not have permission to send jobs' }, { status: 403 })
+    }
+
     const supabase = getServiceClient()
 
     // 1. Fetch job with all related data
@@ -45,6 +55,11 @@ export async function POST(
 
     if (jobError || !job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 })
+    }
+
+    // Verify caller belongs to the same organization
+    if (job.organization_id !== auth.organizationId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     // Prevent double-sends: if already sent/completed, stop immediately

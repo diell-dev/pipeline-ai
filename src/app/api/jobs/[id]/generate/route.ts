@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
+import { getApiUser } from '@/lib/api-auth'
 
 // Use service role client (bypasses RLS) for server-side operations
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,6 +35,12 @@ export async function POST(
   const { id: jobId } = await params
 
   try {
+    // ── Auth check: must be authenticated and in the same org ──
+    const auth = await getApiUser()
+    if (!auth.authenticated) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
+    }
+
     const supabase = getServiceClient()
 
     // 1. Fetch the job with all related data
@@ -61,6 +68,11 @@ export async function POST(
       )
     }
 
+    // Verify caller belongs to the same organization
+    if (job.organization_id !== auth.organizationId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     // Only process jobs in 'submitted' status (or retry for 'ai_generating')
     if (!['submitted', 'ai_generating'].includes(job.status)) {
       return NextResponse.json(
@@ -82,7 +94,18 @@ export async function POST(
       .eq('id', job.organization_id)
       .single()
 
-    // 4. Fetch service catalog for invoice generation
+    // 4. Fetch the ACTUAL line items the tech selected when creating the job
+    const { data: jobLineItems } = await supabase
+      .from('job_line_items')
+      .select(`
+        *,
+        service_catalog:service_catalog_id (
+          name, code, unit, default_price, description
+        )
+      `)
+      .eq('job_id', jobId)
+
+    // 5. Fetch full service catalog (for fallback matching only)
     const { data: services } = await supabase
       .from('service_catalog')
       .select('*')
@@ -90,15 +113,17 @@ export async function POST(
       .eq('is_active', true)
       .order('name')
 
-    // 5. Generate AI Report using Claude
+    // 6. Generate AI Report using Claude — pass selected services + notes
     const aiReport = await generateReport({
       job,
       orgName: org?.name || 'NY Sewer & Drain',
+      lineItems: jobLineItems || [],
     })
 
-    // 6. Generate Invoice from service catalog
+    // 7. Generate Invoice from ACTUAL selected services (not keyword matching)
     const invoice = await generateInvoice({
       job,
+      lineItems: jobLineItems || [],
       services: services || [],
       orgName: org?.name || 'NY Sewer & Drain',
       supabase,
@@ -168,20 +193,31 @@ export async function POST(
 interface ReportInput {
   job: Record<string, unknown>
   orgName: string
+  lineItems: Array<Record<string, unknown>>
 }
 
-async function generateReport({ job, orgName }: ReportInput) {
+async function generateReport({ job, orgName, lineItems }: ReportInput) {
   const apiKey = process.env.ANTHROPIC_API_KEY
 
   // If no API key, generate a template-based report (fallback)
   if (!apiKey) {
-    return generateFallbackReport({ job, orgName })
+    return generateFallbackReport({ job, orgName, lineItems })
   }
 
   const anthropic = new Anthropic({ apiKey })
 
   const site = job.sites as Record<string, unknown> | null
   const client = job.clients as Record<string, unknown> | null
+  const photoUrls = Array.isArray(job.photos) ? (job.photos as string[]) : []
+
+  // Build a clear list of services that were actually performed
+  const servicesPerformed = lineItems.map((li) => {
+    const catalog = li.service_catalog as Record<string, unknown> | null
+    const name = catalog?.name || (li.description as string) || 'Service'
+    const qty = Number(li.quantity) || 1
+    const notes = li.notes as string | null
+    return `- ${name} (qty: ${qty})${notes ? ` — ${notes}` : ''}`
+  }).join('\n')
 
   const prompt = `You are a professional report writer for ${orgName}, a commercial drain cleaning and sewer service company in New York City.
 
@@ -199,34 +235,44 @@ Generate a professional SERVICE REPORT for a completed job. This report will be 
 - Known Issues: ${site?.known_issues || 'None documented'}
 - Service Date: ${job.service_date}
 - Priority: ${job.priority}
-- Number of Photos: ${Array.isArray(job.photos) ? (job.photos as string[]).length : 0}
+- Number of Photos Taken: ${photoUrls.length}
 
-## Technician Notes:
+## Services Performed (selected by the technician):
+${servicesPerformed || 'No specific services listed'}
+
+## Technician Field Notes:
 ${job.tech_notes || 'No notes provided'}
+
+IMPORTANT INSTRUCTIONS:
+- The technician's notes are the PRIMARY source of truth. They describe what actually happened on site. Use them heavily to build the report.
+- The services list shows what work was billed. Reference each service in the "work_performed" section.
+- If the tech notes mention specific observations, problems found, conditions, or details — include ALL of them in the report. Do not omit any technical details.
+- If photos were taken (count above), mention that photographic documentation is included in the report.
+- Be specific — never use generic filler when the tech notes provide real details.
 
 ## Generate the report in this JSON structure:
 {
   "title": "Service Report",
-  "summary": "2-3 sentence executive summary of work performed",
+  "summary": "2-3 sentence executive summary referencing the actual work described in tech notes",
   "work_performed": [
-    "List each task/service performed as a separate item"
+    "One item per service/task actually performed — be specific based on tech notes"
   ],
   "findings": [
-    "List key findings and observations"
+    "Key findings and observations from the technician's notes"
   ],
   "recommendations": [
-    "List any recommendations for the client (maintenance, follow-up work, etc.)"
+    "Recommendations for the client based on what was found"
   ],
-  "condition_assessment": "Brief assessment of the overall drain/sewer condition",
+  "condition_assessment": "Assessment of drain/sewer condition based on tech notes and findings",
   "next_steps": "What the client should expect next or any follow-up needed"
 }
 
-IMPORTANT: Return ONLY valid JSON, no markdown, no code blocks. Be specific and professional. Reference actual details from the tech notes. If tech notes are minimal, still generate a reasonable professional report based on the available information.`
+Return ONLY valid JSON, no markdown, no code blocks.`
 
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1500,
+      max_tokens: 2000,
       messages: [
         { role: 'user', content: prompt },
       ],
@@ -240,27 +286,42 @@ IMPORTANT: Return ONLY valid JSON, no markdown, no code blocks. Be specific and 
 
     return {
       ...report,
+      photos: photoUrls,
       generated_at: new Date().toISOString(),
       generated_by: 'claude-sonnet-4',
       version: 1,
     }
   } catch (err) {
     console.error('Claude API error, using fallback:', err)
-    return generateFallbackReport({ job, orgName })
+    return generateFallbackReport({ job, orgName, lineItems })
   }
 }
 
-function generateFallbackReport({ job, orgName }: ReportInput) {
+function generateFallbackReport({ job, orgName, lineItems }: ReportInput) {
   const site = job.sites as Record<string, unknown> | null
   const techNotes = (job.tech_notes as string) || 'Service completed as requested.'
+  const photoUrls = Array.isArray(job.photos) ? (job.photos as string[]) : []
+
+  // Build work_performed from actual line items
+  const workItems = lineItems.map((li) => {
+    const catalog = li.service_catalog as Record<string, unknown> | null
+    const name = catalog?.name || (li.description as string) || 'Service'
+    return `${name} performed at ${site?.name || 'site'}`
+  })
+
+  if (workItems.length === 0) {
+    workItems.push(`Drain/sewer service performed at ${site?.name || 'site'}`)
+  }
+
+  // Add tech notes as a work item if present
+  if (techNotes && techNotes !== 'Service completed as requested.') {
+    workItems.push(`Technician observations: ${techNotes}`)
+  }
 
   return {
     title: 'Service Report',
-    summary: `${orgName} performed drain/sewer service at ${site?.address || 'the specified location'} on ${job.service_date}. Work was completed by our field technician.`,
-    work_performed: [
-      `Drain/sewer service performed at ${site?.name || 'site'}`,
-      ...(techNotes ? [`Technician notes: ${techNotes}`] : []),
-    ],
+    summary: `${orgName} performed drain/sewer service at ${site?.address || 'the specified location'} on ${job.service_date}. ${workItems.length} service(s) completed by our field technician.${photoUrls.length > 0 ? ` ${photoUrls.length} photo(s) documented.` : ''}`,
+    work_performed: workItems,
     findings: [
       'Service completed — detailed findings available upon request.',
     ],
@@ -270,6 +331,7 @@ function generateFallbackReport({ job, orgName }: ReportInput) {
     ],
     condition_assessment: 'Assessment based on technician observations during service visit.',
     next_steps: 'Report and invoice attached for your records. Contact us with any questions.',
+    photos: photoUrls,
     generated_at: new Date().toISOString(),
     generated_by: 'template-fallback',
     version: 1,
@@ -282,24 +344,70 @@ function generateFallbackReport({ job, orgName }: ReportInput) {
 
 interface InvoiceInput {
   job: Record<string, unknown>
+  lineItems: Array<Record<string, unknown>>
   services: Array<Record<string, unknown>>
   orgName: string
   supabase: ServiceClient
 }
 
-async function generateInvoice({ job, services, orgName, supabase }: InvoiceInput) {
+async function generateInvoice({ job, lineItems, services, orgName, supabase }: InvoiceInput) {
   const client = job.clients as Record<string, unknown> | null
   const site = job.sites as Record<string, unknown> | null
 
-  // Try to match services from tech notes using AI or keyword matching
-  const matchedServices = matchServicesToJob(
-    (job.tech_notes as string) || '',
-    services,
-    site
-  )
+  // ── USE the actual line items selected by the tech ──
+  // The tech already picked services + quantities on the job form.
+  // We use those directly instead of guessing from keywords.
+  let invoiceLineItems: Array<{
+    service: string
+    code: string
+    quantity: number
+    unit: string
+    unit_price: number
+    total: number
+  }> = []
 
-  // Calculate totals
-  const subtotal = matchedServices.reduce((sum, s) => sum + s.total_price, 0)
+  if (lineItems.length > 0) {
+    // Tech selected specific services — use them as-is
+    invoiceLineItems = lineItems.map((li) => {
+      const catalog = li.service_catalog as Record<string, unknown> | null
+      const name = String(catalog?.name || '') || (li.description as string) || 'Service'
+      const code = String(catalog?.code || '') || ''
+      const unit = String(catalog?.unit || '') || 'flat_rate'
+      const qty = Number(li.quantity) || 1
+      const price = Number(li.unit_price) || 0
+      return {
+        service: name,
+        code,
+        quantity: qty,
+        unit,
+        unit_price: price,
+        total: Number(li.total_price) || (qty * price),
+      }
+    })
+  } else {
+    // No line items (edge case) — add a generic service call
+    const generalService =
+      services.find(
+        (s) =>
+          ((s.name as string) || '').toLowerCase().includes('general') ||
+          ((s.name as string) || '').toLowerCase().includes('service call')
+      ) || services[0]
+
+    if (generalService) {
+      const price = Number(generalService.default_price) || 0
+      invoiceLineItems.push({
+        service: generalService.name as string,
+        code: (generalService.code as string) || '',
+        quantity: 1,
+        unit: (generalService.unit as string) || 'flat_rate',
+        unit_price: price,
+        total: price,
+      })
+    }
+  }
+
+  // Calculate totals from the actual line items
+  const subtotal = invoiceLineItems.reduce((sum, li) => sum + li.total, 0)
   const taxRate = 8.875 // NYC sales tax
   const taxAmount = Math.round(subtotal * (taxRate / 100) * 100) / 100
   const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100
@@ -350,19 +458,8 @@ async function generateInvoice({ job, services, orgName, supabase }: InvoiceInpu
     console.error('Failed to create invoice:', invoiceError.message)
   }
 
-  // Create line items
-  if (invoice) {
-    for (const svc of matchedServices) {
-      await supabase.from('job_line_items').insert({
-        job_id: job.id as string,
-        service_catalog_id: svc.service_catalog_id,
-        quantity: svc.quantity,
-        unit_price: svc.unit_price,
-        total_price: svc.total_price,
-        notes: svc.notes || null,
-      })
-    }
-  }
+  // Note: We do NOT re-insert job_line_items — they already exist from job creation.
+  // The old code was creating DUPLICATE line items. This is now fixed.
 
   const invoiceContent = {
     invoice_number: invoiceNumber,
@@ -373,14 +470,7 @@ async function generateInvoice({ job, services, orgName, supabase }: InvoiceInpu
     site_address: site?.address || 'N/A',
     service_date: job.service_date,
     org_name: orgName,
-    line_items: matchedServices.map((s) => ({
-      service: s.service_name,
-      code: s.service_code,
-      quantity: s.quantity,
-      unit: s.unit,
-      unit_price: s.unit_price,
-      total: s.total_price,
-    })),
+    line_items: invoiceLineItems,
     subtotal,
     tax_rate: taxRate,
     tax_amount: taxAmount,
@@ -394,118 +484,4 @@ async function generateInvoice({ job, services, orgName, supabase }: InvoiceInpu
     invoiceId: invoice?.id || null,
     invoiceContent,
   }
-}
-
-// ============================================================
-// Service Matching (keyword-based)
-// ============================================================
-
-interface MatchedService {
-  service_catalog_id: string
-  service_name: string
-  service_code: string
-  quantity: number
-  unit: string
-  unit_price: number
-  total_price: number
-  notes: string | null
-}
-
-function matchServicesToJob(
-  techNotes: string,
-  services: Array<Record<string, unknown>>,
-  site: Record<string, unknown> | null
-): MatchedService[] {
-  const notes = techNotes.toLowerCase()
-  const matched: MatchedService[] = []
-  const matchedIds = new Set<string>()
-
-  // Keywords to match services
-  const keywordMap: Record<string, string[]> = {
-    // Drain cleaning keywords
-    jet: ['jet', 'jetting', 'hydro', 'water jet', 'high pressure'],
-    snake: ['snake', 'snaking', 'cable', 'auger', 'rod'],
-    camera: ['camera', 'inspection', 'video', 'scope', 'cctv'],
-    grease: ['grease', 'trap', 'interceptor', 'foi', 'grease trap'],
-    root: ['root', 'roots', 'root cutting', 'root removal'],
-    drain: ['drain', 'floor drain', 'clogged', 'blockage', 'backup'],
-    sewer: ['sewer', 'main', 'mainline', 'sewer line'],
-    storm: ['storm', 'storm drain', 'catch basin'],
-    roof: ['roof', 'roof drain', 'leader'],
-    emergency: ['emergency', 'flood', 'overflow', 'backup'],
-    pump: ['pump', 'sump', 'ejector', 'pump out'],
-    maintenance: ['maintenance', 'preventive', 'scheduled', 'routine', 'regular'],
-  }
-
-  for (const service of services) {
-    const svcName = ((service.name as string) || '').toLowerCase()
-    const svcCode = ((service.code as string) || '').toLowerCase()
-    const svcDesc = ((service.description as string) || '').toLowerCase()
-    const svcId = service.id as string
-
-    if (matchedIds.has(svcId)) continue
-
-    // Check each keyword group
-    for (const keywords of Object.values(keywordMap)) {
-      const noteMatch = keywords.some((kw) => notes.includes(kw))
-      const svcMatch = keywords.some(
-        (kw) => svcName.includes(kw) || svcCode.includes(kw) || svcDesc.includes(kw)
-      )
-
-      if (noteMatch && svcMatch) {
-        matchedIds.add(svcId)
-        const price = Number(service.default_price) || 0
-        matched.push({
-          service_catalog_id: svcId,
-          service_name: service.name as string,
-          service_code: service.code as string,
-          quantity: 1,
-          unit: service.unit as string,
-          unit_price: price,
-          total_price: price,
-          notes: `Matched from tech notes`,
-        })
-        break
-      }
-    }
-  }
-
-  // If no services matched, add a default "General Service" line
-  if (matched.length === 0) {
-    // Find the most generic drain cleaning service or use the first one
-    const generalService =
-      services.find(
-        (s) =>
-          ((s.name as string) || '').toLowerCase().includes('general') ||
-          ((s.name as string) || '').toLowerCase().includes('service call')
-      ) || services[0]
-
-    if (generalService) {
-      const price = Number(generalService.default_price) || 0
-      matched.push({
-        service_catalog_id: generalService.id as string,
-        service_name: generalService.name as string,
-        service_code: generalService.code as string,
-        quantity: 1,
-        unit: generalService.unit as string,
-        unit_price: price,
-        total_price: price,
-        notes: 'Default service — verify and update as needed',
-      })
-    }
-  }
-
-  // Check drain types from site to add quantity context
-  if (site?.drain_types && Array.isArray(site.drain_types)) {
-    const drainCount = (site.drain_types as string[]).length
-    // Update quantities for per_drain services
-    for (const m of matched) {
-      if (m.unit === 'per_drain' && drainCount > 1) {
-        m.quantity = drainCount
-        m.total_price = m.unit_price * drainCount
-      }
-    }
-  }
-
-  return matched
 }

@@ -2,7 +2,7 @@
 
 import { useAuthStore } from '@/stores/auth-store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Settings, Palette, Bell, Shield, Building, Mail } from 'lucide-react'
+import { Settings, Palette, Bell, Shield, Building, Mail, FileText } from 'lucide-react'
 import Link from 'next/link'
 import { hasPermission } from '@/lib/permissions'
 
@@ -14,17 +14,10 @@ const settingSections = [
     href: '/settings/profile',
   },
   {
-    title: 'Organization',
-    description: 'Company name, logo, and billing details.',
+    title: 'Company Profile',
+    description: 'Logo, colors, contact info, invoice themes, and document headers/footers.',
     icon: Building,
-    href: '/settings/organization',
-    permission: 'settings:manage' as const,
-  },
-  {
-    title: 'Branding',
-    description: 'Customize colors, logo, and the look of your reports.',
-    icon: Palette,
-    href: '/settings/branding',
+    href: '/settings/company-profile',
     permission: 'settings:manage' as const,
   },
   {

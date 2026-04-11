@@ -9,8 +9,8 @@
  *
  * Links to /jobs/new for job creation.
  */
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
 import { hasPermission } from '@/lib/permissions'
@@ -25,6 +25,8 @@ import {
   Calendar,
   AlertTriangle,
   Eye,
+  ChevronDown,
+  Building2,
 } from 'lucide-react'
 import type { Job, JobStatus, JobPriority } from '@/types/database'
 
@@ -56,6 +58,7 @@ interface JobWithRelations extends Job {
 
 export default function JobsPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, organization } = useAuthStore()
   const canCreate = user?.role ? hasPermission(user.role, 'jobs:create') : false
   const canViewAll = user?.role ? hasPermission(user.role, 'jobs:view_all') : false
@@ -63,6 +66,40 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<JobWithRelations[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | JobStatus>('all')
+  const [clients, setClients] = useState<{ id: string; company_name: string }[]>([])
+  const [selectedClient, setSelectedClient] = useState<string>(searchParams.get('client') || '')
+  const [clientDropdownOpen, setClientDropdownOpen] = useState(false)
+  const clientFilter = selectedClient || searchParams.get('client')
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setClientDropdownOpen(false)
+      }
+    }
+    if (clientDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [clientDropdownOpen])
+
+  // Load clients for dropdown
+  useEffect(() => {
+    if (!organization) return
+    async function loadClients() {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('clients')
+        .select('id, company_name')
+        .eq('organization_id', organization!.id)
+        .is('deleted_at', null)
+        .order('company_name')
+      setClients(data || [])
+    }
+    loadClients()
+  }, [organization])
 
   useEffect(() => {
     if (!organization || !user) return
@@ -88,6 +125,11 @@ export default function JobsPage() {
         query = query.eq('submitted_by', user!.id)
       }
 
+      // Client filter from query param
+      if (clientFilter) {
+        query = query.eq('client_id', clientFilter)
+      }
+
       // Status filter
       if (filter !== 'all') {
         query = query.eq('status', filter)
@@ -104,7 +146,7 @@ export default function JobsPage() {
     }
 
     loadJobs()
-  }, [organization, user, canViewAll, filter])
+  }, [organization, user, canViewAll, filter, clientFilter])
 
   return (
     <div className="p-6 space-y-6">
@@ -126,6 +168,58 @@ export default function JobsPage() {
             New Job
           </Button>
         )}
+      </div>
+
+      {/* Filters row: Client dropdown + Status tabs */}
+      <div className="flex flex-wrap items-center gap-4">
+        {/* Client dropdown */}
+        <div className="relative" ref={dropdownRef}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="min-w-[200px] justify-between"
+            onClick={() => setClientDropdownOpen(!clientDropdownOpen)}
+          >
+            <span className="flex items-center gap-2">
+              <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+              {selectedClient
+                ? clients.find((c) => c.id === selectedClient)?.company_name || 'Client'
+                : 'All Clients'}
+            </span>
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+          </Button>
+          {clientDropdownOpen && (
+            <div className="absolute z-50 mt-1 w-[240px] rounded-md border bg-popover shadow-lg">
+              <div className="max-h-[260px] overflow-y-auto p-1">
+                <button
+                  className={`flex w-full items-center rounded-sm px-3 py-2 text-sm hover:bg-accent ${
+                    !selectedClient ? 'font-semibold bg-accent' : ''
+                  }`}
+                  onClick={() => {
+                    setSelectedClient('')
+                    setClientDropdownOpen(false)
+                  }}
+                >
+                  All Clients
+                </button>
+                {clients.map((client) => (
+                  <button
+                    key={client.id}
+                    className={`flex w-full items-center rounded-sm px-3 py-2 text-sm hover:bg-accent ${
+                      selectedClient === client.id ? 'font-semibold bg-accent' : ''
+                    }`}
+                    onClick={() => {
+                      setSelectedClient(client.id)
+                      setClientDropdownOpen(false)
+                    }}
+                  >
+                    {client.company_name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Status filter tabs */}

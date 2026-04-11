@@ -3,7 +3,8 @@
 /**
  * Client Detail Page
  *
- * Shows client info + list of sites. Owners/managers can add/edit sites.
+ * Shows client info + list of sites + stats (jobs, invoices, reports, unpaid balance).
+ * Owners/managers can add/edit sites.
  * Field techs see read-only view.
  */
 import { useState, useEffect } from 'react'
@@ -35,14 +36,30 @@ import {
   Mail,
   Building2,
   Home,
+  ClipboardList,
+  FileText,
+  DollarSign,
+  AlertCircle,
 } from 'lucide-react'
-import type { Client, Site, SiteType, PipeMaterial, DrainType } from '@/types/database'
+import type { Client, Site, SiteType, PipeMaterial, DrainType, InvoiceStatus } from '@/types/database'
 
 const SITE_TYPE_LABELS: Record<SiteType, string> = {
   residential: 'Residential',
   commercial: 'Commercial',
   industrial: 'Industrial',
   mixed_use: 'Mixed Use',
+}
+
+interface ClientStats {
+  jobsCompleted: number
+  totalJobs: number
+  totalInvoices: number
+  invoicesPaid: number
+  invoicesUnpaid: number
+  totalReports: number
+  totalInvoiced: number
+  totalPaid: number
+  unpaidBalance: number
 }
 
 export default function ClientDetailPage() {
@@ -56,6 +73,7 @@ export default function ClientDetailPage() {
 
   const [client, setClient] = useState<Client | null>(null)
   const [sites, setSites] = useState<Site[]>([])
+  const [stats, setStats] = useState<ClientStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [showAddSite, setShowAddSite] = useState(false)
   const [savingSite, setSavingSite] = useState(false)
@@ -79,7 +97,7 @@ export default function ClientDetailPage() {
       setLoading(true)
       const supabase = createClient()
 
-      const [clientRes, sitesRes] = await Promise.all([
+      const [clientRes, sitesRes, jobsRes, invoicesRes] = await Promise.all([
         supabase.from('clients').select('*').eq('id', clientId).single(),
         supabase
           .from('sites')
@@ -87,6 +105,15 @@ export default function ClientDetailPage() {
           .eq('client_id', clientId)
           .is('deleted_at', null)
           .order('name'),
+        supabase
+          .from('jobs')
+          .select('id, status, ai_report_content')
+          .eq('client_id', clientId)
+          .is('deleted_at', null),
+        supabase
+          .from('invoices')
+          .select('id, status, total_amount, paid_amount')
+          .eq('client_id', clientId),
       ])
 
       if (clientRes.error) {
@@ -97,6 +124,34 @@ export default function ClientDetailPage() {
 
       setClient(clientRes.data)
       setSites(sitesRes.data || [])
+
+      // Calculate stats
+      const jobs = jobsRes.data || []
+      const invoices = invoicesRes.data || []
+
+      const completedStatuses = ['completed', 'sent', 'approved']
+      const jobsCompleted = jobs.filter((j) => completedStatuses.includes(j.status)).length
+      const totalReports = jobs.filter((j) => j.ai_report_content != null).length
+
+      const invoicesPaid = invoices.filter((i) => i.status === 'paid').length
+      const invoicesUnpaid = invoices.filter((i) =>
+        ['sent', 'draft', 'partially_paid', 'overdue'].includes(i.status)
+      ).length
+      const totalInvoiced = invoices.reduce((sum, i) => sum + (i.total_amount || 0), 0)
+      const totalPaid = invoices.reduce((sum, i) => sum + (i.paid_amount || 0), 0)
+
+      setStats({
+        jobsCompleted,
+        totalJobs: jobs.length,
+        totalInvoices: invoices.length,
+        invoicesPaid,
+        invoicesUnpaid,
+        totalReports,
+        totalInvoiced,
+        totalPaid,
+        unpaidBalance: totalInvoiced - totalPaid,
+      })
+
       setLoading(false)
     }
 
@@ -140,7 +195,6 @@ export default function ClientDetailPage() {
       setShowAddSite(false)
       resetSiteForm()
 
-      // Log
       await supabase.from('activity_log').insert({
         organization_id: client!.organization_id,
         user_id: user!.id,
@@ -181,6 +235,10 @@ export default function ClientDetailPage() {
     }))
   }
 
+  function formatCurrency(amount: number) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -205,6 +263,76 @@ export default function ClientDetailPage() {
           </p>
         </div>
       </div>
+
+      {/* Stats Cards */}
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card>
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                <ClipboardList className="h-4 w-4" />
+                <span className="text-xs font-medium">Jobs</span>
+              </div>
+              <p className="text-2xl font-bold">{stats.jobsCompleted}</p>
+              <p className="text-xs text-muted-foreground">
+                of {stats.totalJobs} completed
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                <FileText className="h-4 w-4" />
+                <span className="text-xs font-medium">Reports</span>
+              </div>
+              <p className="text-2xl font-bold">{stats.totalReports}</p>
+              <p className="text-xs text-muted-foreground">AI-generated</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                <DollarSign className="h-4 w-4" />
+                <span className="text-xs font-medium">Invoices</span>
+              </div>
+              <p className="text-2xl font-bold">{stats.totalInvoices}</p>
+              <div className="flex gap-2 mt-0.5">
+                {stats.invoicesPaid > 0 && (
+                  <Badge className="text-[10px] bg-green-100 text-green-700 border-0">
+                    {stats.invoicesPaid} paid
+                  </Badge>
+                )}
+                {stats.invoicesUnpaid > 0 && (
+                  <Badge className="text-[10px] bg-amber-100 text-amber-700 border-0">
+                    {stats.invoicesUnpaid} unpaid
+                  </Badge>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className={stats.unpaidBalance > 0 ? 'border-amber-200 bg-amber-50/50' : ''}>
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                {stats.unpaidBalance > 0 ? (
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                ) : (
+                  <DollarSign className="h-4 w-4" />
+                )}
+                <span className="text-xs font-medium">Unpaid Balance</span>
+              </div>
+              <p className={`text-2xl font-bold ${stats.unpaidBalance > 0 ? 'text-amber-700' : 'text-green-700'}`}>
+                {formatCurrency(stats.unpaidBalance)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                of {formatCurrency(stats.totalInvoiced)} total
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Client Info */}
       <Card>

@@ -6,12 +6,13 @@
  * Core flow for Field Technicians:
  * 1. Pick a client (dropdown)
  * 2. Pick a site (filtered by selected client)
- * 3. Choose service date + priority
- * 4. Upload photos
- * 5. Type tech notes
- * 6. Submit → status becomes "submitted"
+ * 3. Choose service(s) from searchable dropdown + Custom option
+ * 4. Choose service date + priority
+ * 5. Upload photos
+ * 6. Type tech notes
+ * 7. Submit → status becomes "submitted" → AI auto-generates report + invoice
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
@@ -21,10 +22,20 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import { PhotoUpload } from '@/components/jobs/photo-upload'
 import { toast } from 'sonner'
-import { ArrowLeft, Send, Loader2 } from 'lucide-react'
-import type { Client, Site, JobPriority } from '@/types/database'
+import { ArrowLeft, Send, Loader2, Search, X, Plus, Wrench } from 'lucide-react'
+import type { Client, Site, JobPriority, ServiceCatalogItem } from '@/types/database'
+
+interface SelectedService {
+  id: string // catalog id or 'custom-{index}'
+  name: string
+  code: string
+  unit_price: number
+  quantity: number
+  isCustom: boolean
+}
 
 export default function NewJobPage() {
   const router = useRouter()
@@ -48,32 +59,50 @@ export default function NewJobPage() {
   // Data lists
   const [clients, setClients] = useState<Client[]>([])
   const [sites, setSites] = useState<Site[]>([])
+  const [services, setServices] = useState<ServiceCatalogItem[]>([])
   const [loadingClients, setLoadingClients] = useState(true)
   const [loadingSites, setLoadingSites] = useState(false)
 
-  // Load clients on mount
+  // Service selection
+  const [selectedServices, setSelectedServices] = useState<SelectedService[]>([])
+  const [serviceSearch, setServiceSearch] = useState('')
+  const [showServiceDropdown, setShowServiceDropdown] = useState(false)
+  const [showCustomForm, setShowCustomForm] = useState(false)
+  const [customService, setCustomService] = useState({ name: '', price: '' })
+
+  // Load clients and services on mount
   useEffect(() => {
     if (!organization) return
 
-    async function loadClients() {
+    async function loadData() {
       setLoadingClients(true)
-      const { data, error } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('organization_id', organization!.id)
-        .is('deleted_at', null)
-        .order('company_name')
+      const [clientsRes, servicesRes] = await Promise.all([
+        supabase
+          .from('clients')
+          .select('*')
+          .eq('organization_id', organization!.id)
+          .is('deleted_at', null)
+          .order('company_name'),
+        supabase
+          .from('service_catalog')
+          .select('*')
+          .eq('organization_id', organization!.id)
+          .eq('is_active', true)
+          .order('name'),
+      ])
 
-      if (error) {
-        console.error('Failed to load clients:', error.message)
+      if (clientsRes.error) {
+        console.error('Failed to load clients:', clientsRes.error.message)
         toast.error('Failed to load clients')
       } else {
-        setClients(data || [])
+        setClients(clientsRes.data || [])
       }
+
+      setServices(servicesRes.data || [])
       setLoadingClients(false)
     }
 
-    loadClients()
+    loadData()
   }, [organization])
 
   // Load sites when client changes
@@ -104,6 +133,75 @@ export default function NewJobPage() {
 
     loadSites()
   }, [clientId])
+
+  // Filtered services for dropdown
+  const filteredServices = useMemo(() => {
+    const selected = new Set(selectedServices.filter((s) => !s.isCustom).map((s) => s.id))
+    let list = services.filter((s) => !selected.has(s.id))
+    if (serviceSearch.trim()) {
+      const q = serviceSearch.toLowerCase()
+      list = list.filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          s.code.toLowerCase().includes(q) ||
+          (s.description && s.description.toLowerCase().includes(q))
+      )
+    }
+    return list
+  }, [services, serviceSearch, selectedServices])
+
+  function addService(svc: ServiceCatalogItem) {
+    setSelectedServices((prev) => [
+      ...prev,
+      {
+        id: svc.id,
+        name: svc.name,
+        code: svc.code,
+        unit_price: svc.default_price,
+        quantity: 1,
+        isCustom: false,
+      },
+    ])
+    setServiceSearch('')
+    setShowServiceDropdown(false)
+  }
+
+  function addCustomService() {
+    if (!customService.name.trim() || !customService.price) {
+      toast.error('Please enter both service name and price')
+      return
+    }
+    const price = parseFloat(customService.price)
+    if (isNaN(price) || price < 0) {
+      toast.error('Please enter a valid price')
+      return
+    }
+
+    setSelectedServices((prev) => [
+      ...prev,
+      {
+        id: `custom-${Date.now()}`,
+        name: customService.name.trim(),
+        code: 'CUSTOM',
+        unit_price: price,
+        quantity: 1,
+        isCustom: true,
+      },
+    ])
+    setCustomService({ name: '', price: '' })
+    setShowCustomForm(false)
+  }
+
+  function removeService(id: string) {
+    setSelectedServices((prev) => prev.filter((s) => s.id !== id))
+  }
+
+  function updateQuantity(id: string, qty: number) {
+    if (qty < 1) return
+    setSelectedServices((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, quantity: qty } : s))
+    )
+  }
 
   // Upload photos to Supabase Storage
   const uploadPhotos = useCallback(
@@ -147,7 +245,6 @@ export default function NewJobPage() {
       toast.error('You do not have permission to create jobs')
       return
     }
-
     if (!clientId) {
       toast.error('Please select a client')
       return
@@ -164,7 +261,7 @@ export default function NewJobPage() {
     setIsSubmitting(true)
 
     try {
-      // 1. Create the job record first (without photos)
+      // 1. Create the job record
       const { data: job, error: jobError } = await supabase
         .from('jobs')
         .insert({
@@ -183,21 +280,36 @@ export default function NewJobPage() {
 
       if (jobError) throw jobError
 
-      // 2. Upload photos if any
+      // 2. Insert selected services as line items
+      if (selectedServices.length > 0) {
+        const lineItems = selectedServices.map((svc) => ({
+          job_id: job.id,
+          service_catalog_id: svc.isCustom ? null : svc.id,
+          description: svc.isCustom ? svc.name : null,
+          quantity: svc.quantity,
+          unit_price: svc.unit_price,
+          total_price: svc.unit_price * svc.quantity,
+          notes: svc.isCustom ? `Custom service: ${svc.name}` : null,
+        }))
+
+        const { error: lineError } = await supabase
+          .from('job_line_items')
+          .insert(lineItems)
+
+        if (lineError) {
+          console.error('Failed to insert line items:', lineError.message)
+        }
+      }
+
+      // 3. Upload photos
       let photoUrls: string[] = []
       if (photos.length > 0) {
         photoUrls = await uploadPhotos(job.id)
-
-        // 3. Update job with photo URLs
         if (photoUrls.length > 0) {
-          const { error: updateError } = await supabase
+          await supabase
             .from('jobs')
             .update({ photos: photoUrls })
             .eq('id', job.id)
-
-          if (updateError) {
-            console.error('Failed to update job with photos:', updateError.message)
-          }
         }
       }
 
@@ -212,13 +324,13 @@ export default function NewJobPage() {
           client_id: clientId,
           site_id: siteId,
           photo_count: photoUrls.length,
+          services_count: selectedServices.length,
         },
       })
 
       toast.success('Job submitted! AI is generating report & invoice...')
 
       // 5. Trigger AI report + invoice generation (fire-and-forget)
-      // This runs in the background — the field tech doesn't need to wait
       fetch(`/api/jobs/${job.id}/generate`, { method: 'POST' })
         .then((res) => {
           if (!res.ok) console.error('AI generation request failed')
@@ -251,6 +363,9 @@ export default function NewJobPage() {
     )
   }
 
+  const formatCurrency = (n: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       {/* Header */}
@@ -273,7 +388,6 @@ export default function NewJobPage() {
             <CardTitle className="text-base">Location</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Client Dropdown */}
             <div className="space-y-2">
               <Label htmlFor="client">Client *</Label>
               <select
@@ -303,7 +417,6 @@ export default function NewJobPage() {
               )}
             </div>
 
-            {/* Site Dropdown */}
             <div className="space-y-2">
               <Label htmlFor="site">Site *</Label>
               <select
@@ -336,6 +449,149 @@ export default function NewJobPage() {
           </CardContent>
         </Card>
 
+        {/* Service Selection */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Wrench className="h-4 w-4" /> Services Performed
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Selected services */}
+            {selectedServices.length > 0 && (
+              <div className="space-y-2">
+                {selectedServices.map((svc) => (
+                  <div
+                    key={svc.id}
+                    className="flex items-center justify-between border rounded-lg px-3 py-2"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{svc.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {svc.isCustom ? 'Custom' : svc.code} · {formatCurrency(svc.unit_price)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Input
+                        type="number"
+                        min="1"
+                        value={svc.quantity}
+                        onChange={(e) => updateQuantity(svc.id, parseInt(e.target.value) || 1)}
+                        className="w-16 h-8 text-center text-sm"
+                      />
+                      <span className="text-sm font-medium w-20 text-right">
+                        {formatCurrency(svc.unit_price * svc.quantity)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeService(svc.id)}
+                        className="text-muted-foreground hover:text-red-500 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Service search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search services..."
+                value={serviceSearch}
+                onChange={(e) => {
+                  setServiceSearch(e.target.value)
+                  setShowServiceDropdown(true)
+                }}
+                onFocus={() => setShowServiceDropdown(true)}
+                onBlur={() => setTimeout(() => setShowServiceDropdown(false), 200)}
+                className="pl-9 h-9"
+              />
+              {showServiceDropdown && filteredServices.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-48 overflow-auto">
+                  {filteredServices.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => addService(s)}
+                      className="w-full text-left px-3 py-2 hover:bg-zinc-50 transition-colors"
+                    >
+                      <span className="text-sm font-medium">{s.name}</span>
+                      <span className="text-xs text-muted-foreground ml-2">
+                        {s.code} · {formatCurrency(s.default_price)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Custom service */}
+            {showCustomForm ? (
+              <div className="border rounded-lg p-3 space-y-3 bg-zinc-50">
+                <p className="text-sm font-medium">Custom Service</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Service Name</Label>
+                    <Input
+                      value={customService.name}
+                      onChange={(e) => setCustomService({ ...customService, name: e.target.value })}
+                      placeholder="e.g. Emergency call-out"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Price ($)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={customService.price}
+                      onChange={(e) => setCustomService({ ...customService, price: e.target.value })}
+                      placeholder="0.00"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button type="button" size="sm" onClick={addCustomService}>
+                    Add
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowCustomForm(false)
+                      setCustomService({ name: '', price: '' })
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCustomForm(true)}
+              >
+                <Plus className="mr-2 h-3 w-3" />
+                Custom Service
+              </Button>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              Optional — if no services are selected, the AI will determine services from your tech notes.
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Service Details */}
         <Card>
           <CardHeader>
@@ -343,7 +599,6 @@ export default function NewJobPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Date */}
               <div className="space-y-2">
                 <Label htmlFor="service-date">Service Date *</Label>
                 <Input
@@ -356,7 +611,6 @@ export default function NewJobPage() {
                 />
               </div>
 
-              {/* Priority */}
               <div className="space-y-2">
                 <Label htmlFor="priority">Priority</Label>
                 <select

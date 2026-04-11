@@ -378,37 +378,38 @@ ALTER TABLE bank_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_log ENABLE ROW LEVEL SECURITY;
 
 -- Helper function: get the current user's organization_id
-CREATE OR REPLACE FUNCTION auth.user_org_id()
+-- NOTE: Created in public schema (auth schema requires superuser in Supabase management API)
+CREATE OR REPLACE FUNCTION public.get_user_org_id()
 RETURNS UUID AS $$
   SELECT organization_id FROM public.users WHERE id = auth.uid()
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
 -- Helper function: get the current user's role
-CREATE OR REPLACE FUNCTION auth.user_role()
+CREATE OR REPLACE FUNCTION public.get_user_role()
 RETURNS TEXT AS $$
   SELECT role FROM public.users WHERE id = auth.uid()
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
 -- ORGANIZATIONS: users can only see their own org
 CREATE POLICY "Users can view own org" ON organizations
-  FOR SELECT USING (id = auth.user_org_id());
+  FOR SELECT USING (id = public.get_user_org_id());
 
 -- ORGANIZATIONS: owners and super_admins can update their org (branding, settings)
 CREATE POLICY "Owners can update own org" ON organizations
   FOR UPDATE USING (
-    id = auth.user_org_id()
-    AND auth.user_role() IN ('super_admin', 'owner')
+    id = public.get_user_org_id()
+    AND public.get_user_role() IN ('super_admin', 'owner')
   );
 
 -- USERS: see users in same org
 CREATE POLICY "Users can view org members" ON users
-  FOR SELECT USING (organization_id = auth.user_org_id());
+  FOR SELECT USING (organization_id = public.get_user_org_id());
 
 -- USERS: only owner/admin can insert
 CREATE POLICY "Admins can insert users" ON users
   FOR INSERT WITH CHECK (
-    organization_id = auth.user_org_id()
-    AND auth.user_role() IN ('super_admin', 'owner')
+    organization_id = public.get_user_org_id()
+    AND public.get_user_role() IN ('super_admin', 'owner')
   );
 
 -- USERS: can update own profile
@@ -419,56 +420,56 @@ CREATE POLICY "Users can update own profile" ON users
 -- USERS: admins can update any user in org
 CREATE POLICY "Admins can update org users" ON users
   FOR UPDATE USING (
-    organization_id = auth.user_org_id()
-    AND auth.user_role() IN ('super_admin', 'owner')
+    organization_id = public.get_user_org_id()
+    AND public.get_user_role() IN ('super_admin', 'owner')
   );
 
 -- CLIENTS: org-scoped
 CREATE POLICY "Org members can view clients" ON clients
-  FOR SELECT USING (organization_id = auth.user_org_id());
+  FOR SELECT USING (organization_id = public.get_user_org_id());
 
 CREATE POLICY "Staff can insert clients" ON clients
   FOR INSERT WITH CHECK (
-    organization_id = auth.user_org_id()
-    AND auth.user_role() IN ('super_admin', 'owner', 'office_manager')
+    organization_id = public.get_user_org_id()
+    AND public.get_user_role() IN ('super_admin', 'owner', 'office_manager')
   );
 
 CREATE POLICY "Staff can update clients" ON clients
   FOR UPDATE USING (
-    organization_id = auth.user_org_id()
-    AND auth.user_role() IN ('super_admin', 'owner', 'office_manager')
+    organization_id = public.get_user_org_id()
+    AND public.get_user_role() IN ('super_admin', 'owner', 'office_manager')
   );
 
 -- SITES: org-scoped (all org members can view, staff can manage)
 CREATE POLICY "Org members can view sites" ON sites
-  FOR SELECT USING (organization_id = auth.user_org_id());
+  FOR SELECT USING (organization_id = public.get_user_org_id());
 
 CREATE POLICY "Staff can insert sites" ON sites
   FOR INSERT WITH CHECK (
-    organization_id = auth.user_org_id()
-    AND auth.user_role() IN ('super_admin', 'owner', 'office_manager')
+    organization_id = public.get_user_org_id()
+    AND public.get_user_role() IN ('super_admin', 'owner', 'office_manager')
   );
 
 CREATE POLICY "Staff can update sites" ON sites
   FOR UPDATE USING (
-    organization_id = auth.user_org_id()
-    AND auth.user_role() IN ('super_admin', 'owner', 'office_manager')
+    organization_id = public.get_user_org_id()
+    AND public.get_user_role() IN ('super_admin', 'owner', 'office_manager')
   );
 
 CREATE POLICY "Staff can delete sites" ON sites
   FOR DELETE USING (
-    organization_id = auth.user_org_id()
-    AND auth.user_role() IN ('super_admin', 'owner', 'office_manager')
+    organization_id = public.get_user_org_id()
+    AND public.get_user_role() IN ('super_admin', 'owner', 'office_manager')
   );
 
 -- SERVICE CATALOG: org-scoped, everyone can read
 CREATE POLICY "Org members can view services" ON service_catalog
-  FOR SELECT USING (organization_id = auth.user_org_id());
+  FOR SELECT USING (organization_id = public.get_user_org_id());
 
 CREATE POLICY "Admins can manage services" ON service_catalog
   FOR ALL USING (
-    organization_id = auth.user_org_id()
-    AND auth.user_role() IN ('super_admin', 'owner')
+    organization_id = public.get_user_org_id()
+    AND public.get_user_role() IN ('super_admin', 'owner')
   );
 
 -- CLIENT PRICING: linked through client org
@@ -476,7 +477,7 @@ CREATE POLICY "Staff can view pricing" ON client_pricing_overrides
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM clients c
-      WHERE c.id = client_id AND c.organization_id = auth.user_org_id()
+      WHERE c.id = client_id AND c.organization_id = public.get_user_org_id()
     )
   );
 
@@ -484,32 +485,32 @@ CREATE POLICY "Admins can manage pricing" ON client_pricing_overrides
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM clients c
-      WHERE c.id = client_id AND c.organization_id = auth.user_org_id()
+      WHERE c.id = client_id AND c.organization_id = public.get_user_org_id()
     )
-    AND auth.user_role() IN ('super_admin', 'owner')
+    AND public.get_user_role() IN ('super_admin', 'owner')
   );
 
 -- JOBS: org-scoped, field techs see own only
 CREATE POLICY "Staff can view all jobs" ON jobs
   FOR SELECT USING (
-    organization_id = auth.user_org_id()
+    organization_id = public.get_user_org_id()
     AND (
-      auth.user_role() IN ('super_admin', 'owner', 'office_manager')
+      public.get_user_role() IN ('super_admin', 'owner', 'office_manager')
       OR submitted_by = auth.uid()
     )
   );
 
 CREATE POLICY "Users can create jobs" ON jobs
   FOR INSERT WITH CHECK (
-    organization_id = auth.user_org_id()
+    organization_id = public.get_user_org_id()
     AND submitted_by = auth.uid()
   );
 
 CREATE POLICY "Staff can update jobs" ON jobs
   FOR UPDATE USING (
-    organization_id = auth.user_org_id()
+    organization_id = public.get_user_org_id()
     AND (
-      auth.user_role() IN ('super_admin', 'owner', 'office_manager')
+      public.get_user_role() IN ('super_admin', 'owner', 'office_manager')
       OR (submitted_by = auth.uid() AND status = 'submitted')
     )
   );
@@ -519,7 +520,7 @@ CREATE POLICY "View job line items" ON job_line_items
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM jobs j
-      WHERE j.id = job_id AND j.organization_id = auth.user_org_id()
+      WHERE j.id = job_id AND j.organization_id = public.get_user_org_id()
     )
   );
 
@@ -527,9 +528,9 @@ CREATE POLICY "Staff can manage job line items" ON job_line_items
   FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM jobs j
-      WHERE j.id = job_id AND j.organization_id = auth.user_org_id()
+      WHERE j.id = job_id AND j.organization_id = public.get_user_org_id()
       AND (
-        auth.user_role() IN ('super_admin', 'owner', 'office_manager')
+        public.get_user_role() IN ('super_admin', 'owner', 'office_manager')
         OR j.submitted_by = auth.uid()
       )
     )
@@ -539,9 +540,9 @@ CREATE POLICY "Staff can update job line items" ON job_line_items
   FOR UPDATE USING (
     EXISTS (
       SELECT 1 FROM jobs j
-      WHERE j.id = job_id AND j.organization_id = auth.user_org_id()
+      WHERE j.id = job_id AND j.organization_id = public.get_user_org_id()
       AND (
-        auth.user_role() IN ('super_admin', 'owner', 'office_manager')
+        public.get_user_role() IN ('super_admin', 'owner', 'office_manager')
         OR j.submitted_by = auth.uid()
       )
     )
@@ -551,40 +552,40 @@ CREATE POLICY "Staff can delete job line items" ON job_line_items
   FOR DELETE USING (
     EXISTS (
       SELECT 1 FROM jobs j
-      WHERE j.id = job_id AND j.organization_id = auth.user_org_id()
-      AND auth.user_role() IN ('super_admin', 'owner', 'office_manager')
+      WHERE j.id = job_id AND j.organization_id = public.get_user_org_id()
+      AND public.get_user_role() IN ('super_admin', 'owner', 'office_manager')
     )
   );
 
 -- INVOICES: org-scoped
 CREATE POLICY "Staff can view invoices" ON invoices
-  FOR SELECT USING (organization_id = auth.user_org_id());
+  FOR SELECT USING (organization_id = public.get_user_org_id());
 
 CREATE POLICY "Staff can manage invoices" ON invoices
   FOR ALL USING (
-    organization_id = auth.user_org_id()
-    AND auth.user_role() IN ('super_admin', 'owner', 'office_manager')
+    organization_id = public.get_user_org_id()
+    AND public.get_user_role() IN ('super_admin', 'owner', 'office_manager')
   );
 
 -- BANK TRANSACTIONS: owner/admin only
 CREATE POLICY "Admins can view bank transactions" ON bank_transactions
   FOR SELECT USING (
-    organization_id = auth.user_org_id()
-    AND auth.user_role() IN ('super_admin', 'owner')
+    organization_id = public.get_user_org_id()
+    AND public.get_user_role() IN ('super_admin', 'owner')
   );
 
 CREATE POLICY "Admins can manage bank transactions" ON bank_transactions
   FOR ALL USING (
-    organization_id = auth.user_org_id()
-    AND auth.user_role() IN ('super_admin', 'owner')
+    organization_id = public.get_user_org_id()
+    AND public.get_user_role() IN ('super_admin', 'owner')
   );
 
 -- ACTIVITY LOG: org-scoped read
 CREATE POLICY "Org members can view activity" ON activity_log
-  FOR SELECT USING (organization_id = auth.user_org_id());
+  FOR SELECT USING (organization_id = public.get_user_org_id());
 
 CREATE POLICY "System can insert activity" ON activity_log
-  FOR INSERT WITH CHECK (organization_id = auth.user_org_id());
+  FOR INSERT WITH CHECK (organization_id = public.get_user_org_id());
 
 -- ============================================================
 -- SEED DATA: Initial organizations and users
@@ -620,8 +621,9 @@ VALUES (
   5, 0, 25
 );
 
--- NOTE: After creating auth users in Supabase Dashboard, run:
---
--- INSERT INTO users (id, organization_id, email, full_name, role) VALUES
---   ('<diell-auth-uuid>', 'a0000000-0000-0000-0000-000000000001', 'diell@polarbearagency.com', 'Diell Grazhdani', 'super_admin'),
---   ('<bogdan-auth-uuid>', 'b0000000-0000-0000-0000-000000000001', 'natan@nysewerdrain.com', 'Bogdan May', 'owner');
+-- User profiles (auth users already created in Supabase Dashboard, 2026-04-11)
+INSERT INTO users (id, organization_id, email, full_name, role)
+VALUES
+  ('9d7857bc-53f0-450d-8f0c-272b26175a60', 'a0000000-0000-0000-0000-000000000001', 'diell@polarbearagency.com', 'Diell Grazhdani', 'super_admin'),
+  ('750af98b-a190-4f8d-b35e-b5330f930684', 'b0000000-0000-0000-0000-000000000001', 'bogdanmay97@gmail.com', 'Bogdan May', 'owner')
+ON CONFLICT (id) DO NOTHING;

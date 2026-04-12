@@ -149,24 +149,23 @@ export default function JobsPage() {
   }, [organization, user, canViewAll, filter, clientFilter])
 
   return (
-    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
             {canViewAll ? 'All Jobs' : 'My Jobs'}
           </h1>
-          <p className="text-muted-foreground text-sm hidden sm:block">
+          <p className="text-muted-foreground text-sm">
             {canViewAll
               ? 'Manage field service jobs, submissions, and approvals.'
               : 'Your submitted jobs and their current status.'}
           </p>
         </div>
         {canCreate && (
-          <Button onClick={() => router.push('/jobs/new')} size="sm" className="shrink-0">
-            <Plus className="mr-1 h-4 w-4" />
-            <span className="hidden sm:inline">New Job</span>
-            <span className="sm:hidden">New</span>
+          <Button onClick={() => router.push('/jobs/new')}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Job
           </Button>
         )}
       </div>
@@ -224,7 +223,7 @@ export default function JobsPage() {
       </div>
 
       {/* Status filter tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap scrollbar-hide">
+      <div className="flex flex-wrap gap-2">
         {[
           { value: 'all', label: 'All' },
           { value: 'submitted', label: 'Submitted' },
@@ -287,29 +286,30 @@ export default function JobsPage() {
                 className="hover:shadow-md transition-shadow cursor-pointer"
                 onClick={() => router.push(`/jobs/${job.id}`)}
               >
-                <CardContent className="flex items-center justify-between py-3 md:py-4 px-3 md:px-6">
+                <CardContent className="flex items-center justify-between py-4">
                   <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
-                      <span className="font-medium text-sm truncate">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm">
                         {job.clients?.company_name || 'Unknown Client'}
                       </span>
-                      <Badge className={`text-[10px] md:text-xs ${statusConf.className}`} variant="outline">
+                      <Badge className={statusConf.className} variant="outline">
                         {statusConf.label}
                       </Badge>
                       {job.priority !== 'normal' && (
-                        <Badge className={`text-[10px] md:text-xs ${priorityConf.className}`} variant="outline">
-                          <AlertTriangle className="h-3 w-3 mr-0.5" />
+                        <Badge className={priorityConf.className} variant="outline">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
                           {priorityConf.label}
                         </Badge>
                       )}
                     </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1 truncate">
-                        <MapPin className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{job.sites?.name || 'Unknown Site'}{job.sites?.address ? ` — ${job.sites.address}` : ''}</span>
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {job.sites?.name || 'Unknown Site'}
+                        {job.sites?.address ? ` — ${job.sites.address}` : ''}
                       </span>
                       <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3 shrink-0" />
+                        <Calendar className="h-3 w-3" />
                         {new Date(job.service_date).toLocaleDateString()}
                       </span>
                     </div>
@@ -318,8 +318,13 @@ export default function JobsPage() {
                         Submitted by {job.submitter.full_name}
                       </p>
                     )}
+                    {job.photos && job.photos.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {job.photos.length} photo{job.photos.length !== 1 ? 's' : ''}
+                      </p>
+                    )}
                   </div>
-                  <Button variant="ghost" size="icon" className="shrink-0 ml-1 hidden sm:flex">
+                  <Button variant="ghost" size="icon" className="shrink-0 ml-2">
                     <Eye className="h-4 w-4" />
                   </Button>
                 </CardContent>

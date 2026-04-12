@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { AppHeader } from '@/components/layout/app-header'
@@ -12,12 +11,11 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const { isLoading } = useAuthStore()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   if (isLoading) {
     return (
       <div className="flex h-screen">
-        <Skeleton className="w-64 h-full hidden md:block" />
+        <Skeleton className="w-64 h-full" />
         <div className="flex-1 p-6">
           <Skeleton className="h-8 w-48 mb-6" />
           <Skeleton className="h-64 w-full" />
@@ -28,12 +26,9 @@ export default function DashboardLayout({
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <AppSidebar
-        mobileOpen={mobileMenuOpen}
-        onMobileClose={() => setMobileMenuOpen(false)}
-      />
-      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-        <AppHeader onMenuClick={() => setMobileMenuOpen(true)} />
+      <AppSidebar />
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <AppHeader />
         <main className="flex-1 overflow-y-auto bg-zinc-50">
           {children}
         </main>

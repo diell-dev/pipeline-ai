@@ -83,9 +83,9 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+      <div className="p-6 space-y-6">
         <Skeleton className="h-8 w-64" />
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
             <Skeleton key={i} className="h-32 rounded-xl" />
           ))}
@@ -95,13 +95,13 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
             Welcome back{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}
           </h1>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground">
             {organization?.name} — {user?.role ? getRoleLabel(user.role) : ''}
           </p>
         </div>
@@ -114,19 +114,19 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card
           className="cursor-pointer hover:shadow-md transition-shadow"
           onClick={() => router.push('/jobs')}
         >
-          <CardHeader className="pb-2 px-4">
-            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <ClipboardList className="h-4 w-4 shrink-0" />
-              <span className="truncate">{canViewAll ? 'Total Jobs' : 'My Jobs'}</span>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <ClipboardList className="h-4 w-4" />
+              {canViewAll ? 'Total Jobs' : 'My Jobs'}
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-4">
-            <div className="text-2xl md:text-3xl font-bold">
+          <CardContent>
+            <div className="text-3xl font-bold">
               {loadingStats ? '—' : stats?.totalJobs ?? 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">all time</p>
@@ -137,14 +137,14 @@ export default function DashboardPage() {
           className="cursor-pointer hover:shadow-md transition-shadow"
           onClick={() => router.push('/jobs')}
         >
-          <CardHeader className="pb-2 px-4">
-            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Send className="h-4 w-4 shrink-0" />
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Send className="h-4 w-4" />
               Submitted
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-4">
-            <div className="text-2xl md:text-3xl font-bold text-blue-600">
+          <CardContent>
+            <div className="text-3xl font-bold text-blue-600">
               {loadingStats ? '—' : stats?.submitted ?? 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">being processed</p>
@@ -155,14 +155,14 @@ export default function DashboardPage() {
           className="cursor-pointer hover:shadow-md transition-shadow"
           onClick={() => router.push('/jobs')}
         >
-          <CardHeader className="pb-2 px-4">
-            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Clock className="h-4 w-4 shrink-0" />
-              <span className="truncate">Pending Review</span>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Pending Review
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-4">
-            <div className="text-2xl md:text-3xl font-bold text-amber-600">
+          <CardContent>
+            <div className="text-3xl font-bold text-amber-600">
               {loadingStats ? '—' : stats?.pendingReview ?? 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">awaiting approval</p>
@@ -173,14 +173,14 @@ export default function DashboardPage() {
           className="cursor-pointer hover:shadow-md transition-shadow"
           onClick={() => router.push('/jobs')}
         >
-          <CardHeader className="pb-2 px-4">
-            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4" />
               Approved
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-4">
-            <div className="text-2xl md:text-3xl font-bold text-green-600">
+          <CardContent>
+            <div className="text-3xl font-bold text-green-600">
               {loadingStats ? '—' : stats?.approved ?? 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">completed or sent</p>

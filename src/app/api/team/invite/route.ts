@@ -82,10 +82,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, user: reactivated, reactivated: true })
     }
 
-    // Generate a temporary password
-    // Generate a strong temporary password (24 chars, mixed case + numbers + symbols)
+    // Generate a cryptographically secure temporary password (24 chars)
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&*'
-    const tempPassword = Array.from({ length: 24 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+    const tempPassword = Array.from(
+      crypto.getRandomValues(new Uint8Array(24)),
+      (byte) => chars[byte % chars.length]
+    ).join('')
 
     // Create auth user
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
@@ -122,10 +124,34 @@ export async function POST(req: NextRequest) {
 
     if (userError) throw userError
 
+    // Send invite email with temp password via Resend
+    if (process.env.RESEND_API_KEY) {
+      try {
+        const { Resend } = await import('resend')
+        const resend = new Resend(process.env.RESEND_API_KEY)
+        await resend.emails.send({
+          from: 'Pipeline AI <noreply@pipeline-ai.com>',
+          to: email.toLowerCase(),
+          subject: `You've been invited to Pipeline AI`,
+          html: `<p>Hi ${full_name},</p>
+                 <p>You have been added to your organization on <strong>Pipeline AI</strong> with the role: <strong>${role.replace('_', ' ')}</strong>.</p>
+                 <p>Your temporary password is: <code style="background:#f5f5f5;padding:4px 8px;border-radius:4px;">${tempPassword}</code></p>
+                 <p>Please log in and change your password immediately.</p>`,
+        })
+      } catch (emailErr) {
+        // Don't fail the invite if email sending fails — log it
+        console.error('Invite email failed to send:', emailErr)
+      }
+    } else {
+      // Dev fallback — log to console only
+      console.log('[DEV] Temp password for', email, ':', tempPassword)
+    }
+
+    // Never return the temp password in the API response
     return NextResponse.json({
       success: true,
       user: newUser,
-      tempPassword, // In production, this would be emailed instead
+      message: 'Invitation created. User will receive login credentials via email.',
     })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error'

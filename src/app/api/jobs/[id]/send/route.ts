@@ -212,6 +212,19 @@ export async function POST(
 }
 
 // ============================================================
+// HTML Escape Helper — prevents XSS from AI-generated content in email
+// ============================================================
+
+function escHtml(str: unknown): string {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+// ============================================================
 // Email HTML Builder
 // ============================================================
 
@@ -237,23 +250,23 @@ function buildEmailHtml({
   const lineItems = (invoice.line_items as Array<Record<string, unknown>>) || []
 
   const workPerformed = Array.isArray(report.work_performed)
-    ? (report.work_performed as string[]).map((w) => `<li>${w}</li>`).join('')
+    ? (report.work_performed as string[]).map((w) => `<li>${escHtml(w)}</li>`).join('')
     : ''
 
   const findings = Array.isArray(report.findings)
-    ? (report.findings as string[]).map((f) => `<li>${f}</li>`).join('')
+    ? (report.findings as string[]).map((f) => `<li>${escHtml(f)}</li>`).join('')
     : ''
 
   const recommendations = Array.isArray(report.recommendations)
-    ? (report.recommendations as string[]).map((r) => `<li>${r}</li>`).join('')
+    ? (report.recommendations as string[]).map((r) => `<li>${escHtml(r)}</li>`).join('')
     : ''
 
   const lineItemRows = lineItems
     .map(
       (item) => `
       <tr>
-        <td style="padding: 8px 12px; border-bottom: 1px solid #eee;">${item.service}</td>
-        <td style="padding: 8px 12px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #eee;">${escHtml(item.service)}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #eee; text-align: center;">${escHtml(item.quantity)}</td>
         <td style="padding: 8px 12px; border-bottom: 1px solid #eee; text-align: right;">$${Number(item.unit_price).toFixed(2)}</td>
         <td style="padding: 8px 12px; border-bottom: 1px solid #eee; text-align: right;">$${Number(item.total).toFixed(2)}</td>
       </tr>
@@ -283,11 +296,11 @@ function buildEmailHtml({
 
       <!-- Greeting -->
       <p style="font-size: 16px; color: #333; margin-top: 0;">
-        Dear ${clientName}${companyName ? ` (${companyName})` : ''},
+        Dear ${escHtml(clientName)}${companyName ? ` (${escHtml(companyName)})` : ''},
       </p>
       <p style="font-size: 14px; color: #555; line-height: 1.6;">
         Please find below the service report and invoice for work completed at
-        <strong>${siteAddress}</strong> on <strong>${new Date(serviceDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</strong>.
+        <strong>${escHtml(siteAddress)}</strong> on <strong>${new Date(serviceDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</strong>.
       </p>
 
       <!-- Divider -->
@@ -296,7 +309,7 @@ function buildEmailHtml({
       <!-- Report Section -->
       <h2 style="font-size: 18px; color: #1e3a5f; margin-bottom: 12px;">Service Report</h2>
 
-      ${report.summary ? `<p style="font-size: 14px; color: #555; line-height: 1.6; background: #f8fafc; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #2563eb;">${report.summary}</p>` : ''}
+      ${report.summary ? `<p style="font-size: 14px; color: #555; line-height: 1.6; background: #f8fafc; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #2563eb;">${escHtml(report.summary)}</p>` : ''}
 
       ${workPerformed ? `
         <h3 style="font-size: 15px; color: #333; margin-bottom: 8px;">Work Performed</h3>
@@ -315,7 +328,7 @@ function buildEmailHtml({
 
       ${report.condition_assessment ? `
         <h3 style="font-size: 15px; color: #333; margin-bottom: 8px;">Condition Assessment</h3>
-        <p style="font-size: 14px; color: #555; line-height: 1.6;">${report.condition_assessment}</p>
+        <p style="font-size: 14px; color: #555; line-height: 1.6;">${escHtml(report.condition_assessment)}</p>
       ` : ''}
 
       <!-- Divider -->

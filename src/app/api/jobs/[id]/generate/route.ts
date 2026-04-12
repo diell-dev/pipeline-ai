@@ -473,7 +473,7 @@ interface InvoiceInput {
   pricingAdjustments: PricingAnalysis
 }
 
-async function generateInvoice({ job, lineItems, services, orgName, orgSettings, supabase }: InvoiceInput) {
+async function generateInvoice({ job, lineItems, services, orgName, orgSettings, supabase, pricingAdjustments }: InvoiceInput) {
   const client = job.clients as Record<string, unknown> | null
   const site = job.sites as Record<string, unknown> | null
 

@@ -1296,17 +1296,28 @@ export default function JobDetailPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {lineItems.map((item, i) => (
-                            <tr key={i} className="border-t">
-                              <td className="p-2">
-                                <div className="font-medium">{item.service as string}</div>
-                                <div className="text-xs text-muted-foreground">{item.code as string}</div>
-                              </td>
-                              <td className="p-2 text-center">{item.quantity as number}</td>
-                              <td className="p-2 text-right">${Number(item.unit_price).toFixed(2)}</td>
-                              <td className="p-2 text-right">${Number(item.total).toFixed(2)}</td>
-                            </tr>
-                          ))}
+                          {lineItems.map((item, i) => {
+                            const total = Number(item.total)
+                            const isAdjustment = total < 0 || ['DISC', 'SRCH', 'WAIV'].includes(String(item.code))
+                            const isDiscount = total < 0
+                            return (
+                              <tr key={i} className={`border-t ${isAdjustment ? 'bg-purple-50/50' : ''}`}>
+                                <td className="p-2">
+                                  <div className={`font-medium ${isDiscount ? 'text-purple-700' : ''}`}>
+                                    {item.service as string}
+                                  </div>
+                                  {!isAdjustment && (
+                                    <div className="text-xs text-muted-foreground">{item.code as string}</div>
+                                  )}
+                                </td>
+                                <td className="p-2 text-center">{isAdjustment ? '' : (item.quantity as number)}</td>
+                                <td className="p-2 text-right">{isAdjustment ? '' : `$${Number(item.unit_price).toFixed(2)}`}</td>
+                                <td className={`p-2 text-right font-medium ${isDiscount ? 'text-red-600' : ''}`}>
+                                  {isDiscount ? `-$${Math.abs(total).toFixed(2)}` : `$${total.toFixed(2)}`}
+                                </td>
+                              </tr>
+                            )
+                          })}
                         </tbody>
                       </table>
                     </div>

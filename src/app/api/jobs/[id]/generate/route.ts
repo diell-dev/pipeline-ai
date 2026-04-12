@@ -113,14 +113,21 @@ export async function POST(
       .eq('is_active', true)
       .order('name')
 
-    // 6. Generate AI Report using Claude — pass selected services + notes
+    // 6. Analyze tech notes for pricing adjustments (discounts, surcharges, etc.)
+    const pricingAdjustments = await analyzeNotesForPricing({
+      techNotes: (job.tech_notes as string) || '',
+      lineItems: jobLineItems || [],
+    })
+
+    // 7. Generate AI Report using Claude — pass selected services + notes + adjustments
     const aiReport = await generateReport({
       job,
       orgName: org?.name || 'NY Sewer & Drain',
       lineItems: jobLineItems || [],
+      pricingAdjustments,
     })
 
-    // 7. Generate Invoice from ACTUAL selected services (not keyword matching)
+    // 8. Generate Invoice from ACTUAL selected services + any adjustments from tech notes
     const invoice = await generateInvoice({
       job,
       lineItems: jobLineItems || [],
@@ -128,6 +135,7 @@ export async function POST(
       orgName: org?.name || 'NY Sewer & Drain',
       orgSettings: (org?.settings || {}) as Record<string, unknown>,
       supabase,
+      pricingAdjustments,
     })
 
     // 7. Save report + invoice to job, set status to pending_review
@@ -188,6 +196,114 @@ export async function POST(
 }
 
 // ============================================================
+// Tech Notes → Pricing Adjustments (AI-powered)
+// ============================================================
+
+interface PricingAdjustment {
+  type: 'discount_percent' | 'discount_fixed' | 'surcharge_percent' | 'surcharge_fixed' | 'waiver'
+  value: number       // e.g. 50 for 50%, or 25 for $25
+  reason: string      // e.g. "Client has a 50% discount"
+  appliesToAll: boolean
+  serviceIndex?: number  // if it applies to a specific service
+}
+
+interface PricingAnalysis {
+  adjustments: PricingAdjustment[]
+  hasAdjustments: boolean
+  summary: string     // human-readable summary of adjustments
+}
+
+async function analyzeNotesForPricing({
+  techNotes,
+  lineItems,
+}: {
+  techNotes: string
+  lineItems: Array<Record<string, unknown>>
+}): Promise<PricingAnalysis> {
+  const noAdjustments: PricingAnalysis = {
+    adjustments: [],
+    hasAdjustments: false,
+    summary: '',
+  }
+
+  // If no notes, skip analysis
+  if (!techNotes || techNotes.trim().length === 0) {
+    return noAdjustments
+  }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) {
+    return noAdjustments
+  }
+
+  // Build service list for context
+  const serviceList = lineItems.map((li, idx) => {
+    const catalog = li.service_catalog as Record<string, unknown> | null
+    const name = catalog?.name || (li.description as string) || 'Service'
+    const price = Number(li.unit_price) || 0
+    const qty = Number(li.quantity) || 1
+    return `  ${idx}: "${name}" — qty: ${qty}, unit_price: $${price.toFixed(2)}, total: $${(qty * price).toFixed(2)}`
+  }).join('\n')
+
+  const anthropic = new Anthropic({ apiKey })
+
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 500,
+      messages: [
+        {
+          role: 'user',
+          content: `You are an invoice assistant. Analyze the technician's notes below for any pricing adjustments that should be applied to the invoice.
+
+## Technician Notes:
+"${techNotes}"
+
+## Current Line Items:
+${serviceList || '  (no services listed)'}
+
+Look for:
+- Discounts (percentage or fixed amount) — e.g. "50% discount", "$25 off", "client gets 20% off"
+- Surcharges — e.g. "emergency call surcharge", "after-hours +$50"
+- Waivers — e.g. "no charge", "waive the fee", "complimentary"
+- Any other pricing instructions from the technician
+
+Return ONLY valid JSON (no markdown, no code blocks):
+{
+  "adjustments": [
+    {
+      "type": "discount_percent" | "discount_fixed" | "surcharge_percent" | "surcharge_fixed" | "waiver",
+      "value": <number — percentage (e.g. 50) or dollar amount (e.g. 25)>,
+      "reason": "<brief reason from the notes>",
+      "appliesToAll": true | false,
+      "serviceIndex": <number or null — index from the line items above, only if it applies to one specific service>
+    }
+  ],
+  "summary": "<one sentence summary of all adjustments, or empty string if none>"
+}
+
+If there are NO pricing adjustments mentioned in the notes, return:
+{"adjustments": [], "summary": ""}`,
+        },
+      ],
+    })
+
+    const text = response.content[0].type === 'text' ? response.content[0].text : ''
+    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    const parsed = JSON.parse(cleaned) as { adjustments: PricingAdjustment[]; summary: string }
+
+    return {
+      adjustments: parsed.adjustments || [],
+      hasAdjustments: (parsed.adjustments || []).length > 0,
+      summary: parsed.summary || '',
+    }
+  } catch (err) {
+    console.error('Failed to analyze tech notes for pricing:', err)
+    return noAdjustments
+  }
+}
+
+// ============================================================
 // AI Report Generation
 // ============================================================
 
@@ -195,14 +311,15 @@ interface ReportInput {
   job: Record<string, unknown>
   orgName: string
   lineItems: Array<Record<string, unknown>>
+  pricingAdjustments: PricingAnalysis
 }
 
-async function generateReport({ job, orgName, lineItems }: ReportInput) {
+async function generateReport({ job, orgName, lineItems, pricingAdjustments }: ReportInput) {
   const apiKey = process.env.ANTHROPIC_API_KEY
 
   // If no API key, generate a template-based report (fallback)
   if (!apiKey) {
-    return generateFallbackReport({ job, orgName, lineItems })
+    return generateFallbackReport({ job, orgName, lineItems, pricingAdjustments })
   }
 
   const anthropic = new Anthropic({ apiKey })
@@ -243,6 +360,9 @@ ${servicesPerformed || 'No specific services listed'}
 
 ## Technician Field Notes:
 ${job.tech_notes || 'No notes provided'}
+
+## Pricing Adjustments Applied to Invoice:
+${pricingAdjustments.hasAdjustments ? pricingAdjustments.summary : 'No special pricing adjustments'}
 
 IMPORTANT INSTRUCTIONS:
 - The technician's notes are the PRIMARY source of truth. They describe what actually happened on site. Use them heavily to build the report.
@@ -294,7 +414,7 @@ Return ONLY valid JSON, no markdown, no code blocks.`
     }
   } catch (err) {
     console.error('Claude API error, using fallback:', err)
-    return generateFallbackReport({ job, orgName, lineItems })
+    return generateFallbackReport({ job, orgName, lineItems, pricingAdjustments })
   }
 }
 
@@ -350,6 +470,7 @@ interface InvoiceInput {
   orgName: string
   orgSettings: Record<string, unknown>
   supabase: ServiceClient
+  pricingAdjustments: PricingAnalysis
 }
 
 async function generateInvoice({ job, lineItems, services, orgName, orgSettings, supabase }: InvoiceInput) {
@@ -408,8 +529,92 @@ async function generateInvoice({ job, lineItems, services, orgName, orgSettings,
     }
   }
 
-  // Calculate totals from the actual line items
-  const subtotal = invoiceLineItems.reduce((sum, li) => sum + li.total, 0)
+  // ── Apply pricing adjustments from tech notes (discounts, surcharges, etc.) ──
+  let adjustmentLineItems: Array<{
+    service: string
+    code: string
+    quantity: number
+    unit: string
+    unit_price: number
+    total: number
+  }> = []
+
+  if (pricingAdjustments.hasAdjustments) {
+    for (const adj of pricingAdjustments.adjustments) {
+      const itemsSubtotal = invoiceLineItems.reduce((sum, li) => sum + li.total, 0)
+
+      if (adj.type === 'discount_percent') {
+        // Percentage discount off subtotal (or specific item)
+        const pct = Math.min(adj.value, 100) // cap at 100%
+        if (adj.appliesToAll || adj.serviceIndex === undefined || adj.serviceIndex === null) {
+          const discountAmount = Math.round(itemsSubtotal * (pct / 100) * 100) / 100
+          adjustmentLineItems.push({
+            service: `Discount: ${adj.reason}`,
+            code: 'DISC',
+            quantity: 1,
+            unit: 'flat_rate',
+            unit_price: -discountAmount,
+            total: -discountAmount,
+          })
+        } else if (adj.serviceIndex >= 0 && adj.serviceIndex < invoiceLineItems.length) {
+          const targetItem = invoiceLineItems[adj.serviceIndex]
+          const discountAmount = Math.round(targetItem.total * (pct / 100) * 100) / 100
+          adjustmentLineItems.push({
+            service: `Discount on ${targetItem.service}: ${adj.reason}`,
+            code: 'DISC',
+            quantity: 1,
+            unit: 'flat_rate',
+            unit_price: -discountAmount,
+            total: -discountAmount,
+          })
+        }
+      } else if (adj.type === 'discount_fixed') {
+        adjustmentLineItems.push({
+          service: `Discount: ${adj.reason}`,
+          code: 'DISC',
+          quantity: 1,
+          unit: 'flat_rate',
+          unit_price: -Math.abs(adj.value),
+          total: -Math.abs(adj.value),
+        })
+      } else if (adj.type === 'surcharge_percent') {
+        const surcharge = Math.round(itemsSubtotal * (adj.value / 100) * 100) / 100
+        adjustmentLineItems.push({
+          service: `Surcharge: ${adj.reason}`,
+          code: 'SRCH',
+          quantity: 1,
+          unit: 'flat_rate',
+          unit_price: surcharge,
+          total: surcharge,
+        })
+      } else if (adj.type === 'surcharge_fixed') {
+        adjustmentLineItems.push({
+          service: `Surcharge: ${adj.reason}`,
+          code: 'SRCH',
+          quantity: 1,
+          unit: 'flat_rate',
+          unit_price: adj.value,
+          total: adj.value,
+        })
+      } else if (adj.type === 'waiver') {
+        // Full waiver — discount the entire subtotal
+        adjustmentLineItems.push({
+          service: `Waiver: ${adj.reason}`,
+          code: 'WAIV',
+          quantity: 1,
+          unit: 'flat_rate',
+          unit_price: -itemsSubtotal,
+          total: -itemsSubtotal,
+        })
+      }
+    }
+  }
+
+  // Merge service items + adjustment items for the full invoice
+  const allLineItems = [...invoiceLineItems, ...adjustmentLineItems]
+
+  // Calculate totals from all line items (services + adjustments)
+  const subtotal = Math.max(0, allLineItems.reduce((sum, li) => sum + li.total, 0))
   const taxRate = 8.875 // NYC sales tax
   const taxAmount = Math.round(subtotal * (taxRate / 100) * 100) / 100
   const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100
@@ -470,7 +675,9 @@ async function generateInvoice({ job, lineItems, services, orgName, orgSettings,
       status: 'draft',
       due_date: dueDate.toISOString().slice(0, 10),
       paid_amount: 0,
-      notes: `Auto-generated for job at ${(site?.address as string) || 'N/A'}`,
+      notes: pricingAdjustments.hasAdjustments
+        ? `Auto-generated for job at ${(site?.address as string) || 'N/A'}. ${pricingAdjustments.summary}`
+        : `Auto-generated for job at ${(site?.address as string) || 'N/A'}`,
     })
     .select()
     .single()
@@ -491,13 +698,14 @@ async function generateInvoice({ job, lineItems, services, orgName, orgSettings,
     site_address: site?.address || 'N/A',
     service_date: job.service_date,
     org_name: orgName,
-    line_items: invoiceLineItems,
+    line_items: allLineItems,
     subtotal,
     tax_rate: taxRate,
     tax_amount: taxAmount,
     total_amount: totalAmount,
     payment_terms: paymentTerms,
     due_date: dueDate.toISOString().slice(0, 10),
+    adjustments_applied: pricingAdjustments.hasAdjustments ? pricingAdjustments.summary : null,
     generated_at: new Date().toISOString(),
   }
 

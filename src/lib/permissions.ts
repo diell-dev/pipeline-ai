@@ -20,6 +20,7 @@ export type Permission =
   | 'jobs:approve'
   | 'jobs:reject'
   | 'jobs:send'
+  | 'jobs:delete' // owner only
   // Clients
   | 'clients:view'
   | 'clients:create'
@@ -39,6 +40,7 @@ export type Permission =
   | 'invoices:view_own'
   | 'invoices:view_all'
   | 'invoices:mark_paid'
+  | 'invoices:delete' // owner only
   // Financials
   | 'financials:view'
   | 'financials:view_limited'
@@ -61,12 +63,12 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   super_admin: [
     // Super admin can do everything
     'jobs:create', 'jobs:view_own', 'jobs:view_all', 'jobs:edit_own', 'jobs:edit_all',
-    'jobs:approve', 'jobs:reject', 'jobs:send',
+    'jobs:approve', 'jobs:reject', 'jobs:send', 'jobs:delete',
     'clients:view', 'clients:create', 'clients:edit', 'clients:delete',
     'sites:view', 'sites:create', 'sites:edit',
     'services:view', 'services:manage',
     'pricing:view', 'pricing:manage',
-    'invoices:view_own', 'invoices:view_all', 'invoices:mark_paid',
+    'invoices:view_own', 'invoices:view_all', 'invoices:mark_paid', 'invoices:delete',
     'financials:view', 'financials:manage', 'financials:upload_bank',
     'users:view', 'users:manage', 'users:invite',
     'settings:view', 'settings:manage', 'settings:system',
@@ -75,12 +77,12 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 
   owner: [
     'jobs:create', 'jobs:view_own', 'jobs:view_all', 'jobs:edit_own', 'jobs:edit_all',
-    'jobs:approve', 'jobs:reject', 'jobs:send',
+    'jobs:approve', 'jobs:reject', 'jobs:send', 'jobs:delete',
     'clients:view', 'clients:create', 'clients:edit', 'clients:delete',
     'sites:view', 'sites:create', 'sites:edit',
     'services:view', 'services:manage',
     'pricing:view', 'pricing:manage',
-    'invoices:view_own', 'invoices:view_all', 'invoices:mark_paid',
+    'invoices:view_own', 'invoices:view_all', 'invoices:mark_paid', 'invoices:delete',
     'financials:view', 'financials:manage', 'financials:upload_bank',
     'users:view', 'users:manage', 'users:invite',
     'settings:view', 'settings:manage',

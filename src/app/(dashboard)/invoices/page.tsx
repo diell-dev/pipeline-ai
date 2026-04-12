@@ -13,6 +13,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
+import { hasPermission } from '@/lib/permissions'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -25,6 +26,8 @@ import {
   ChevronRight,
   Search,
   X,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react'
 import type { InvoiceStatus, Client } from '@/types/database'
 
@@ -56,14 +59,18 @@ const STATUS_STYLES: Record<InvoiceStatus, { label: string; className: string }>
 const PAGE_SIZE = 15
 
 export default function InvoicesPage() {
-  const { organization } = useAuthStore()
+  const { organization, user } = useAuthStore()
   const searchParams = useSearchParams()
+  const canDeleteInvoice = user?.role ? hasPermission(user.role, 'invoices:delete') : false
 
   const [invoices, setInvoices] = useState<InvoiceRow[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
+
+  const [voidingId, setVoidingId] = useState<string | null>(null)
+  const [confirmVoidId, setConfirmVoidId] = useState<string | null>(null)
 
   // Filter
   const clientIdFromParam = searchParams.get('client')
@@ -178,6 +185,26 @@ export default function InvoicesPage() {
     })
   }
 
+  async function handleVoidInvoice(invoiceId: string) {
+    setVoidingId(invoiceId)
+    try {
+      const res = await fetch(`/api/invoices/${invoiceId}/delete`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to void invoice')
+      toast.success(`Invoice ${data.invoice_number} voided`)
+      // Refresh the list
+      setInvoices((prev) => prev.map((inv) =>
+        inv.id === invoiceId ? { ...inv, status: 'void' as InvoiceStatus } : inv
+      ))
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      toast.error(message)
+    } finally {
+      setVoidingId(null)
+      setConfirmVoidId(null)
+    }
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -281,6 +308,7 @@ export default function InvoicesPage() {
                   <th className="text-right font-medium px-4 py-3">Amount</th>
                   <th className="text-right font-medium px-4 py-3">Paid</th>
                   <th className="text-center font-medium px-4 py-3">Status</th>
+                  {canDeleteInvoice && <th className="text-center font-medium px-4 py-3 w-20"></th>}
                 </tr>
               </thead>
               <tbody>
@@ -324,6 +352,42 @@ export default function InvoicesPage() {
                           {displayStatus.label}
                         </Badge>
                       </td>
+                      {canDeleteInvoice && (
+                        <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          {inv.status !== 'void' && inv.status !== 'paid' && (
+                            confirmVoidId === inv.id ? (
+                              <div className="flex items-center gap-1 justify-center">
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  className="h-7 text-xs px-2"
+                                  onClick={() => handleVoidInvoice(inv.id)}
+                                  disabled={voidingId === inv.id}
+                                >
+                                  {voidingId === inv.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Void'}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-xs px-2"
+                                  onClick={() => setConfirmVoidId(null)}
+                                >
+                                  No
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => setConfirmVoidId(inv.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )
+                          )}
+                        </td>
+                      )}
                     </tr>
                   )
                 })}

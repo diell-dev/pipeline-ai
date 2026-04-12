@@ -225,13 +225,17 @@ function generateModern(
     startY: y,
     margin: { left: margin, right: margin },
     head: [['Service', 'Code', 'Qty', 'Unit Price', 'Total']],
-    body: invoice.line_items.map((item) => [
-      item.service,
-      item.code,
-      String(item.quantity),
-      `$${item.unit_price.toFixed(2)}`,
-      `$${item.total.toFixed(2)}`,
-    ]),
+    body: invoice.line_items.map((item) => {
+      const isAdjustment = item.total < 0 || ['DISC', 'SRCH', 'WAIV'].includes(item.code)
+      const isDiscount = item.total < 0
+      return [
+        isAdjustment ? item.service : item.service,
+        isAdjustment ? '' : item.code,
+        isAdjustment ? '' : String(item.quantity),
+        isAdjustment ? '' : `$${item.unit_price.toFixed(2)}`,
+        isDiscount ? `-$${Math.abs(item.total).toFixed(2)}` : `$${item.total.toFixed(2)}`,
+      ]
+    }),
     headStyles: {
       fillColor: [pr, pg, pb],
       textColor: textColor as [number, number, number],
@@ -239,6 +243,17 @@ function generateModern(
       fontSize: 9,
     },
     bodyStyles: { fontSize: 9 },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    didParseCell: (data: any) => {
+      if (data.section === 'body') {
+        const item = invoice.line_items[data.row.index]
+        if (item && (item.total < 0 || ['DISC', 'SRCH', 'WAIV'].includes(item.code))) {
+          data.cell.styles.textColor = [140, 60, 160]
+          data.cell.styles.fontStyle = 'bold'
+          data.cell.styles.fillColor = [248, 240, 252]
+        }
+      }
+    },
     alternateRowStyles: { fillColor: [248, 248, 248] },
     columnStyles: {
       0: { cellWidth: 'auto' },
@@ -344,13 +359,16 @@ function generateClassic(
     startY: y,
     margin: { left: margin, right: margin },
     head: [['Service', 'Code', 'Qty', 'Unit Price', 'Total']],
-    body: invoice.line_items.map((item) => [
-      item.service,
-      item.code,
-      String(item.quantity),
-      `$${item.unit_price.toFixed(2)}`,
-      `$${item.total.toFixed(2)}`,
-    ]),
+    body: invoice.line_items.map((item) => {
+      const isAdj = item.total < 0 || ['DISC', 'SRCH', 'WAIV'].includes(item.code)
+      return [
+        item.service,
+        isAdj ? '' : item.code,
+        isAdj ? '' : String(item.quantity),
+        isAdj ? '' : `$${item.unit_price.toFixed(2)}`,
+        item.total < 0 ? `-$${Math.abs(item.total).toFixed(2)}` : `$${item.total.toFixed(2)}`,
+      ]
+    }),
     headStyles: {
       fillColor: [240, 240, 240],
       textColor: [30, 30, 30],
@@ -360,6 +378,17 @@ function generateClassic(
       lineWidth: 0.3,
     },
     bodyStyles: { fontSize: 9, lineColor: [220, 220, 220], lineWidth: 0.2 },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    didParseCell: (data: any) => {
+      if (data.section === 'body') {
+        const item = invoice.line_items[data.row.index]
+        if (item && (item.total < 0 || ['DISC', 'SRCH', 'WAIV'].includes(item.code))) {
+          data.cell.styles.textColor = [140, 60, 160]
+          data.cell.styles.fontStyle = 'bold'
+          data.cell.styles.fillColor = [248, 240, 252]
+        }
+      }
+    },
     columnStyles: {
       2: { halign: 'center' },
       3: { halign: 'right' },
@@ -446,12 +475,15 @@ function generateMinimal(
     startY: y,
     margin: { left: margin, right: margin },
     head: [['Service', 'Qty', 'Price', 'Total']],
-    body: invoice.line_items.map((item) => [
-      item.service,
-      String(item.quantity),
-      `$${item.unit_price.toFixed(2)}`,
-      `$${item.total.toFixed(2)}`,
-    ]),
+    body: invoice.line_items.map((item) => {
+      const isAdj = item.total < 0 || ['DISC', 'SRCH', 'WAIV'].includes(item.code)
+      return [
+        item.service,
+        isAdj ? '' : String(item.quantity),
+        isAdj ? '' : `$${item.unit_price.toFixed(2)}`,
+        item.total < 0 ? `-$${Math.abs(item.total).toFixed(2)}` : `$${item.total.toFixed(2)}`,
+      ]
+    }),
     headStyles: {
       fillColor: [255, 255, 255],
       textColor: [150, 150, 150],
@@ -461,6 +493,17 @@ function generateMinimal(
       lineWidth: 0.3,
     },
     bodyStyles: { fontSize: 9, textColor: [50, 50, 50], lineColor: [240, 240, 240], lineWidth: 0.1 },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    didParseCell: (data: any) => {
+      if (data.section === 'body') {
+        const item = invoice.line_items[data.row.index]
+        if (item && (item.total < 0 || ['DISC', 'SRCH', 'WAIV'].includes(item.code))) {
+          data.cell.styles.textColor = [140, 60, 160]
+          data.cell.styles.fontStyle = 'bold'
+          data.cell.styles.fillColor = [248, 240, 252]
+        }
+      }
+    },
     columnStyles: {
       1: { halign: 'center', cellWidth: 20 },
       2: { halign: 'right', cellWidth: 30 },
@@ -553,12 +596,15 @@ function generateBold(
     startY: y,
     margin: { left: margin, right: margin },
     head: [['Service', 'Qty', 'Unit Price', 'Total']],
-    body: invoice.line_items.map((item) => [
-      item.service,
-      String(item.quantity),
-      `$${item.unit_price.toFixed(2)}`,
-      `$${item.total.toFixed(2)}`,
-    ]),
+    body: invoice.line_items.map((item) => {
+      const isAdj = item.total < 0 || ['DISC', 'SRCH', 'WAIV'].includes(item.code)
+      return [
+        item.service,
+        isAdj ? '' : String(item.quantity),
+        isAdj ? '' : `$${item.unit_price.toFixed(2)}`,
+        item.total < 0 ? `-$${Math.abs(item.total).toFixed(2)}` : `$${item.total.toFixed(2)}`,
+      ]
+    }),
     headStyles: {
       fillColor: [pr, pg, pb],
       textColor: textColor as [number, number, number],
@@ -566,6 +612,17 @@ function generateBold(
       fontSize: 10,
     },
     bodyStyles: { fontSize: 10 },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    didParseCell: (data: any) => {
+      if (data.section === 'body') {
+        const item = invoice.line_items[data.row.index]
+        if (item && (item.total < 0 || ['DISC', 'SRCH', 'WAIV'].includes(item.code))) {
+          data.cell.styles.textColor = [140, 60, 160]
+          data.cell.styles.fontStyle = 'bold'
+          data.cell.styles.fillColor = [248, 240, 252]
+        }
+      }
+    },
     alternateRowStyles: { fillColor: [250, 250, 250] },
     columnStyles: {
       1: { halign: 'center', cellWidth: 20 },

@@ -87,10 +87,10 @@ export async function POST(
       .update({ status: 'ai_generating' })
       .eq('id', jobId)
 
-    // 3. Fetch organization info for branding
+    // 3. Fetch organization info for branding + invoice settings
     const { data: org } = await supabase
       .from('organizations')
-      .select('name, logo_url, primary_color')
+      .select('name, logo_url, primary_color, settings')
       .eq('id', job.organization_id)
       .single()
 
@@ -126,6 +126,7 @@ export async function POST(
       lineItems: jobLineItems || [],
       services: services || [],
       orgName: org?.name || 'NY Sewer & Drain',
+      orgSettings: (org?.settings || {}) as Record<string, unknown>,
       supabase,
     })
 
@@ -347,10 +348,11 @@ interface InvoiceInput {
   lineItems: Array<Record<string, unknown>>
   services: Array<Record<string, unknown>>
   orgName: string
+  orgSettings: Record<string, unknown>
   supabase: ServiceClient
 }
 
-async function generateInvoice({ job, lineItems, services, orgName, supabase }: InvoiceInput) {
+async function generateInvoice({ job, lineItems, services, orgName, orgSettings, supabase }: InvoiceInput) {
   const client = job.clients as Record<string, unknown> | null
   const site = job.sites as Record<string, unknown> | null
 
@@ -424,15 +426,34 @@ async function generateInvoice({ job, lineItems, services, orgName, supabase }: 
   const dueDate = new Date()
   dueDate.setDate(dueDate.getDate() + dueDays)
 
-  // Generate invoice number: NYSD-YYYYMMDD-XXX
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-  const { count } = await supabase
-    .from('invoices')
-    .select('*', { count: 'exact', head: true })
-    .eq('organization_id', job.organization_id as string)
+  // Generate invoice number: PREFIX-YYYYMMDD-XXX
+  // Use custom prefix from org settings, fallback to 'NYSD'
+  const prefix = ((orgSettings.invoice_prefix as string) || 'NYSD').toUpperCase()
+  const nextNum = (orgSettings.invoice_next_number as number) || null
 
-  const seqNum = String((count || 0) + 1).padStart(3, '0')
-  const invoiceNumber = `NYSD-${dateStr}-${seqNum}`
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+
+  let seqNum: string
+  if (nextNum) {
+    // Use the configured next number from settings
+    seqNum = String(nextNum).padStart(3, '0')
+    // Atomically increment the next number in org settings
+    await supabase
+      .from('organizations')
+      .update({
+        settings: { ...orgSettings, invoice_next_number: nextNum + 1 },
+      })
+      .eq('id', job.organization_id)
+  } else {
+    // Fallback: count existing invoices
+    const { count } = await supabase
+      .from('invoices')
+      .select('*', { count: 'exact', head: true })
+      .eq('organization_id', job.organization_id as string)
+    seqNum = String((count || 0) + 1).padStart(3, '0')
+  }
+
+  const invoiceNumber = `${prefix}-${dateStr}-${seqNum}`
 
   // Create the invoice record in the database
   const { data: invoice, error: invoiceError } = await supabase

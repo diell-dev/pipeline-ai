@@ -141,7 +141,7 @@ export default function FinancesPage() {
     loadClients()
   }, [organization])
 
-  // Load stats (all invoices, unfiltered)
+  // Load stats (all active invoices — exclude void and cancelled)
   useEffect(() => {
     if (!organization) return
     async function loadStats() {
@@ -150,6 +150,7 @@ export default function FinancesPage() {
         .from('invoices')
         .select('status, total_amount, paid_amount, due_date, created_at')
         .eq('organization_id', organization!.id)
+        .not('status', 'eq', 'void')
 
       if (!allInvoices) return
 
@@ -184,8 +185,6 @@ export default function FinancesPage() {
         if (inv.status === 'paid') {
           collected += paid
           paidCount++
-        } else if (inv.status === 'void') {
-          // skip
         } else {
           outstanding += total - paid
           unpaidCount++
@@ -202,7 +201,7 @@ export default function FinancesPage() {
         outstanding,
         collected,
         overdue,
-        totalInvoices: allInvoices.length,
+        totalInvoices: allInvoices.filter(i => i.status !== 'void').length,
         paidCount,
         unpaidCount,
         overdueCount,

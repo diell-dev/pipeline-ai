@@ -35,6 +35,8 @@ export interface TierConfig {
     googleReviewAutoReply: boolean
     apiAccess: boolean
     autoSendOnApproval: boolean
+    jobScheduling: boolean
+    crewManagement: boolean
   }
 }
 
@@ -68,6 +70,8 @@ export const TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
       googleReviewAutoReply: false,
       apiAccess: false,
       autoSendOnApproval: false,
+      jobScheduling: false,
+      crewManagement: false,
     },
   },
 
@@ -100,6 +104,8 @@ export const TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
       googleReviewAutoReply: false,
       apiAccess: false,
       autoSendOnApproval: true,
+      jobScheduling: false,
+      crewManagement: false,
     },
   },
 
@@ -132,6 +138,8 @@ export const TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
       googleReviewAutoReply: true,
       apiAccess: true,
       autoSendOnApproval: true,
+      jobScheduling: true,
+      crewManagement: true,
     },
   },
 }

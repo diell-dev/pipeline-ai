@@ -9,16 +9,35 @@
 import jsPDF from 'jspdf'
 import type { Organization, OrganizationSettings } from '@/types/database'
 
-interface ReportData {
+// V2 report format (simplified — tech notes pass-through)
+interface ReportDataV2 {
+  version: 2
+  intro: string
+  services_performed: string[]
+  findings: string[]
+  tech_notes_raw: string
+  photos?: string[]
+  generated_by: string
+  generated_at: string
+}
+
+// V1 report format (legacy AI-generated)
+interface ReportDataV1 {
   summary: string
   work_performed: string[]
   findings: string[]
-  recommendations: string[]
-  condition_assessment: string
-  next_steps: string
+  recommendations?: string[]
+  condition_assessment?: string
+  next_steps?: string
   generated_by: string
   generated_at: string
-  photos?: string[] // Array of photo URLs to embed
+  photos?: string[]
+}
+
+type ReportData = ReportDataV2 | ReportDataV1
+
+function isV2Report(data: ReportData): data is ReportDataV2 {
+  return 'version' in data && data.version === 2
 }
 
 interface JobContext {
@@ -291,31 +310,64 @@ export async function generateReportPdf(
 
   y += 12
 
-  // Report sections
+  // Report sections — different layout for V2 vs V1
   const accentRgb: [number, number, number] = [ar, ag, ab]
 
-  if (reportData.summary) {
-    y = addSection(doc, 'Summary', reportData.summary, margin, y, contentWidth, accentRgb)
-  }
+  if (isV2Report(reportData)) {
+    // ── V2: Simple format matching the real NYSD report ──
+    // Intro line: "Performed sewer jetting and camera inspection at the property with the following findings:"
+    if (reportData.intro) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(0, 0, 0)
+      y = addWrappedText(doc, reportData.intro, margin, y, contentWidth)
+      y += 6
+    }
 
-  if (reportData.work_performed?.length) {
-    y = addSection(doc, 'Work Performed', reportData.work_performed, margin, y, contentWidth, accentRgb)
-  }
+    // Findings as dashed list (exactly like the real report)
+    if (reportData.findings?.length) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      for (const item of reportData.findings) {
+        if (y > doc.internal.pageSize.getHeight() - 25) {
+          doc.addPage()
+          y = 25
+        }
+        doc.text('-', margin, y)
+        y = addWrappedText(doc, item, margin + 5, y, contentWidth - 5)
+        y += 2
+      }
+    } else if (reportData.tech_notes_raw) {
+      // Fallback: render raw tech notes
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      y = addWrappedText(doc, reportData.tech_notes_raw, margin, y, contentWidth)
+    }
+  } else {
+    // ── V1: Legacy AI-generated format ──
+    if (reportData.summary) {
+      y = addSection(doc, 'Summary', reportData.summary, margin, y, contentWidth, accentRgb)
+    }
 
-  if (reportData.findings?.length) {
-    y = addSection(doc, 'Findings', reportData.findings, margin, y, contentWidth, accentRgb)
-  }
+    if (reportData.work_performed?.length) {
+      y = addSection(doc, 'Work Performed', reportData.work_performed, margin, y, contentWidth, accentRgb)
+    }
 
-  if (reportData.recommendations?.length) {
-    y = addSection(doc, 'Recommendations', reportData.recommendations, margin, y, contentWidth, accentRgb)
-  }
+    if (reportData.findings?.length) {
+      y = addSection(doc, 'Findings', reportData.findings, margin, y, contentWidth, accentRgb)
+    }
 
-  if (reportData.condition_assessment) {
-    y = addSection(doc, 'Condition Assessment', reportData.condition_assessment, margin, y, contentWidth, accentRgb)
-  }
+    if (reportData.recommendations?.length) {
+      y = addSection(doc, 'Recommendations', reportData.recommendations, margin, y, contentWidth, accentRgb)
+    }
 
-  if (reportData.next_steps) {
-    y = addSection(doc, 'Next Steps', reportData.next_steps, margin, y, contentWidth, accentRgb)
+    if (reportData.condition_assessment) {
+      y = addSection(doc, 'Condition Assessment', reportData.condition_assessment, margin, y, contentWidth, accentRgb)
+    }
+
+    if (reportData.next_steps) {
+      y = addSection(doc, 'Next Steps', reportData.next_steps, margin, y, contentWidth, accentRgb)
+    }
   }
 
   // Photo Documentation section

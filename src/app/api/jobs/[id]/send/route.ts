@@ -186,7 +186,7 @@ export async function POST(
       await supabase.from('activity_log').insert({
         organization_id: job.organization_id,
         user_id: job.approved_by || job.submitted_by,
-        action: 'job_sent_to_client',
+        action: 'job_sent',
         entity_type: 'job',
         entity_id: jobId,
         metadata: {

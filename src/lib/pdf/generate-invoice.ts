@@ -34,6 +34,7 @@ interface InvoiceData {
   tax_amount: number
   total_amount: number
   payment_terms: string
+  thank_you?: string
 }
 
 interface JobContext {
@@ -136,6 +137,45 @@ function renderHeaderFooter(
   renderPillar(doc, layout.left, margin, yPos, pillarWidth, company, pageNum, totalPages)
   renderPillar(doc, layout.center, margin + pillarWidth, yPos, pillarWidth, company, pageNum, totalPages)
   renderPillar(doc, layout.right, margin + 2 * pillarWidth, yPos, pillarWidth, company, pageNum, totalPages)
+}
+
+// ===== THANK-YOU PARAGRAPH RENDERER =====
+function renderThankYou(
+  doc: jsPDF,
+  thankYou: string | undefined,
+  y: number,
+  margin: number,
+  contentWidth: number,
+  accentColor: [number, number, number],
+): number {
+  if (!thankYou) return y
+
+  const pageHeight = doc.internal.pageSize.getHeight()
+  // Ensure enough room — if not, add a page
+  if (y > pageHeight - 50) {
+    doc.addPage()
+    y = 25
+  }
+
+  y += 8
+
+  // Subtle accent line
+  doc.setFillColor(accentColor[0], accentColor[1], accentColor[2])
+  doc.rect(margin, y, contentWidth, 0.5, 'F')
+  y += 8
+
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'italic')
+  doc.setTextColor(80, 80, 80)
+  const lines = doc.splitTextToSize(thankYou, contentWidth)
+  doc.text(lines, margin, y)
+  y += lines.length * doc.getLineHeight() / doc.internal.scaleFactor + 4
+
+  // Reset
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(0, 0, 0)
+
+  return y
 }
 
 // ===== THEME GENERATORS =====
@@ -287,6 +327,9 @@ function generateModern(
   doc.text('Total:', totalsX, y)
   doc.text(`$${invoice.total_amount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' })
 
+  // Thank-you paragraph
+  y = renderThankYou(doc, invoice.thank_you, y + 5, margin, pageWidth - 2 * margin, [ar, ag, ab])
+
   // Footer
   const pageHeight = doc.internal.pageSize.getHeight()
   renderHeaderFooter(doc, settings.footer, company, pageHeight - 10, 1, 1)
@@ -414,6 +457,10 @@ function generateClassic(
   doc.text('Total Due:', totalsX, y)
   doc.text(`$${invoice.total_amount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' })
 
+  // Thank-you paragraph
+  const [ar, ag, ab] = hexToRgb(company.accentColor)
+  y = renderThankYou(doc, invoice.thank_you, y + 5, margin, pageWidth - 2 * margin, [ar, ag, ab])
+
   // Footer
   const pageHeight = doc.internal.pageSize.getHeight()
   renderHeaderFooter(doc, settings.footer, company, pageHeight - 10, 1, 1)
@@ -530,6 +577,9 @@ function generateMinimal(
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(0, 0, 0)
   doc.text(`$${invoice.total_amount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' })
+
+  // Thank-you paragraph
+  y = renderThankYou(doc, invoice.thank_you, y + 5, margin, pageWidth - 2 * margin, [ar, ag, ab])
 
   const pageHeight = doc.internal.pageSize.getHeight()
   renderHeaderFooter(doc, settings.footer, company, pageHeight - 10, 1, 1)
@@ -653,6 +703,10 @@ function generateBold(
   doc.setFont('helvetica', 'normal')
   doc.text(`Subtotal: $${invoice.subtotal.toFixed(2)}`, pageWidth - margin - totalBlockWidth - 5, subtotalY - 6, { align: 'right' })
   doc.text(`Tax (${invoice.tax_rate}%): $${invoice.tax_amount.toFixed(2)}`, pageWidth - margin - totalBlockWidth - 5, subtotalY, { align: 'right' })
+
+  // Thank-you paragraph
+  y += 30
+  y = renderThankYou(doc, invoice.thank_you, y, margin, pageWidth - 2 * margin, [ar, ag, ab])
 
   const pageHeight = doc.internal.pageSize.getHeight()
   renderHeaderFooter(doc, settings.footer, company, pageHeight - 10, 1, 1)

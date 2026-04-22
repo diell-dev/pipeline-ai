@@ -25,7 +25,10 @@ export type PipeMaterial = 'cast_iron' | 'pvc' | 'clay' | 'copper' | 'unknown'
 
 export type ServiceUnit = 'per_drain' | 'per_line' | 'per_trap' | 'flat_rate' | 'hourly'
 
+export type RecurringFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly'
+
 export type JobStatus =
+  | 'scheduled'
   | 'submitted'
   | 'ai_generating'
   | 'pending_review'
@@ -212,8 +215,16 @@ export interface Job {
   priority: JobPriority
   service_date: string
   scheduled_time: string | null // ISO time for dispatch scheduling
+  scheduled_end_time: string | null // estimated end for calendar blocks
+  estimated_duration_minutes: number | null
   arrival_time: string | null // when tech arrived on site
   completion_time: string | null // when job was finished
+  // Scheduling metadata (Business tier)
+  scheduled_by: string | null // manager who scheduled this job
+  original_scheduled_time: string | null // if rescheduled, the original time
+  reschedule_reason: string | null
+  crew_id: string | null // crew assignment (null = individual tech)
+  recurring_schedule_id: string | null // link to recurring pattern
   tech_notes: string | null
   photos: string[] // storage URLs
   ai_report_content: Record<string, unknown> | null
@@ -288,20 +299,97 @@ export interface BankTransaction {
 // Activity Log
 // ============================================================
 
+// ============================================================
+// Crews (Business tier — multi-crew management)
+// ============================================================
+
+export interface Crew {
+  id: string
+  organization_id: string
+  name: string
+  color: string // hex color for calendar UI
+  lead_tech_id: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface CrewMember {
+  id: string
+  crew_id: string
+  user_id: string
+  joined_at: string
+}
+
+// ============================================================
+// Recurring Job Schedules (Business tier)
+// ============================================================
+
+export interface RecurringJobSchedule {
+  id: string
+  organization_id: string
+  client_id: string
+  site_id: string
+  assigned_to: string | null // individual tech
+  crew_id: string | null // or crew
+  created_by: string
+  // Pattern
+  frequency: RecurringFrequency
+  day_of_week: number[] // 0=Sun..6=Sat
+  day_of_month: number | null
+  scheduled_time: string // TIME as string "HH:MM:SS"
+  estimated_duration_minutes: number
+  service_ids: string[] // service_catalog IDs
+  // Auto-creation
+  advance_creation_days: number
+  next_occurrence_date: string
+  // State
+  is_active: boolean
+  paused_until: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+// ============================================================
+// Activity Log
+// ============================================================
+
 export type ActivityAction =
+  // Job lifecycle
+  | 'job_created'
   | 'job_submitted'
+  | 'job_scheduled'
+  | 'job_rescheduled'
+  | 'job_assigned'
+  | 'job_started'         // tech tapped "Start Job" (arrival logged)
+  | 'job_ai_generating'
+  | 'job_ai_completed'
   | 'job_approved'
   | 'job_rejected'
   | 'job_completed'
   | 'job_cancelled'
+  | 'job_sent'            // report + invoice sent to client
+  | 'job_deleted'
+  | 'revision_requested'
+  | 'report_manually_edited'
+  | 'invoice_manually_edited'
+  | 'report_regenerated'
+  // Invoice
+  | 'invoice_created'
   | 'invoice_sent'
   | 'invoice_paid'
+  | 'invoice_voided'
   | 'payment_recorded'
+  // CRM
   | 'client_created'
   | 'client_updated'
   | 'site_created'
   | 'user_invited'
-  | 'revision_requested'
+  // Scheduling (Business tier)
+  | 'crew_created'
+  | 'crew_updated'
+  | 'recurring_schedule_created'
 
 export interface ActivityLogEntry {
   id: string

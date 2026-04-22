@@ -49,9 +49,11 @@ import {
   Wrench,
 } from 'lucide-react'
 import { downloadInvoicePdf, downloadReportPdf, downloadBothAsZip } from '@/lib/pdf/download'
+import { JobActivityTimeline } from '@/components/jobs/activity-timeline'
 import type { Job, JobStatus, JobPriority } from '@/types/database'
 
 const STATUS_CONFIG: Record<JobStatus, { label: string; className: string }> = {
+  scheduled: { label: 'Scheduled', className: 'bg-cyan-100 text-cyan-700' },
   submitted: { label: 'Submitted', className: 'bg-blue-100 text-blue-700' },
   ai_generating: { label: 'AI Processing', className: 'bg-purple-100 text-purple-700' },
   pending_review: { label: 'Pending Review', className: 'bg-amber-100 text-amber-700' },
@@ -731,21 +733,39 @@ export default function JobDetailPage() {
 
       if (error) throw error
 
-      // Log activity
+      // Log activity for every status change
       const actionMap: Record<string, string> = {
+        scheduled: 'job_scheduled',
+        submitted: 'job_submitted',
+        ai_generating: 'job_ai_generating',
+        pending_review: 'job_ai_completed',
         approved: 'job_approved',
         rejected: 'job_rejected',
         completed: 'job_completed',
         cancelled: 'job_cancelled',
+        sent: 'job_sent',
+        revision_requested: 'revision_requested',
+        revised: 'job_submitted',
       }
 
-      if (actionMap[newStatus]) {
+      const logAction = actionMap[newStatus]
+      if (logAction) {
+        // Include relevant metadata for context
+        const logMetadata: Record<string, unknown> = {}
+        if (newStatus === 'rejected' && extra?.rejection_notes) {
+          logMetadata.rejection_notes = extra.rejection_notes
+        }
+        if (newStatus === 'revision_requested' && extra?.revision_request) {
+          logMetadata.revision_request = extra.revision_request
+        }
+
         await supabase.from('activity_log').insert({
           organization_id: job.organization_id,
           user_id: user!.id,
-          action: actionMap[newStatus],
+          action: logAction,
           entity_type: 'job',
           entity_id: job.id,
+          metadata: Object.keys(logMetadata).length > 0 ? logMetadata : {},
         })
       }
 
@@ -798,6 +818,17 @@ export default function JobDetailPage() {
 
       const res = await fetch(`/api/jobs/${job.id}/generate`, { method: 'POST' })
       if (!res.ok) throw new Error('Generation failed')
+
+      // Log regeneration
+      const supabaseLog = createClient()
+      await supabaseLog.from('activity_log').insert({
+        organization_id: job.organization_id,
+        user_id: user!.id,
+        action: 'report_regenerated',
+        entity_type: 'job',
+        entity_id: job.id,
+      })
+
       toast.success('Report & invoice regenerated!')
       await refreshJob()
     } catch (err) {
@@ -1102,7 +1133,7 @@ export default function JobDetailPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm flex items-center gap-2">
-                <FileText className="h-4 w-4" /> AI-Generated Report
+                <FileText className="h-4 w-4" /> Service Report
                 {reportWasEdited && (
                   <Badge variant="outline" className="text-[10px] ml-1 text-amber-600 border-amber-300">
                     Manually Edited
@@ -1152,6 +1183,49 @@ export default function JobDetailPage() {
             ) : (
               (() => {
                 const report = job.ai_report_content as Record<string, unknown>
+                const isV2 = report.version === 2 // New simplified format
+
+                if (isV2) {
+                  return (
+                    <>
+                      {/* Intro line: "Performed X at the property with the following findings:" */}
+                      {report.intro && (
+                        <p className="text-sm">{report.intro as string}</p>
+                      )}
+
+                      {/* Tech findings — the actual bullet points from the tech */}
+                      {Array.isArray(report.findings) && report.findings.length > 0 && (
+                        <ul className="text-sm text-muted-foreground space-y-1 pl-4">
+                          {(report.findings as string[]).map((item, i) => (
+                            <li key={i} className="before:content-['-'] before:mr-2">{item}</li>
+                          ))}
+                        </ul>
+                      )}
+
+                      {/* Fallback: show raw tech notes if no parsed findings */}
+                      {(!report.findings || (Array.isArray(report.findings) && report.findings.length === 0)) && report.tech_notes_raw && (
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                          {report.tech_notes_raw as string}
+                        </p>
+                      )}
+
+                      <div className="pt-2 border-t text-xs text-muted-foreground">
+                        Generated on{' '}
+                        {report.generated_at
+                          ? new Date(report.generated_at as string).toLocaleString()
+                          : 'N/A'}
+                        {report.manually_edited === true && (
+                          <span className="ml-2 text-amber-600">
+                            • Last edited by {report.last_edited_by ? String(report.last_edited_by).slice(0, 8) + '...' : 'unknown'}{' '}
+                            on {report.last_edited_at ? new Date(report.last_edited_at as string).toLocaleString() : 'N/A'}
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  )
+                }
+
+                // Legacy v1 format — old AI-generated reports with summary/recommendations/condition
                 return (
                   <>
                     {report.summary && (
@@ -1198,13 +1272,6 @@ export default function JobDetailPage() {
                       <div>
                         <h4 className="text-sm font-medium mb-1">Condition Assessment</h4>
                         <p className="text-sm text-muted-foreground">{report.condition_assessment as string}</p>
-                      </div>
-                    )}
-
-                    {report.next_steps && (
-                      <div>
-                        <h4 className="text-sm font-medium mb-1">Next Steps</h4>
-                        <p className="text-sm text-muted-foreground">{report.next_steps as string}</p>
                       </div>
                     )}
 
@@ -1341,6 +1408,13 @@ export default function JobDetailPage() {
                       </div>
                     </div>
 
+                    {/* Thank you paragraph */}
+                    {inv.thank_you && (
+                      <div className="bg-zinc-50 rounded-lg p-3 text-sm text-muted-foreground italic">
+                        {inv.thank_you as string}
+                      </div>
+                    )}
+
                     <div className="text-xs text-muted-foreground">
                       Payment terms: {(inv.payment_terms as string || 'net_30').replace('_', ' ')}
                       {inv.manually_edited === true && (
@@ -1475,6 +1549,9 @@ export default function JobDetailPage() {
           )}
         </div>
       )}
+
+      {/* Activity Timeline — full audit trail */}
+      <JobActivityTimeline jobId={job.id} />
 
       {/* Rejection / Revision notes */}
       {job.rejection_notes && (

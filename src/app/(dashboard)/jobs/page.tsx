@@ -32,6 +32,7 @@ import type { Job, JobStatus, JobPriority } from '@/types/database'
 
 // Status badge colors
 const STATUS_CONFIG: Record<JobStatus, { label: string; className: string }> = {
+  scheduled: { label: 'Scheduled', className: 'bg-cyan-100 text-cyan-700' },
   submitted: { label: 'Submitted', className: 'bg-blue-100 text-blue-700' },
   ai_generating: { label: 'AI Processing', className: 'bg-purple-100 text-purple-700' },
   pending_review: { label: 'Pending Review', className: 'bg-amber-100 text-amber-700' },

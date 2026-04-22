@@ -313,11 +313,11 @@ export default function NewJobPage() {
         }
       }
 
-      // 4. Log activity
+      // 4. Log activity — job created and submitted
       await supabase.from('activity_log').insert({
         organization_id: organization!.id,
         user_id: user!.id,
-        action: 'job_submitted',
+        action: 'job_created',
         entity_type: 'job',
         entity_id: job.id,
         metadata: {

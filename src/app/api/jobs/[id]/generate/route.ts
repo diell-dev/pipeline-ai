@@ -119,8 +119,8 @@ export async function POST(
       lineItems: jobLineItems || [],
     })
 
-    // 7. Generate AI Report using Claude — pass selected services + notes + adjustments
-    const aiReport = await generateReport({
+    // 7. Generate report — direct pass-through of tech notes + services (no AI needed)
+    const aiReport = generateReport({
       job,
       orgName: org?.name || 'NY Sewer & Drain',
       lineItems: jobLineItems || [],
@@ -152,11 +152,11 @@ export async function POST(
       throw new Error(`Failed to save AI content: ${updateError.message}`)
     }
 
-    // 8. Log activity
+    // 8. Log activity — AI finished generating documents
     await supabase.from('activity_log').insert({
       organization_id: job.organization_id,
       user_id: job.submitted_by,
-      action: 'job_submitted',
+      action: 'job_ai_completed',
       entity_type: 'job',
       entity_id: jobId,
       metadata: {
@@ -336,8 +336,13 @@ If there are NO pricing adjustments mentioned in the notes, return:
 }
 
 // ============================================================
-// AI Report Generation
+// Report Generation — No AI needed
 // ============================================================
+// The report is a direct pass-through of what the tech submitted:
+// - Services performed (from line items)
+// - Tech's notes/findings (verbatim)
+// - Photos
+// This matches the real-world report format: header → services → findings → photos.
 
 interface ReportInput {
   job: Record<string, unknown>
@@ -346,148 +351,53 @@ interface ReportInput {
   pricingAdjustments: PricingAnalysis
 }
 
-async function generateReport({ job, orgName, lineItems, pricingAdjustments }: ReportInput) {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-
-  // If no API key, generate a template-based report (fallback)
-  if (!apiKey) {
-    return generateFallbackReport({ job, orgName, lineItems, pricingAdjustments })
-  }
-
-  const anthropic = new Anthropic({ apiKey })
-
+function generateReport({ job, orgName, lineItems }: ReportInput) {
   const site = job.sites as Record<string, unknown> | null
-  const client = job.clients as Record<string, unknown> | null
   const photoUrls = Array.isArray(job.photos) ? (job.photos as string[]) : []
+  const techNotes = (job.tech_notes as string) || ''
 
-  // Build a clear list of services that were actually performed
+  // Build the list of services performed from actual line items
   const servicesPerformed = lineItems.map((li) => {
     const catalog = li.service_catalog as Record<string, unknown> | null
     const name = catalog?.name || (li.description as string) || 'Service'
     const qty = Number(li.quantity) || 1
     const notes = li.notes as string | null
-    return `- ${name} (qty: ${qty})${notes ? ` — ${notes}` : ''}`
-  }).join('\n')
-
-  const prompt = `You are a professional report writer for ${orgName}, a commercial drain cleaning and sewer service company in New York City.
-
-Generate a professional SERVICE REPORT for a completed job. This report will be sent directly to the client. Write in a clear, professional tone.
-
-## Job Information:
-- Client: ${client?.company_name || 'N/A'}
-- Contact: ${client?.primary_contact_name || 'N/A'}
-- Site: ${site?.name || 'N/A'}
-- Address: ${site?.address || 'N/A'}
-- Borough: ${site?.borough || 'N/A'}
-- Site Type: ${site?.site_type || 'N/A'}
-- Pipe Material: ${(site?.pipe_material || 'unknown').toString().replace('_', ' ')}
-- Drain Types: ${Array.isArray(site?.drain_types) ? (site.drain_types as string[]).map((d: string) => d.replace('_', ' ')).join(', ') : 'N/A'}
-- Known Issues: ${site?.known_issues || 'None documented'}
-- Service Date: ${job.service_date}
-- Priority: ${job.priority}
-- Number of Photos Taken: ${photoUrls.length}
-
-## Services Performed (selected by the technician):
-${servicesPerformed || 'No specific services listed'}
-
-## Technician Field Notes:
-${sanitizeTechNotes((job.tech_notes as string) || '') || 'No notes provided'}
-
-## Pricing Adjustments Applied to Invoice:
-${pricingAdjustments.hasAdjustments ? pricingAdjustments.summary : 'No special pricing adjustments'}
-
-IMPORTANT INSTRUCTIONS:
-- The technician's notes are the PRIMARY source of truth. They describe what actually happened on site. Use them heavily to build the report.
-- The services list shows what work was billed. Reference each service in the "work_performed" section.
-- If the tech notes mention specific observations, problems found, conditions, or details — include ALL of them in the report. Do not omit any technical details.
-- If photos were taken (count above), mention that photographic documentation is included in the report.
-- Be specific — never use generic filler when the tech notes provide real details.
-
-## Generate the report in this JSON structure:
-{
-  "title": "Service Report",
-  "summary": "2-3 sentence executive summary referencing the actual work described in tech notes",
-  "work_performed": [
-    "One item per service/task actually performed — be specific based on tech notes"
-  ],
-  "findings": [
-    "Key findings and observations from the technician's notes"
-  ],
-  "recommendations": [
-    "Recommendations for the client based on what was found"
-  ],
-  "condition_assessment": "Assessment of drain/sewer condition based on tech notes and findings",
-  "next_steps": "What the client should expect next or any follow-up needed"
-}
-
-Return ONLY valid JSON, no markdown, no code blocks.`
-
-  try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
-      messages: [
-        { role: 'user', content: prompt },
-      ],
-    })
-
-    const text = response.content[0].type === 'text' ? response.content[0].text : ''
-
-    // Parse the JSON response
-    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-    const report = JSON.parse(cleaned)
-
-    return {
-      ...report,
-      photos: photoUrls,
-      generated_at: new Date().toISOString(),
-      generated_by: 'claude-sonnet-4',
-      version: 1,
+    if (qty > 1) {
+      return `${name} (x${qty})${notes ? ` — ${notes}` : ''}`
     }
-  } catch (err) {
-    console.error('Claude API error, using fallback:', err)
-    return generateFallbackReport({ job, orgName, lineItems, pricingAdjustments })
-  }
-}
-
-function generateFallbackReport({ job, orgName, lineItems }: ReportInput) {
-  const site = job.sites as Record<string, unknown> | null
-  const techNotes = (job.tech_notes as string) || 'Service completed as requested.'
-  const photoUrls = Array.isArray(job.photos) ? (job.photos as string[]) : []
-
-  // Build work_performed from actual line items
-  const workItems = lineItems.map((li) => {
-    const catalog = li.service_catalog as Record<string, unknown> | null
-    const name = catalog?.name || (li.description as string) || 'Service'
-    return `${name} performed at ${site?.name || 'site'}`
+    return `${name}${notes ? ` — ${notes}` : ''}`
   })
 
-  if (workItems.length === 0) {
-    workItems.push(`Drain/sewer service performed at ${site?.name || 'site'}`)
+  if (servicesPerformed.length === 0) {
+    servicesPerformed.push('Drain/sewer service')
   }
 
-  // Add tech notes as a work item if present
-  if (techNotes && techNotes !== 'Service completed as requested.') {
-    workItems.push(`Technician observations: ${techNotes}`)
+  // Build the intro line: "Performed [services] at the property with the following findings:"
+  const servicesSummary = servicesPerformed.join(', ').toLowerCase()
+  const introLine = `Performed ${servicesSummary} at the property${techNotes ? ' with the following findings:' : '.'}`
+
+  // Parse tech notes into individual findings (split by newlines or dashes)
+  const findings: string[] = []
+  if (techNotes) {
+    const lines = techNotes.split(/\n/).map((l: string) => l.trim()).filter((l: string) => l.length > 0)
+    for (const line of lines) {
+      // Remove leading dashes/bullets if present
+      const cleaned = line.replace(/^[-•*]\s*/, '').trim()
+      if (cleaned) findings.push(cleaned)
+    }
   }
 
   return {
     title: 'Service Report',
-    summary: `${orgName} performed drain/sewer service at ${site?.address || 'the specified location'} on ${job.service_date}. ${workItems.length} service(s) completed by our field technician.${photoUrls.length > 0 ? ` ${photoUrls.length} photo(s) documented.` : ''}`,
-    work_performed: workItems,
-    findings: [
-      'Service completed — detailed findings available upon request.',
-    ],
-    recommendations: [
-      'Regular maintenance recommended to prevent buildup and blockages.',
-      'Schedule follow-up inspection if issues persist.',
-    ],
-    condition_assessment: 'Assessment based on technician observations during service visit.',
-    next_steps: 'Report and invoice attached for your records. Contact us with any questions.',
+    intro: introLine,
+    services_performed: servicesPerformed,
+    findings,
+    tech_notes_raw: techNotes,
     photos: photoUrls,
+    site_address: site?.address || '',
     generated_at: new Date().toISOString(),
-    generated_by: 'template-fallback',
-    version: 1,
+    generated_by: 'template',
+    version: 2,
   }
 }
 
@@ -738,6 +648,7 @@ async function generateInvoice({ job, lineItems, services, orgName, orgSettings,
     payment_terms: paymentTerms,
     due_date: dueDate.toISOString().slice(0, 10),
     adjustments_applied: pricingAdjustments.hasAdjustments ? pricingAdjustments.summary : null,
+    thank_you: `Thank you for choosing ${orgName}! We appreciate your business and are committed to keeping your property's plumbing and drainage systems running smoothly. For questions about this invoice or to schedule your next service, contact us anytime.`,
     generated_at: new Date().toISOString(),
   }
 

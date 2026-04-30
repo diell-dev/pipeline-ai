@@ -94,6 +94,18 @@ export async function POST(
       .eq('id', job.organization_id)
       .single()
 
+    // 3b. If this job came from a signed proposal, fetch the proposed scope.
+    //     This becomes the "Original scope" line in the report.
+    let originatingProposal: { issue_description: string; proposed_solution: string } | null = null
+    if (job.proposal_id) {
+      const { data: prop } = await supabase
+        .from('proposals')
+        .select('issue_description, proposed_solution')
+        .eq('id', job.proposal_id)
+        .maybeSingle()
+      if (prop) originatingProposal = prop
+    }
+
     // 4. Fetch the ACTUAL line items the tech selected when creating the job
     const { data: jobLineItems } = await supabase
       .from('job_line_items')
@@ -125,6 +137,7 @@ export async function POST(
       orgName: org?.name || 'NY Sewer & Drain',
       lineItems: jobLineItems || [],
       pricingAdjustments,
+      originatingProposal,
     })
 
     // 8. Generate Invoice from ACTUAL selected services + any adjustments from tech notes
@@ -349,32 +362,43 @@ interface ReportInput {
   orgName: string
   lineItems: Array<Record<string, unknown>>
   pricingAdjustments: PricingAnalysis
+  originatingProposal?: { issue_description: string; proposed_solution: string } | null
 }
 
-function generateReport({ job, orgName, lineItems }: ReportInput) {
+function generateReport({ job, orgName, lineItems, originatingProposal }: ReportInput) {
   const site = job.sites as Record<string, unknown> | null
   const photoUrls = Array.isArray(job.photos) ? (job.photos as string[]) : []
   const techNotes = (job.tech_notes as string) || ''
 
   // Build the list of services performed from actual line items
-  const servicesPerformed = lineItems.map((li) => {
+  const servicesPerformed: string[] = []
+
+  // If this job came from a signed proposal, lead with the planned scope so
+  // the report ties back to what the client signed off on.
+  if (originatingProposal?.proposed_solution) {
+    servicesPerformed.push(`Original scope: ${originatingProposal.proposed_solution}`)
+  }
+
+  for (const li of lineItems) {
     const catalog = li.service_catalog as Record<string, unknown> | null
     const name = catalog?.name || (li.description as string) || 'Service'
     const qty = Number(li.quantity) || 1
     const notes = li.notes as string | null
     if (qty > 1) {
-      return `${name} (x${qty})${notes ? ` — ${notes}` : ''}`
+      servicesPerformed.push(`${name} (x${qty})${notes ? ` — ${notes}` : ''}`)
+    } else {
+      servicesPerformed.push(`${name}${notes ? ` — ${notes}` : ''}`)
     }
-    return `${name}${notes ? ` — ${notes}` : ''}`
-  })
+  }
 
   if (servicesPerformed.length === 0) {
     servicesPerformed.push('Drain/sewer service')
   }
 
-  // Build the intro line: "Performed [services] at the property with the following findings:"
-  const servicesSummary = servicesPerformed.join(', ').toLowerCase()
-  const introLine = `Performed ${servicesSummary} at the property${techNotes ? ' with the following findings:' : '.'}`
+  // Build the intro line — if we have a proposal, mention that the scope was pre-approved
+  const introLine = originatingProposal
+    ? `Performed work under the originally approved estimate at the property${techNotes ? ' with the following findings:' : '.'}`
+    : `Performed services at the property${techNotes ? ' with the following findings:' : '.'}`
 
   // Parse tech notes into individual findings (split by newlines or dashes)
   const findings: string[] = []
@@ -395,6 +419,13 @@ function generateReport({ job, orgName, lineItems }: ReportInput) {
     tech_notes_raw: techNotes,
     photos: photoUrls,
     site_address: site?.address || '',
+    from_proposal: originatingProposal
+      ? {
+          issue_description: originatingProposal.issue_description,
+          proposed_solution: originatingProposal.proposed_solution,
+        }
+      : null,
+    org_name: orgName,
     generated_at: new Date().toISOString(),
     generated_by: 'template',
     version: 2,

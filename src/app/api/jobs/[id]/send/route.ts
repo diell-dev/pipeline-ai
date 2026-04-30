@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getApiUser, apiHasPermission } from '@/lib/api-auth'
+import { createInvoiceCheckoutSession } from '@/lib/stripe-helpers'
 
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -94,14 +95,52 @@ export async function POST(
       )
     }
 
-    // 2. Get organization info
+    // 2. Get organization info (incl. Stripe Connect state)
     const { data: org } = await supabase
       .from('organizations')
-      .select('name, settings')
+      .select(
+        'id, name, settings, stripe_account_id, stripe_charges_enabled'
+      )
       .eq('id', job.organization_id)
       .single()
 
     const orgName = org?.name || 'NY Sewer & Drain'
+
+    // 2b. If Stripe Connect is set up, ensure a Checkout Session exists
+    // for the invoice tied to this job. Fail-soft: if Stripe errors,
+    // we still send the email without a Pay button.
+    let payWithCardUrl: string | null = null
+    if (
+      org?.stripe_account_id &&
+      org?.stripe_charges_enabled
+    ) {
+      try {
+        const { data: dbInvoice } = await supabase
+          .from('invoices')
+          .select(
+            'id, organization_id, invoice_number, total_amount, stripe_checkout_session_id, stripe_payment_link_url'
+          )
+          .eq('job_id', jobId)
+          .maybeSingle()
+
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL
+        if (dbInvoice && appUrl) {
+          const result = await createInvoiceCheckoutSession(
+            supabase,
+            dbInvoice,
+            {
+              id: org.id as string,
+              stripe_account_id: org.stripe_account_id as string,
+              stripe_charges_enabled: org.stripe_charges_enabled as boolean,
+            },
+            appUrl
+          )
+          payWithCardUrl = result.url
+        }
+      } catch (stripeErr) {
+        console.error('Stripe checkout creation failed (sending without Pay button):', stripeErr)
+      }
+    }
 
     // 3. Build the email
     const report = job.ai_report_content as Record<string, unknown>
@@ -116,6 +155,7 @@ export async function POST(
       serviceDate: job.service_date as string,
       report,
       invoice,
+      payWithCardUrl,
     })
 
     // 4. Send via Resend or fallback
@@ -236,6 +276,7 @@ interface EmailInput {
   serviceDate: string
   report: Record<string, unknown>
   invoice: Record<string, unknown>
+  payWithCardUrl?: string | null
 }
 
 function buildEmailHtml({
@@ -246,6 +287,7 @@ function buildEmailHtml({
   serviceDate,
   report,
   invoice,
+  payWithCardUrl,
 }: EmailInput): string {
   const lineItems = (invoice.line_items as Array<Record<string, unknown>>) || []
 
@@ -364,6 +406,18 @@ function buildEmailHtml({
           Total: $${Number(invoice.total_amount).toFixed(2)}
         </p>
       </div>
+
+      ${payWithCardUrl ? `
+      <div style="text-align: center; margin: 24px 0 8px;">
+        <a href="${escHtml(payWithCardUrl)}"
+           style="display: inline-block; background: #00a447; color: #ffffff; font-weight: 600; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,164,71,0.25);">
+          Pay with Card
+        </a>
+        <p style="font-size: 12px; color: #888; margin: 10px 0 0;">
+          Or pay by check, ACH, or wire &mdash; see invoice for details.
+        </p>
+      </div>
+      ` : ''}
 
       <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 12px 16px; margin-top: 16px;">
         <p style="font-size: 13px; color: #0369a1; margin: 0;">

@@ -71,16 +71,28 @@ export async function getApiUser(): Promise<ApiAuth> {
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   super_admin: [
     'jobs:create', 'jobs:view_all', 'jobs:edit_all', 'jobs:approve', 'jobs:reject', 'jobs:send',
+    'jobs:schedule', 'crews:manage', 'recurring:manage',
     'users:invite', 'users:manage',
+    'proposals:create', 'proposals:view_own', 'proposals:view_all',
+    'proposals:approve', 'proposals:send', 'proposals:delete', 'proposals:convert',
   ],
   owner: [
     'jobs:create', 'jobs:view_all', 'jobs:edit_all', 'jobs:approve', 'jobs:reject', 'jobs:send',
+    'jobs:schedule', 'crews:manage', 'recurring:manage',
     'users:invite', 'users:manage',
+    'proposals:create', 'proposals:view_own', 'proposals:view_all',
+    'proposals:approve', 'proposals:send', 'proposals:delete', 'proposals:convert',
   ],
   office_manager: [
     'jobs:create', 'jobs:view_all', 'jobs:edit_all', 'jobs:approve', 'jobs:reject', 'jobs:send',
+    'jobs:schedule', 'crews:manage', 'recurring:manage',
+    'proposals:create', 'proposals:view_own', 'proposals:view_all',
+    'proposals:approve', 'proposals:send', 'proposals:convert',
   ],
-  field_tech: ['jobs:create', 'jobs:view_own', 'jobs:edit_own'],
+  field_tech: [
+    'jobs:create', 'jobs:view_own', 'jobs:edit_own',
+    'proposals:create', 'proposals:view_own',
+  ],
   client: [],
 }
 

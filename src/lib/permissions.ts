@@ -21,6 +21,18 @@ export type Permission =
   | 'jobs:reject'
   | 'jobs:send'
   | 'jobs:delete' // owner only
+  | 'jobs:schedule' // managers+ — calendar scheduling
+  // Scheduling (crews + recurring patterns)
+  | 'crews:manage' // managers+
+  | 'recurring:manage' // managers+
+  // Proposals / Estimates
+  | 'proposals:create'
+  | 'proposals:view_own'
+  | 'proposals:view_all'
+  | 'proposals:approve' // admin approval before sending to client
+  | 'proposals:send'
+  | 'proposals:delete'
+  | 'proposals:convert' // manually convert client_approved → job
   // Clients
   | 'clients:view'
   | 'clients:create'
@@ -63,7 +75,10 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   super_admin: [
     // Super admin can do everything
     'jobs:create', 'jobs:view_own', 'jobs:view_all', 'jobs:edit_own', 'jobs:edit_all',
-    'jobs:approve', 'jobs:reject', 'jobs:send', 'jobs:delete',
+    'jobs:approve', 'jobs:reject', 'jobs:send', 'jobs:delete', 'jobs:schedule',
+    'crews:manage', 'recurring:manage',
+    'proposals:create', 'proposals:view_own', 'proposals:view_all',
+    'proposals:approve', 'proposals:send', 'proposals:delete', 'proposals:convert',
     'clients:view', 'clients:create', 'clients:edit', 'clients:delete',
     'sites:view', 'sites:create', 'sites:edit',
     'services:view', 'services:manage',
@@ -77,7 +92,10 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 
   owner: [
     'jobs:create', 'jobs:view_own', 'jobs:view_all', 'jobs:edit_own', 'jobs:edit_all',
-    'jobs:approve', 'jobs:reject', 'jobs:send', 'jobs:delete',
+    'jobs:approve', 'jobs:reject', 'jobs:send', 'jobs:delete', 'jobs:schedule',
+    'crews:manage', 'recurring:manage',
+    'proposals:create', 'proposals:view_own', 'proposals:view_all',
+    'proposals:approve', 'proposals:send', 'proposals:delete', 'proposals:convert',
     'clients:view', 'clients:create', 'clients:edit', 'clients:delete',
     'sites:view', 'sites:create', 'sites:edit',
     'services:view', 'services:manage',
@@ -91,7 +109,10 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 
   office_manager: [
     'jobs:create', 'jobs:view_own', 'jobs:view_all', 'jobs:edit_own', 'jobs:edit_all',
-    'jobs:approve', 'jobs:reject', 'jobs:send',
+    'jobs:approve', 'jobs:reject', 'jobs:send', 'jobs:schedule',
+    'crews:manage', 'recurring:manage',
+    'proposals:create', 'proposals:view_own', 'proposals:view_all',
+    'proposals:approve', 'proposals:send', 'proposals:convert',
     'clients:view', 'clients:create', 'clients:edit',
     'sites:view', 'sites:create', 'sites:edit',
     'services:view',
@@ -105,6 +126,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 
   field_tech: [
     'jobs:create', 'jobs:view_own', 'jobs:edit_own',
+    'proposals:create', 'proposals:view_own',
     'clients:view', 'clients:create', // can add new clients in the field
     'sites:view', 'sites:create', // can add new sites in the field
     'services:view',

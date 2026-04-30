@@ -2,7 +2,7 @@
 
 import { useAuthStore } from '@/stores/auth-store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Settings, Palette, Bell, Shield, Building, Mail, FileText } from 'lucide-react'
+import { Settings, Palette, Bell, Shield, Building, Mail, FileText, CreditCard } from 'lucide-react'
 import Link from 'next/link'
 import { hasPermission } from '@/lib/permissions'
 
@@ -25,6 +25,13 @@ const settingSections = [
     description: 'Configure how reports and invoices are emailed to clients.',
     icon: Mail,
     href: '/settings/email',
+    permission: 'settings:manage' as const,
+  },
+  {
+    title: 'Payments',
+    description: 'Connect Stripe to accept credit-card invoice payments.',
+    icon: CreditCard,
+    href: '/settings/payments',
     permission: 'settings:manage' as const,
   },
   {

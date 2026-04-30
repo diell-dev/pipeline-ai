@@ -13,7 +13,7 @@
  * 7. Submit → status becomes "submitted" → AI auto-generates report + invoice
  */
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
 import { hasPermission } from '@/lib/permissions'
@@ -25,8 +25,15 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { PhotoUpload } from '@/components/jobs/photo-upload'
 import { toast } from 'sonner'
-import { ArrowLeft, Send, Loader2, Search, X, Plus, Wrench } from 'lucide-react'
-import type { Client, Site, JobPriority, ServiceCatalogItem } from '@/types/database'
+import { ArrowLeft, Send, Loader2, Search, X, Plus, Wrench, Clock } from 'lucide-react'
+import type { Client, Site, JobPriority, ServiceCatalogItem, User } from '@/types/database'
+
+interface CrewLite {
+  id: string
+  name: string
+  color: string
+  is_active?: boolean
+}
 
 interface SelectedService {
   id: string // catalog id or 'custom-{index}'
@@ -39,22 +46,39 @@ interface SelectedService {
 
 export default function NewJobPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, organization } = useAuthStore()
   const supabase = createClient()
 
   // Permission check
   const canCreate = user?.role ? hasPermission(user.role, 'jobs:create') : false
+  const canSchedule = user?.role ? hasPermission(user.role, 'jobs:schedule') : false
+
+  // Pre-fill from query params (e.g. when coming from the calendar empty-slot click)
+  const prefilledDate = searchParams.get('scheduled_date') || ''
+  const prefilledHour = searchParams.get('scheduled_hour') || ''
 
   // Form state
   const [clientId, setClientId] = useState('')
   const [siteId, setSiteId] = useState('')
   const [serviceDate, setServiceDate] = useState(
-    new Date().toISOString().split('T')[0]
+    prefilledDate || new Date().toISOString().split('T')[0]
   )
   const [priority, setPriority] = useState<JobPriority>('normal')
   const [techNotes, setTechNotes] = useState('')
   const [photos, setPhotos] = useState<File[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Scheduling fields (managers can schedule on creation)
+  const [scheduledTime, setScheduledTime] = useState<string>(
+    prefilledHour ? `${prefilledHour.padStart(2, '0')}:00` : ''
+  )
+  const [estimatedDuration, setEstimatedDuration] = useState<number>(60)
+  const [assigneeKind, setAssigneeKind] = useState<'tech' | 'crew' | 'none'>('none')
+  const [assignedTo, setAssignedTo] = useState<string>('')
+  const [crewId, setCrewId] = useState<string>('')
+  const [users, setUsers] = useState<User[]>([])
+  const [crews, setCrews] = useState<CrewLite[]>([])
 
   // Data lists
   const [clients, setClients] = useState<Client[]>([])
@@ -104,6 +128,27 @@ export default function NewJobPage() {
 
     loadData()
   }, [organization])
+
+  // Load users + crews if the current user can schedule
+  useEffect(() => {
+    if (!organization || !canSchedule) return
+
+    async function loadSchedulingOptions() {
+      const [usersRes, crewsRes] = await Promise.all([
+        supabase
+          .from('users')
+          .select('*')
+          .eq('organization_id', organization!.id)
+          .eq('is_active', true)
+          .neq('role', 'client')
+          .order('full_name'),
+        fetch('/api/crews').then((r) => r.json()).catch(() => ({ crews: [] })),
+      ])
+      setUsers(usersRes.data || [])
+      setCrews((crewsRes.crews || []).filter((c: CrewLite) => c.is_active !== false))
+    }
+    loadSchedulingOptions()
+  }, [organization, canSchedule])
 
   // Load sites when client changes
   useEffect(() => {
@@ -260,21 +305,46 @@ export default function NewJobPage() {
 
     setIsSubmitting(true)
 
+    // Determine if this should be scheduled vs. submitted-now
+    const isScheduling = canSchedule && !!scheduledTime
+
     try {
+      // Build the insert payload, including scheduling fields if relevant
+      const insertPayload: Record<string, unknown> = {
+        organization_id: organization!.id,
+        client_id: clientId,
+        site_id: siteId,
+        submitted_by: user!.id,
+        status: isScheduling ? 'scheduled' : 'submitted',
+        priority,
+        service_date: serviceDate,
+        tech_notes: techNotes || null,
+        photos: [],
+      }
+
+      if (isScheduling) {
+        // Combine date + time into ISO timestamp (local time)
+        const [hh, mm] = scheduledTime.split(':')
+        const startDate = new Date(serviceDate + 'T00:00:00')
+        startDate.setHours(parseInt(hh), parseInt(mm), 0, 0)
+        const endDate = new Date(startDate.getTime() + estimatedDuration * 60_000)
+
+        insertPayload.scheduled_time = startDate.toISOString()
+        insertPayload.scheduled_end_time = endDate.toISOString()
+        insertPayload.estimated_duration_minutes = estimatedDuration
+        insertPayload.scheduled_by = user!.id
+
+        if (assigneeKind === 'tech' && assignedTo) {
+          insertPayload.assigned_to = assignedTo
+        } else if (assigneeKind === 'crew' && crewId) {
+          insertPayload.crew_id = crewId
+        }
+      }
+
       // 1. Create the job record
       const { data: job, error: jobError } = await supabase
         .from('jobs')
-        .insert({
-          organization_id: organization!.id,
-          client_id: clientId,
-          site_id: siteId,
-          submitted_by: user!.id,
-          status: 'submitted',
-          priority,
-          service_date: serviceDate,
-          tech_notes: techNotes || null,
-          photos: [],
-        })
+        .insert(insertPayload)
         .select()
         .single()
 
@@ -328,16 +398,21 @@ export default function NewJobPage() {
         },
       })
 
-      toast.success('Job submitted! AI is generating report & invoice...')
+      if (isScheduling) {
+        toast.success('Job scheduled successfully')
+        router.push('/schedule')
+      } else {
+        toast.success('Job submitted! AI is generating report & invoice...')
 
-      // 5. Trigger AI report + invoice generation (fire-and-forget)
-      fetch(`/api/jobs/${job.id}/generate`, { method: 'POST' })
-        .then((res) => {
-          if (!res.ok) console.error('AI generation request failed')
-        })
-        .catch((err) => console.error('AI generation trigger error:', err))
+        // 5. Trigger AI report + invoice generation (fire-and-forget) — only for submitted jobs
+        fetch(`/api/jobs/${job.id}/generate`, { method: 'POST' })
+          .then((res) => {
+            if (!res.ok) console.error('AI generation request failed')
+          })
+          .catch((err) => console.error('AI generation trigger error:', err))
 
-      router.push('/jobs')
+        router.push('/jobs')
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       console.error('Job submission failed:', message)
@@ -628,6 +703,98 @@ export default function NewJobPage() {
           </CardContent>
         </Card>
 
+        {/* Scheduling — managers only */}
+        {canSchedule && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Clock className="h-4 w-4" /> Schedule (Optional)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Set a time to schedule this job for a future date. Leave blank to submit it immediately for AI processing.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="scheduled-time">Time</Label>
+                  <Input
+                    id="scheduled-time"
+                    type="time"
+                    value={scheduledTime}
+                    onChange={(e) => setScheduledTime(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="duration">Estimated Duration (min)</Label>
+                  <Input
+                    id="duration"
+                    type="number"
+                    min="15"
+                    step="15"
+                    value={estimatedDuration}
+                    onChange={(e) => setEstimatedDuration(parseInt(e.target.value) || 60)}
+                    className="h-9"
+                    disabled={!scheduledTime}
+                  />
+                </div>
+              </div>
+
+              {scheduledTime && (
+                <div className="space-y-2">
+                  <Label>Assign To</Label>
+                  <div className="flex gap-2 mb-2">
+                    {(['none', 'tech', 'crew'] as const).map((k) => (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => setAssigneeKind(k)}
+                        className={`flex-1 px-3 py-1.5 text-xs rounded-md border capitalize ${
+                          assigneeKind === k
+                            ? 'bg-zinc-900 text-white border-zinc-900'
+                            : 'bg-white border-zinc-200 hover:bg-zinc-50'
+                        }`}
+                      >
+                        {k === 'none' ? 'Unassigned' : k === 'tech' ? 'Individual Tech' : 'Crew'}
+                      </button>
+                    ))}
+                  </div>
+                  {assigneeKind === 'tech' && (
+                    <select
+                      value={assignedTo}
+                      onChange={(e) => setAssignedTo(e.target.value)}
+                      className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    >
+                      <option value="">Select tech</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.full_name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {assigneeKind === 'crew' && (
+                    <select
+                      value={crewId}
+                      onChange={(e) => setCrewId(e.target.value)}
+                      className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    >
+                      <option value="">Select crew</option>
+                      {crews.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Photos */}
         <Card>
           <CardHeader>
@@ -676,12 +843,21 @@ export default function NewJobPage() {
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Submitting...
+                {canSchedule && scheduledTime ? 'Scheduling...' : 'Submitting...'}
               </>
             ) : (
               <>
-                <Send className="mr-2 h-4 w-4" />
-                Submit Job
+                {canSchedule && scheduledTime ? (
+                  <>
+                    <Clock className="mr-2 h-4 w-4" />
+                    Schedule Job
+                  </>
+                ) : (
+                  <>
+                    <Send className="mr-2 h-4 w-4" />
+                    Submit Job
+                  </>
+                )}
               </>
             )}
           </Button>

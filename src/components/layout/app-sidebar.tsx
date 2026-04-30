@@ -14,11 +14,13 @@ import {
   Building2,
   Wrench,
   FileText,
+  FileSignature,
   DollarSign,
   Settings,
   ChevronLeft,
   ChevronRight,
   FlaskConical,
+  Calendar,
 } from 'lucide-react'
 
 interface NavItem {
@@ -27,11 +29,19 @@ interface NavItem {
   icon: React.ElementType
   permission?: Parameters<typeof hasPermission>[1]
   anyPermission?: Permission[] // show if user has ANY of these
+  // If true, item is rendered for field techs only (no jobs:schedule perm)
+  techOnly?: boolean
+  // If true, item is rendered for managers only (has jobs:schedule perm)
+  managersOnly?: boolean
 }
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Proposals', href: '/proposals', icon: FileSignature, permission: 'proposals:view_own' },
   { label: 'Jobs', href: '/jobs', icon: ClipboardList, permission: 'jobs:view_own' },
+  // Managers see the full Schedule (calendar); techs see "My Schedule"
+  { label: 'Schedule', href: '/schedule', icon: Calendar, permission: 'jobs:schedule', managersOnly: true },
+  { label: 'My Schedule', href: '/schedule/my-schedule', icon: Calendar, techOnly: true },
   { label: 'Clients', href: '/clients', icon: Building2, permission: 'clients:view' },
   { label: 'Services', href: '/services', icon: Wrench, permission: 'services:view' },
   { label: 'Invoices', href: '/invoices', icon: FileText, anyPermission: ['invoices:view_all', 'invoices:view_own'] },
@@ -47,7 +57,10 @@ export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false)
 
   // Filter nav items by user permissions
+  const isManager = user?.role ? hasPermission(user.role, 'jobs:schedule') : false
   const visibleItems = navItems.filter((item) => {
+    if (item.managersOnly && !isManager) return false
+    if (item.techOnly && (isManager || !user)) return false
     if (!item.permission && !item.anyPermission) return true
     if (!user) return false
     if (item.anyPermission) return hasAnyPermission(user.role, item.anyPermission)

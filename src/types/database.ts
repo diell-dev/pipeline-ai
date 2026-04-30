@@ -102,6 +102,11 @@ export interface Organization {
   // Billing
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
+  // Stripe Connect (Migration 004) — for accepting card payments on invoices
+  stripe_account_id: string | null
+  stripe_account_status: 'pending' | 'active' | 'restricted' | 'disconnected' | null
+  stripe_charges_enabled: boolean
+  stripe_payouts_enabled: boolean
   // Metadata
   created_at: string
   updated_at: string
@@ -225,6 +230,7 @@ export interface Job {
   reschedule_reason: string | null
   crew_id: string | null // crew assignment (null = individual tech)
   recurring_schedule_id: string | null // link to recurring pattern
+  proposal_id: string | null // link back to originating proposal (Migration 003)
   tech_notes: string | null
   photos: string[] // storage URLs
   ai_report_content: Record<string, unknown> | null
@@ -273,6 +279,10 @@ export interface Invoice {
   paid_amount: number
   payment_method: PaymentMethod | null
   notes: string | null
+  // Stripe Connect (Migration 004) — set when invoice is paid via Stripe Checkout
+  stripe_payment_intent_id: string | null
+  stripe_checkout_session_id: string | null
+  stripe_payment_link_url: string | null
   created_at: string
   updated_at: string
 }
@@ -355,6 +365,103 @@ export interface RecurringJobSchedule {
 // Activity Log
 // ============================================================
 
+// ============================================================
+// Proposals / Estimates (Migration 003)
+// ============================================================
+
+export type ProposalStatus =
+  | 'draft'
+  | 'pending_admin_approval'
+  | 'admin_approved'
+  | 'sent_to_client'
+  | 'client_approved'
+  | 'client_rejected'
+  | 'converted_to_job'
+  | 'expired'
+  | 'cancelled'
+
+export type SignatureType = 'drawn' | 'typed'
+
+export interface ProposalMaterial {
+  name: string
+  qty: number
+  cost: number
+}
+
+export interface Proposal {
+  id: string
+  organization_id: string
+  client_id: string
+  site_id: string | null
+  created_by: string
+  assigned_to: string | null
+  proposal_number: string
+  status: ProposalStatus
+  // Internal fields (not visible to client)
+  measurements: string | null
+  material_list: ProposalMaterial[]
+  material_cost_total: number
+  estimated_hours: number | null
+  num_techs_needed: number
+  estimated_days: number
+  equipment_list: string[]
+  internal_notes: string | null
+  // Client-facing fields
+  issue_description: string
+  proposed_solution: string
+  subtotal: number
+  discount_enabled: boolean
+  discount_amount: number
+  discount_reason: string | null
+  tax_rate: number
+  tax_amount: number
+  total_amount: number
+  // Workflow timestamps
+  submitted_for_approval_at: string | null
+  admin_approved_at: string | null
+  admin_approved_by: string | null
+  sent_to_client_at: string | null
+  sent_to_client_by: string | null
+  client_approved_at: string | null
+  client_rejected_at: string | null
+  client_rejection_reason: string | null
+  converted_to_job_id: string | null
+  converted_at: string | null
+  // Public sign URL token
+  public_token: string | null
+  valid_until: string | null
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+}
+
+export interface ProposalLineItem {
+  id: string
+  proposal_id: string
+  service_catalog_id: string | null
+  service_name: string
+  description: string | null
+  quantity: number
+  unit: string
+  unit_price: number
+  total: number
+  sort_order: number
+  created_at: string
+}
+
+export interface ProposalSignature {
+  id: string
+  proposal_id: string
+  signed_at: string
+  signed_by_name: string
+  signed_by_email: string
+  signed_by_title: string | null
+  signature_data: string | null
+  signature_type: SignatureType
+  ip_address: string | null
+  user_agent: string | null
+}
+
 export type ActivityAction =
   // Job lifecycle
   | 'job_created'
@@ -379,6 +486,8 @@ export type ActivityAction =
   | 'invoice_created'
   | 'invoice_sent'
   | 'invoice_paid'
+  | 'invoice_marked_paid'        // manually marked paid (check/wire/cash/etc.)
+  | 'invoice_paid_via_stripe'    // automatic via Stripe Connect webhook
   | 'invoice_voided'
   | 'payment_recorded'
   // CRM
@@ -390,13 +499,21 @@ export type ActivityAction =
   | 'crew_created'
   | 'crew_updated'
   | 'recurring_schedule_created'
+  // Proposals (Migration 003)
+  | 'proposal_created'
+  | 'proposal_submitted_for_approval'
+  | 'proposal_admin_approved'
+  | 'proposal_sent_to_client'
+  | 'proposal_signed_by_client'
+  | 'proposal_rejected_by_client'
+  | 'proposal_converted_to_job'
 
 export interface ActivityLogEntry {
   id: string
   organization_id: string
   user_id: string
   action: ActivityAction
-  entity_type: 'job' | 'invoice' | 'client' | 'site' | 'user'
+  entity_type: 'job' | 'invoice' | 'client' | 'site' | 'user' | 'proposal'
   entity_id: string
   metadata: Record<string, unknown> | null
   created_at: string

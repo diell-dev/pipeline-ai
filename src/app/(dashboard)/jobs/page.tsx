@@ -27,6 +27,8 @@ import {
   Eye,
   ChevronDown,
   Building2,
+  CheckCircle2,
+  ArrowRight,
 } from 'lucide-react'
 import type { Job, JobStatus, JobPriority } from '@/types/database'
 
@@ -67,6 +69,9 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<JobWithRelations[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | JobStatus>('all')
+  // Per-status counts for the filter pills + the action banner
+  const [counts, setCounts] = useState<Record<string, number>>({})
+  const canApprove = user?.role ? hasPermission(user.role, 'jobs:approve') : false
   const [clients, setClients] = useState<{ id: string; company_name: string }[]>([])
   const [selectedClient, setSelectedClient] = useState<string>(searchParams.get('client') || '')
   const [clientDropdownOpen, setClientDropdownOpen] = useState(false)
@@ -149,6 +154,30 @@ export default function JobsPage() {
     loadJobs()
   }, [organization, user, canViewAll, filter, clientFilter])
 
+  // Load per-status counts (separate query, ignores the status filter so all pills get counts)
+  useEffect(() => {
+    if (!organization || !user) return
+    async function loadCounts() {
+      const supabase = createClient()
+      let q = supabase
+        .from('jobs')
+        .select('status')
+        .eq('organization_id', organization!.id)
+        .is('deleted_at', null)
+      if (!canViewAll) q = q.eq('submitted_by', user!.id)
+      if (clientFilter) q = q.eq('client_id', clientFilter)
+      const { data } = await q
+      const tally: Record<string, number> = { all: 0 }
+      ;(data || []).forEach((row) => {
+        const s = row.status as string
+        tally.all += 1
+        tally[s] = (tally[s] || 0) + 1
+      })
+      setCounts(tally)
+    }
+    loadCounts()
+  }, [organization, user, canViewAll, clientFilter, jobs.length])
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -223,26 +252,95 @@ export default function JobsPage() {
         </div>
       </div>
 
-      {/* Status filter tabs */}
+      {/* Action banner — surfaces pending reviews when there are any AND user can approve */}
+      {canApprove && (counts.pending_review || 0) > 0 && filter !== 'pending_review' && (
+        <button
+          type="button"
+          onClick={() => setFilter('pending_review')}
+          className="w-full text-left rounded-lg border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 hover:shadow-md transition-shadow group"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-amber-100 p-2 flex-shrink-0">
+                <AlertTriangle className="h-5 w-5 text-amber-700" />
+              </div>
+              <div>
+                <p className="font-semibold text-amber-900">
+                  {counts.pending_review} {counts.pending_review === 1 ? 'job' : 'jobs'} waiting for your review
+                </p>
+                <p className="text-xs text-amber-800">
+                  Approve and send to client, or request revisions.
+                </p>
+              </div>
+            </div>
+            <span className="flex items-center gap-1 text-sm font-medium text-amber-900 group-hover:translate-x-0.5 transition-transform">
+              Review now <ArrowRight className="h-4 w-4" />
+            </span>
+          </div>
+        </button>
+      )}
+
+      {/* Status filter pills with counts. AI Processing tab removed — jobs no longer linger
+          in that status (report generation is a near-instant pass-through since v2). Pending
+          Review is visually distinct so it draws the eye. */}
       <div className="flex flex-wrap gap-2">
         {[
-          { value: 'all', label: 'All' },
-          { value: 'submitted', label: 'Submitted' },
-          { value: 'ai_generating', label: 'AI Processing' },
-          { value: 'pending_review', label: 'Pending Review' },
-          { value: 'approved', label: 'Approved' },
-          { value: 'sent', label: 'Sent' },
-          { value: 'completed', label: 'Completed' },
-        ].map((tab) => (
-          <Button
-            key={tab.value}
-            variant={filter === tab.value ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setFilter(tab.value as typeof filter)}
-          >
-            {tab.label}
-          </Button>
-        ))}
+          { value: 'all',                label: 'All',              tone: 'neutral' as const },
+          { value: 'pending_review',     label: 'Pending Review',   tone: 'attention' as const },
+          { value: 'revision_requested', label: 'Revision Requested', tone: 'attention' as const },
+          { value: 'submitted',          label: 'Submitted',        tone: 'neutral' as const },
+          { value: 'scheduled',          label: 'Scheduled',        tone: 'neutral' as const },
+          { value: 'approved',           label: 'Approved',         tone: 'success' as const },
+          { value: 'sent',               label: 'Sent',             tone: 'success' as const },
+          { value: 'completed',          label: 'Completed',        tone: 'success' as const },
+        ].map((tab) => {
+          const count = counts[tab.value] || 0
+          const active = filter === tab.value
+          // Hide tabs with 0 entries except 'all', 'pending_review', and the currently active tab
+          if (count === 0 && tab.value !== 'all' && tab.value !== 'pending_review' && !active) return null
+
+          // Visual tone — pending_review/revision_requested with items get amber; approved/sent/completed get green tint; rest stay neutral
+          const baseClass = 'inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium border transition-colors'
+          let toneClass = ''
+          if (active) {
+            toneClass = 'bg-zinc-900 text-white border-zinc-900 hover:bg-zinc-800'
+          } else if (tab.tone === 'attention' && count > 0) {
+            toneClass = 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+          } else if (tab.tone === 'success') {
+            toneClass = 'bg-white text-zinc-700 border-zinc-200 hover:bg-emerald-50 hover:border-emerald-200'
+          } else {
+            toneClass = 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50'
+          }
+
+          // Count badge styling
+          const badgeBaseClass = 'inline-flex items-center justify-center rounded-full px-1.5 min-w-[1.25rem] h-5 text-xs font-semibold'
+          let badgeClass = ''
+          if (active) {
+            badgeClass = 'bg-white/20 text-white'
+          } else if (tab.tone === 'attention' && count > 0) {
+            badgeClass = 'bg-amber-200 text-amber-900'
+          } else {
+            badgeClass = 'bg-zinc-100 text-zinc-600'
+          }
+
+          return (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => setFilter(tab.value as typeof filter)}
+              className={`${baseClass} ${toneClass}`}
+            >
+              {tab.value === 'pending_review' && count > 0 && !active && (
+                <AlertTriangle className="h-3.5 w-3.5" />
+              )}
+              {(tab.value === 'approved' || tab.value === 'sent' || tab.value === 'completed') && (
+                <CheckCircle2 className="h-3.5 w-3.5 opacity-60" />
+              )}
+              <span>{tab.label}</span>
+              <span className={`${badgeBaseClass} ${badgeClass}`}>{count}</span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Loading */}

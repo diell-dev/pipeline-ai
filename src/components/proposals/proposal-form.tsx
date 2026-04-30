@@ -18,9 +18,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
+import { ClientCombobox } from '@/components/clients/client-combobox'
 import { Plus, Trash2, Wrench } from 'lucide-react'
 import type {
-  Client,
   Site,
   ServiceCatalogItem,
   ProposalMaterial,
@@ -108,7 +108,6 @@ export function ProposalForm({
   const supabase = useMemo(() => createClient(), [])
 
   const [values, setValues] = useState<ProposalFormValues>(initial || emptyProposalForm)
-  const [clients, setClients] = useState<Client[]>([])
   const [sites, setSites] = useState<Site[]>([])
   const [services, setServices] = useState<ServiceCatalogItem[]>([])
   const [equipmentOptions, setEquipmentOptions] = useState<string[]>(() => {
@@ -118,26 +117,18 @@ export function ProposalForm({
   })
   const [newEquipment, setNewEquipment] = useState('')
 
-  // Load clients + services
+  // Load services (clients are loaded inside ClientCombobox)
   useEffect(() => {
     if (!organization) return
-    Promise.all([
-      supabase
-        .from('clients')
-        .select('*')
-        .eq('organization_id', organization.id)
-        .is('deleted_at', null)
-        .order('company_name'),
-      supabase
-        .from('service_catalog')
-        .select('*')
-        .eq('organization_id', organization.id)
-        .eq('is_active', true)
-        .order('name'),
-    ]).then(([cRes, sRes]) => {
-      setClients(cRes.data || [])
-      setServices(sRes.data || [])
-    })
+    supabase
+      .from('service_catalog')
+      .select('*')
+      .eq('organization_id', organization.id)
+      .eq('is_active', true)
+      .order('name')
+      .then(({ data }) => {
+        setServices(data || [])
+      })
   }, [organization, supabase])
 
   // Load sites when client changes
@@ -261,24 +252,17 @@ export function ProposalForm({
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="client">Client *</Label>
-            <select
+            <ClientCombobox
               id="client"
               value={values.client_id}
-              onChange={(e) => {
-                update('client_id', e.target.value)
+              onChange={(newId) => {
+                update('client_id', newId)
                 update('site_id', '')
               }}
+              placeholder="Select or add a client"
               required
               disabled={lockLocation}
-              className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <option value="">Select a client</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.company_name}
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           <div className="space-y-2">

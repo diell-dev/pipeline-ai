@@ -24,9 +24,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { PhotoUpload } from '@/components/jobs/photo-upload'
+import { ClientCombobox } from '@/components/clients/client-combobox'
 import { toast } from 'sonner'
 import { ArrowLeft, Send, Loader2, Search, X, Plus, Wrench, Clock } from 'lucide-react'
-import type { Client, Site, JobPriority, ServiceCatalogItem, User } from '@/types/database'
+import type { Site, JobPriority, ServiceCatalogItem, User } from '@/types/database'
 
 interface CrewLite {
   id: string
@@ -81,10 +82,8 @@ export default function NewJobPage() {
   const [crews, setCrews] = useState<CrewLite[]>([])
 
   // Data lists
-  const [clients, setClients] = useState<Client[]>([])
   const [sites, setSites] = useState<Site[]>([])
   const [services, setServices] = useState<ServiceCatalogItem[]>([])
-  const [loadingClients, setLoadingClients] = useState(true)
   const [loadingSites, setLoadingSites] = useState(false)
 
   // Service selection
@@ -94,36 +93,19 @@ export default function NewJobPage() {
   const [showCustomForm, setShowCustomForm] = useState(false)
   const [customService, setCustomService] = useState({ name: '', price: '' })
 
-  // Load clients and services on mount
+  // Load services on mount (clients are loaded inside ClientCombobox)
   useEffect(() => {
     if (!organization) return
 
     async function loadData() {
-      setLoadingClients(true)
-      const [clientsRes, servicesRes] = await Promise.all([
-        supabase
-          .from('clients')
-          .select('*')
-          .eq('organization_id', organization!.id)
-          .is('deleted_at', null)
-          .order('company_name'),
-        supabase
-          .from('service_catalog')
-          .select('*')
-          .eq('organization_id', organization!.id)
-          .eq('is_active', true)
-          .order('name'),
-      ])
+      const { data } = await supabase
+        .from('service_catalog')
+        .select('*')
+        .eq('organization_id', organization!.id)
+        .eq('is_active', true)
+        .order('name')
 
-      if (clientsRes.error) {
-        console.error('Failed to load clients:', clientsRes.error.message)
-        toast.error('Failed to load clients')
-      } else {
-        setClients(clientsRes.data || [])
-      }
-
-      setServices(servicesRes.data || [])
-      setLoadingClients(false)
+      setServices(data || [])
     }
 
     loadData()
@@ -465,31 +447,16 @@ export default function NewJobPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="client">Client *</Label>
-              <select
+              <ClientCombobox
                 id="client"
                 value={clientId}
-                onChange={(e) => {
-                  setClientId(e.target.value)
+                onChange={(newId) => {
+                  setClientId(newId)
                   setSiteId('')
                 }}
-                disabled={loadingClients}
+                placeholder="Select or add a client"
                 required
-                className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">
-                  {loadingClients ? 'Loading clients...' : 'Select a client'}
-                </option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.company_name}
-                  </option>
-                ))}
-              </select>
-              {clients.length === 0 && !loadingClients && (
-                <p className="text-xs text-amber-600">
-                  No clients found. Ask your office manager to add clients first.
-                </p>
-              )}
+              />
             </div>
 
             <div className="space-y-2">

@@ -24,6 +24,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { ClientCombobox } from '@/components/clients/client-combobox'
 import { toast } from 'sonner'
 import {
   Repeat,
@@ -33,7 +34,7 @@ import {
   Play,
   X,
 } from 'lucide-react'
-import type { Client, Site, ServiceCatalogItem, User, RecurringFrequency } from '@/types/database'
+import type { Site, ServiceCatalogItem, User, RecurringFrequency } from '@/types/database'
 
 interface RecurringWithRelations {
   id: string
@@ -71,7 +72,6 @@ export default function RecurringPage() {
   const canManage = user?.role ? hasPermission(user.role, 'recurring:manage') : false
 
   const [schedules, setSchedules] = useState<RecurringWithRelations[]>([])
-  const [clients, setClients] = useState<Client[]>([])
   const [sites, setSites] = useState<Site[]>([])
   const [services, setServices] = useState<ServiceCatalogItem[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -119,13 +119,7 @@ export default function RecurringPage() {
 
     async function loadStaticData() {
       const supabase = createClient()
-      const [clientsRes, servicesRes, usersRes, crewsRes] = await Promise.all([
-        supabase
-          .from('clients')
-          .select('*')
-          .eq('organization_id', organization!.id)
-          .is('deleted_at', null)
-          .order('company_name'),
+      const [servicesRes, usersRes, crewsRes] = await Promise.all([
         supabase
           .from('service_catalog')
           .select('*')
@@ -141,7 +135,6 @@ export default function RecurringPage() {
           .order('full_name'),
         fetch('/api/crews').then((r) => r.json()),
       ])
-      setClients(clientsRes.data || [])
       setServices(servicesRes.data || [])
       setUsers(usersRes.data || [])
       setCrews((crewsRes.crews || []).filter((c: CrewLite & { is_active?: boolean }) => c.is_active !== false))
@@ -460,17 +453,12 @@ export default function RecurringPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Client *</Label>
-                <select
+                <ClientCombobox
                   value={form.client_id}
-                  onChange={(e) => setForm({ ...form, client_id: e.target.value, site_id: '' })}
+                  onChange={(newId) => setForm({ ...form, client_id: newId, site_id: '' })}
+                  placeholder="Select or add a client"
                   required
-                  className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm"
-                >
-                  <option value="">Select client</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>{c.company_name}</option>
-                  ))}
-                </select>
+                />
               </div>
 
               <div className="space-y-2">

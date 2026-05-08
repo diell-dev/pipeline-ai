@@ -513,7 +513,15 @@ export interface ActivityLogEntry {
   organization_id: string
   user_id: string
   action: ActivityAction
-  entity_type: 'job' | 'invoice' | 'client' | 'site' | 'user' | 'proposal'
+  entity_type:
+    | 'job'
+    | 'invoice'
+    | 'client'
+    | 'site'
+    | 'user'
+    | 'proposal'
+    | 'crew'
+    | 'recurring_schedule'
   entity_id: string
   metadata: Record<string, unknown> | null
   created_at: string

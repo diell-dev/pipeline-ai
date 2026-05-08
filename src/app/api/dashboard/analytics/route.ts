@@ -26,17 +26,8 @@
  * average where there are zero matching records (so the UI can render "—").
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 import { getApiUser } from '@/lib/api-auth'
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ServiceClient = SupabaseClient<any, 'public', any>
-
-function getServiceClient(): ServiceClient {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  return createClient(url, serviceKey)
-}
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -72,7 +63,22 @@ export async function GET(request: NextRequest) {
     const clientId =
       clientIdRaw && UUID_RE.test(clientIdRaw) ? clientIdRaw : null
 
-    const supabase = getServiceClient()
+    // Cap range to ≤ 366 days so a stray request can't grind through years of data.
+    if (from && to) {
+      const dayMs = 24 * 60 * 60 * 1000
+      const rangeDays = Math.round(
+        (new Date(to + 'T00:00:00Z').getTime() - new Date(from + 'T00:00:00Z').getTime()) / dayMs
+      )
+      if (rangeDays < 0 || rangeDays > 366) {
+        return NextResponse.json(
+          { error: 'Date range too large; max 366 days' },
+          { status: 400 }
+        )
+      }
+    }
+
+    const supabase = await createClient()
+    const QUERY_LIMIT = 10000
 
     // ── Jobs in the window ──
     let jobsQuery = supabase
@@ -86,6 +92,7 @@ export async function GET(request: NextRequest) {
     if (from) jobsQuery = jobsQuery.gte('service_date', from)
     if (to) jobsQuery = jobsQuery.lte('service_date', to)
     if (clientId) jobsQuery = jobsQuery.eq('client_id', clientId)
+    jobsQuery = jobsQuery.limit(QUERY_LIMIT)
 
     const { data: jobs, error: jobsError } = await jobsQuery
     if (jobsError) throw new Error(`jobs: ${jobsError.message}`)
@@ -102,6 +109,7 @@ export async function GET(request: NextRequest) {
     if (from) invoicesQuery = invoicesQuery.gte('created_at', `${from}T00:00:00Z`)
     if (to) invoicesQuery = invoicesQuery.lte('created_at', `${to}T23:59:59Z`)
     if (clientId) invoicesQuery = invoicesQuery.eq('client_id', clientId)
+    invoicesQuery = invoicesQuery.limit(QUERY_LIMIT)
 
     const { data: invoices, error: invoicesError } = await invoicesQuery
     if (invoicesError) throw new Error(`invoices: ${invoicesError.message}`)
@@ -133,6 +141,7 @@ export async function GET(request: NextRequest) {
     if (from) proposalsQuery = proposalsQuery.gte('client_approved_at', `${from}T00:00:00Z`)
     if (to) proposalsQuery = proposalsQuery.lte('client_approved_at', `${to}T23:59:59Z`)
     if (clientId) proposalsQuery = proposalsQuery.eq('client_id', clientId)
+    proposalsQuery = proposalsQuery.limit(QUERY_LIMIT)
 
     const { data: proposals, error: proposalsError } = await proposalsQuery
     if (proposalsError) throw new Error(`proposals: ${proposalsError.message}`)

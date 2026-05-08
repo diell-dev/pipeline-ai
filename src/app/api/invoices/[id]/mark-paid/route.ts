@@ -21,20 +21,10 @@
  *   - Inserts an activity_log row
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 import { getApiUser } from '@/lib/api-auth'
 import { hasPermission } from '@/lib/permissions'
 import type { PaymentMethod } from '@/types/database'
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ServiceClient = SupabaseClient<any, 'public', any>
-
-function getServiceClient(): ServiceClient {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
 
 const ALLOWED_METHODS: PaymentMethod[] = [
   'check',
@@ -128,7 +118,7 @@ export async function POST(
     }
 
     // ── Fetch invoice + verify ownership ──
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     const { data: invoice, error: invError } = await supabase
       .from('invoices')
@@ -156,6 +146,17 @@ export async function POST(
 
     // ── Compute new status ──
     const totalAmount = Number(invoice.total_amount) || 0
+
+    // Sanity-check: reject paid_amount more than 50% above the invoice total.
+    // Allows small overage (tip, rounded check, etc.) but catches typo-style
+    // entries like an extra zero. Values up to and including 1.5x total pass.
+    if (totalAmount > 0 && paidAmount > totalAmount * 1.5) {
+      return NextResponse.json(
+        { error: 'Payment exceeds invoice amount by more than 50%' },
+        { status: 400 }
+      )
+    }
+
     const newStatus: 'paid' | 'partially_paid' =
       paidAmount >= totalAmount ? 'paid' : 'partially_paid'
 

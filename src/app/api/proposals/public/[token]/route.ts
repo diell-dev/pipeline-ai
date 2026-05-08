@@ -3,13 +3,18 @@
  *
  * Returns the client-facing view of a proposal looked up by public_token.
  * Strips internal fields (measurements, equipment_list, internal_notes,
- * material_list, material_cost_total, estimated_*, num_techs_needed).
+ * material_list, material_cost_total, estimated_*, num_techs_needed) AND
+ * internal identifiers (proposal id, organization_id) — the client only needs
+ * what the sign page actually renders.
  *
  * Uses the service-role client to bypass RLS (the token IS the auth).
  * Returns 404 if token unknown, expired, or proposal not in a valid status.
+ *
+ * Per-IP rate limited (30 req/min per IP per token).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -21,12 +26,18 @@ const SIGNABLE_STATUSES = new Set(['sent_to_client', 'admin_approved'])
 const POST_SIGN_STATUSES = new Set(['client_approved', 'client_rejected', 'converted_to_job'])
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
   const { token } = await params
   if (!token || token.length < 8) {
-    return NextResponse.json({ error: 'Invalid token' }, { status: 404 })
+    return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
+  }
+
+  // ── Rate limit: 30 req/min per IP per token ──
+  const ip = getClientIp(request)
+  if (!checkRateLimit(`pub-prop-get:${token}:${ip}`, { limit: 30, windowMs: 60_000 })) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
 
   try {
@@ -57,7 +68,7 @@ export async function GET(
       !SIGNABLE_STATUSES.has(proposal.status) &&
       !POST_SIGN_STATUSES.has(proposal.status)
     ) {
-      return NextResponse.json({ error: 'Proposal not available' }, { status: 404 })
+      return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
     }
 
     // Check expiration
@@ -81,9 +92,12 @@ export async function GET(
       .eq('proposal_id', proposal.id)
       .order('sort_order', { ascending: true })
 
+    // ── Strip internal identifiers from the response ──
+    // The client doesn't need the internal proposal id (the URL has the token)
+    // and definitely doesn't need org id. Same for client/site internal ids in
+    // the line items list — only display fields.
     return NextResponse.json({
       proposal: {
-        id: proposal.id,
         proposal_number: proposal.proposal_number,
         status: proposal.status,
         issue_description: proposal.issue_description,

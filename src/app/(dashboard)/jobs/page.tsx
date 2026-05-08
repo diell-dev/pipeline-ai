@@ -176,7 +176,13 @@ export default function JobsPage() {
       setCounts(tally)
     }
     loadCounts()
-  }, [organization, user, canViewAll, clientFilter, jobs.length])
+    // Depend on the full `jobs` reference (not jobs.length) so counts refresh
+    // after every status change. setJobs replaces the array reference each time
+    // loadJobs runs, which is what triggers this effect. When a status filter
+    // is active and a job's status changes such that it no longer matches the
+    // filter, the row drops out of `jobs` — that's still a new reference, so
+    // counts re-fetch as expected.
+  }, [organization, user, canViewAll, clientFilter, jobs])
 
   return (
     <div className="p-6 space-y-6">

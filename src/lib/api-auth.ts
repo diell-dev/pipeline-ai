@@ -7,7 +7,10 @@
  */
 import { createClient } from '@/lib/supabase/server'
 import type { UserRole } from '@/types/database'
-import type { Permission } from '@/lib/permissions'
+import { hasPermission } from '@/lib/permissions'
+
+// Re-export so API routes can import permission helpers from one place.
+export { hasPermission }
 
 interface AuthResult {
   authenticated: true
@@ -64,38 +67,3 @@ export async function getApiUser(): Promise<ApiAuth> {
   }
 }
 
-/**
- * Simple permission check map (subset of full permissions.ts)
- * Duplicated here so API routes don't import client-side code.
- */
-const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
-  super_admin: [
-    'jobs:create', 'jobs:view_all', 'jobs:edit_all', 'jobs:approve', 'jobs:reject', 'jobs:send',
-    'jobs:schedule', 'crews:manage', 'recurring:manage',
-    'users:invite', 'users:manage',
-    'proposals:create', 'proposals:view_own', 'proposals:view_all',
-    'proposals:approve', 'proposals:send', 'proposals:delete', 'proposals:convert',
-  ],
-  owner: [
-    'jobs:create', 'jobs:view_all', 'jobs:edit_all', 'jobs:approve', 'jobs:reject', 'jobs:send',
-    'jobs:schedule', 'crews:manage', 'recurring:manage',
-    'users:invite', 'users:manage',
-    'proposals:create', 'proposals:view_own', 'proposals:view_all',
-    'proposals:approve', 'proposals:send', 'proposals:delete', 'proposals:convert',
-  ],
-  office_manager: [
-    'jobs:create', 'jobs:view_all', 'jobs:edit_all', 'jobs:approve', 'jobs:reject', 'jobs:send',
-    'jobs:schedule', 'crews:manage', 'recurring:manage',
-    'proposals:create', 'proposals:view_own', 'proposals:view_all',
-    'proposals:approve', 'proposals:send', 'proposals:convert',
-  ],
-  field_tech: [
-    'jobs:create', 'jobs:view_own', 'jobs:edit_own',
-    'proposals:create', 'proposals:view_own',
-  ],
-  client: [],
-}
-
-export function apiHasPermission(role: UserRole, permission: Permission): boolean {
-  return ROLE_PERMISSIONS[role]?.includes(permission) ?? false
-}

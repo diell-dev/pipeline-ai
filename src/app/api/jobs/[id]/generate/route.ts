@@ -12,6 +12,12 @@
  *   5. Auto-generate invoice from service catalog pricing
  *   6. Save report + invoice to job record
  *   7. Set status to 'pending_review'
+ *
+ * NOTE: Uses the service-role Supabase client by design. The AI step can
+ * take ~30s, so we don't want the cookie-bound user session to expire
+ * mid-flight and cause the final write to be rejected by RLS. The route
+ * is gated by getApiUser() + an explicit organization_id match so org
+ * scoping is still enforced manually.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'

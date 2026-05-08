@@ -13,7 +13,11 @@
 import Stripe from 'stripe'
 
 // Pin the API version explicitly — never let Stripe silently upgrade.
-export const STRIPE_API_VERSION = '2024-12-18.acacia' as const
+// This MUST be a literal string from Stripe's supported versions list
+// (Stripe.LatestApiVersion is the SDK's exported union). Bumping this
+// requires reviewing the Stripe API changelog for any breaking field
+// renames or webhook payload changes since the previous version.
+export const STRIPE_API_VERSION: Stripe.LatestApiVersion = '2025-02-24.acacia'
 
 let cached: Stripe | null = null
 
@@ -28,7 +32,7 @@ export function getStripeClient(): Stripe {
   }
 
   cached = new Stripe(secret, {
-    apiVersion: STRIPE_API_VERSION as unknown as Stripe.LatestApiVersion,
+    apiVersion: STRIPE_API_VERSION,
     typescript: true,
     appInfo: {
       name: 'Pipeline AI',

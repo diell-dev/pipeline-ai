@@ -6,15 +6,8 @@
  *        rolls back the crew if member insert fails.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { getApiUser, apiHasPermission } from '@/lib/api-auth'
-
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
+import { createClient } from '@/lib/supabase/server'
+import { getApiUser, hasPermission } from '@/lib/api-auth'
 
 // ── GET /api/crews ────────────────────────────────────────────
 export async function GET() {
@@ -24,7 +17,7 @@ export async function GET() {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     const { data: crews, error: crewsError } = await supabase
       .from('crews')
@@ -60,7 +53,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    if (!apiHasPermission(auth.role, 'crews:manage')) {
+    if (!hasPermission(auth.role, 'crews:manage')) {
       return NextResponse.json(
         { error: 'You do not have permission to create crews' },
         { status: 403 }
@@ -79,7 +72,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Crew name is required' }, { status: 400 })
     }
 
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     // 1. Insert the crew
     const { data: crew, error: crewError } = await supabase
@@ -130,7 +123,7 @@ export async function POST(request: NextRequest) {
       organization_id: auth.organizationId,
       user_id: auth.userId,
       action: 'crew_created',
-      entity_type: 'user',
+      entity_type: 'crew',
       entity_id: crew.id,
       metadata: { crew_name: crew.name, member_count: memberSet.size },
     })

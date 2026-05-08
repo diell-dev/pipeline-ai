@@ -5,15 +5,8 @@
  * DELETE — end pattern (set is_active = false)
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { getApiUser, apiHasPermission } from '@/lib/api-auth'
-
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
+import { createClient } from '@/lib/supabase/server'
+import { getApiUser, hasPermission } from '@/lib/api-auth'
 
 const ALLOWED_FIELDS = new Set([
   'assigned_to',
@@ -41,11 +34,11 @@ export async function PATCH(
     if (!auth.authenticated) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-    if (!apiHasPermission(auth.role, 'recurring:manage')) {
+    if (!hasPermission(auth.role, 'recurring:manage')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     // Verify org match
     const { data: existing } = await supabase
@@ -96,11 +89,11 @@ export async function DELETE(
     if (!auth.authenticated) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-    if (!apiHasPermission(auth.role, 'recurring:manage')) {
+    if (!hasPermission(auth.role, 'recurring:manage')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     const { data: existing } = await supabase
       .from('recurring_job_schedules')

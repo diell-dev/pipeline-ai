@@ -7,15 +7,9 @@
  * DELETE — Soft-delete a proposal (sets deleted_at). Owner / super_admin only.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { getApiUser, apiHasPermission } from '@/lib/api-auth'
+import { createClient } from '@/lib/supabase/server'
+import { getApiUser, hasPermission } from '@/lib/api-auth'
 import type { ProposalMaterial } from '@/types/database'
-
-function getServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  return createClient(url, serviceKey)
-}
 
 interface ProposalPatchBody {
   // Internal
@@ -46,32 +40,7 @@ interface ProposalPatchBody {
   }>
 }
 
-function computeTotals({
-  lineItems,
-  discountEnabled,
-  discountAmount,
-  taxRate,
-}: {
-  lineItems: Array<{ quantity: number; unit_price: number }>
-  discountEnabled: boolean
-  discountAmount: number
-  taxRate: number
-}) {
-  const subtotal = lineItems.reduce(
-    (sum, li) => sum + (Number(li.quantity) || 0) * (Number(li.unit_price) || 0),
-    0
-  )
-  const discount = discountEnabled ? Math.max(0, Math.min(discountAmount, subtotal)) : 0
-  const taxedBase = Math.max(0, subtotal - discount)
-  const taxAmount = Math.round(taxedBase * (taxRate / 100) * 100) / 100
-  const total = Math.round((taxedBase + taxAmount) * 100) / 100
-  return {
-    subtotal: Math.round(subtotal * 100) / 100,
-    discount: Math.round(discount * 100) / 100,
-    taxAmount,
-    total,
-  }
-}
+import { computeProposalTotals as computeTotals } from '@/lib/proposal-totals'
 
 export async function PATCH(
   request: NextRequest,
@@ -84,7 +53,7 @@ export async function PATCH(
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
     const body = (await request.json()) as ProposalPatchBody
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     // Load existing proposal
     const { data: existing, error: loadError } = await supabase
@@ -99,20 +68,31 @@ export async function PATCH(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Permission: creator+managers can edit drafts/pending; managers can edit anytime within those statuses
-    const canEdit =
-      apiHasPermission(auth.role, 'proposals:view_all') ||
-      existing.created_by === auth.userId
-    if (!canEdit) {
-      return NextResponse.json({ error: 'You cannot edit this proposal' }, { status: 403 })
-    }
+    // Permission model (defense-in-depth — RLS in migration 006 mirrors this):
+    //   - Managers (super_admin / owner / office_manager) can edit drafts or
+    //     proposals submitted for approval (pending_admin_approval).
+    //   - The creator (typically a field tech) can ONLY edit drafts. Once they
+    //     submit for approval, they lose edit rights so they can't change
+    //     pricing behind the manager's back.
+    const isManager = ['super_admin', 'owner', 'office_manager'].includes(auth.role)
+    const isCreator = existing.created_by === auth.userId
 
-    // Only draft or pending_admin_approval can be edited
-    if (!['draft', 'pending_admin_approval'].includes(existing.status)) {
-      return NextResponse.json(
-        { error: `Proposal in status '${existing.status}' cannot be edited` },
-        { status: 400 }
-      )
+    if (isManager) {
+      if (!['draft', 'pending_admin_approval'].includes(existing.status)) {
+        return NextResponse.json(
+          { error: `Proposal in status '${existing.status}' cannot be edited` },
+          { status: 400 }
+        )
+      }
+    } else if (isCreator) {
+      if (existing.status !== 'draft') {
+        return NextResponse.json(
+          { error: 'Only managers can edit a proposal after it has been submitted for approval' },
+          { status: 403 }
+        )
+      }
+    } else {
+      return NextResponse.json({ error: 'You cannot edit this proposal' }, { status: 403 })
     }
 
     // Material cost total
@@ -222,10 +202,10 @@ export async function DELETE(
     if (!auth.authenticated) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-    if (!apiHasPermission(auth.role, 'proposals:delete')) {
+    if (!hasPermission(auth.role, 'proposals:delete')) {
       return NextResponse.json({ error: 'You do not have permission to delete proposals' }, { status: 403 })
     }
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     const { data: existing } = await supabase
       .from('proposals')

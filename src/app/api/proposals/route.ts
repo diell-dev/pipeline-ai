@@ -8,16 +8,10 @@
  * GET — List proposals for the caller's organization (with optional filters).
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { randomBytes } from 'crypto'
-import { getApiUser, apiHasPermission } from '@/lib/api-auth'
+import { createClient } from '@/lib/supabase/server'
+import { getApiUser, hasPermission } from '@/lib/api-auth'
 import type { ProposalMaterial } from '@/types/database'
-
-function getServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  return createClient(url, serviceKey)
-}
 
 function generatePublicToken(): string {
   // 32 url-safe chars
@@ -55,35 +49,10 @@ interface ProposalInsertBody {
   }>
 }
 
-function computeTotals({
-  lineItems,
-  discountEnabled,
-  discountAmount,
-  taxRate,
-}: {
-  lineItems: Array<{ quantity: number; unit_price: number }>
-  discountEnabled: boolean
-  discountAmount: number
-  taxRate: number
-}) {
-  const subtotal = lineItems.reduce(
-    (sum, li) => sum + (Number(li.quantity) || 0) * (Number(li.unit_price) || 0),
-    0
-  )
-  const discount = discountEnabled ? Math.max(0, Math.min(discountAmount, subtotal)) : 0
-  const taxedBase = Math.max(0, subtotal - discount)
-  const taxAmount = Math.round(taxedBase * (taxRate / 100) * 100) / 100
-  const total = Math.round((taxedBase + taxAmount) * 100) / 100
-  return {
-    subtotal: Math.round(subtotal * 100) / 100,
-    discount: Math.round(discount * 100) / 100,
-    taxAmount,
-    total,
-  }
-}
+import { computeProposalTotals as computeTotals } from '@/lib/proposal-totals'
 
 async function generateProposalNumber(
-  supabase: ReturnType<typeof getServiceClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   organizationId: string
 ): Promise<string> {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
@@ -109,7 +78,7 @@ export async function POST(request: NextRequest) {
     if (!auth.authenticated) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-    if (!apiHasPermission(auth.role, 'proposals:create')) {
+    if (!hasPermission(auth.role, 'proposals:create')) {
       return NextResponse.json({ error: 'You do not have permission to create proposals' }, { status: 403 })
     }
 
@@ -125,7 +94,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     // Compute material_cost_total from material_list
     const materialList: ProposalMaterial[] = Array.isArray(body.material_list) ? body.material_list : []
@@ -154,57 +123,67 @@ export async function POST(request: NextRequest) {
       taxRate,
     })
 
-    const proposalNumber = await generateProposalNumber(supabase, auth.organizationId)
-
-    // Generate a unique public_token (retry once if collision)
-    let publicToken = generatePublicToken()
-    {
-      const { data: clash } = await supabase
+    // Insert with retry-on-collision for both proposal_number AND public_token.
+    // Race window: two simultaneous POSTs in the same org+day will compute the
+    // same EST-YYYYMMDD-XXX. Token collisions are astronomically unlikely with
+    // 24 random bytes but we still let the DB enforce it.
+    // Postgres returns code '23505' for unique_violation; we retry up to 5 times.
+    let proposal: { id: string } | null = null
+    let lastError: unknown = null
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const proposalNumber = await generateProposalNumber(supabase, auth.organizationId)
+      const publicToken = generatePublicToken()
+      const { data, error } = await supabase
         .from('proposals')
+        .insert({
+          organization_id: auth.organizationId,
+          client_id: body.client_id,
+          site_id: body.site_id || null,
+          created_by: auth.userId,
+          assigned_to: body.assigned_to || null,
+          proposal_number: proposalNumber,
+          status: 'draft',
+          // internal
+          measurements: body.measurements ?? null,
+          material_list: materialList,
+          material_cost_total: Math.round(materialCostTotal * 100) / 100,
+          estimated_hours: body.estimated_hours ?? null,
+          num_techs_needed: body.num_techs_needed ?? 1,
+          estimated_days: body.estimated_days ?? 1,
+          equipment_list: body.equipment_list ?? [],
+          internal_notes: body.internal_notes ?? null,
+          // client-facing
+          issue_description: body.issue_description,
+          proposed_solution: body.proposed_solution,
+          subtotal: totals.subtotal,
+          discount_enabled: !!body.discount_enabled,
+          discount_amount: totals.discount,
+          discount_reason: body.discount_reason ?? null,
+          tax_rate: taxRate,
+          tax_amount: totals.taxAmount,
+          total_amount: totals.total,
+          public_token: publicToken,
+          valid_until: body.valid_until || null,
+        })
         .select('id')
-        .eq('public_token', publicToken)
-        .maybeSingle()
-      if (clash) publicToken = generatePublicToken()
+        .single()
+      if (!error) {
+        proposal = data
+        break
+      }
+      // Retry only on unique-violation; bail on any other error.
+      if ((error as { code?: string }).code !== '23505') {
+        console.error('Failed to create proposal:', error.message)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+      lastError = error
     }
-
-    const { data: proposal, error } = await supabase
-      .from('proposals')
-      .insert({
-        organization_id: auth.organizationId,
-        client_id: body.client_id,
-        site_id: body.site_id || null,
-        created_by: auth.userId,
-        assigned_to: body.assigned_to || null,
-        proposal_number: proposalNumber,
-        status: 'draft',
-        // internal
-        measurements: body.measurements ?? null,
-        material_list: materialList,
-        material_cost_total: Math.round(materialCostTotal * 100) / 100,
-        estimated_hours: body.estimated_hours ?? null,
-        num_techs_needed: body.num_techs_needed ?? 1,
-        estimated_days: body.estimated_days ?? 1,
-        equipment_list: body.equipment_list ?? [],
-        internal_notes: body.internal_notes ?? null,
-        // client-facing
-        issue_description: body.issue_description,
-        proposed_solution: body.proposed_solution,
-        subtotal: totals.subtotal,
-        discount_enabled: !!body.discount_enabled,
-        discount_amount: totals.discount,
-        discount_reason: body.discount_reason ?? null,
-        tax_rate: taxRate,
-        tax_amount: totals.taxAmount,
-        total_amount: totals.total,
-        public_token: publicToken,
-        valid_until: body.valid_until || null,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Failed to create proposal:', error.message)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (!proposal) {
+      console.error('Proposal create exhausted retries:', lastError)
+      return NextResponse.json(
+        { error: 'Could not generate a unique proposal number after 5 attempts. Please try again.' },
+        { status: 500 }
+      )
     }
 
     // Insert line items
@@ -240,7 +219,7 @@ export async function GET(request: NextRequest) {
     const fromDate = url.searchParams.get('from')
     const toDate = url.searchParams.get('to')
 
-    const supabase = getServiceClient()
+    const supabase = await createClient()
     let query = supabase
       .from('proposals')
       .select(`
@@ -254,7 +233,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
 
     // Tech-only sees own
-    if (!apiHasPermission(auth.role, 'proposals:view_all')) {
+    if (!hasPermission(auth.role, 'proposals:view_all')) {
       query = query.eq('created_by', auth.userId)
     }
     if (statusFilter && statusFilter !== 'all') {

@@ -6,15 +6,9 @@
  * Stripe-hosted onboarding and from the "Refresh status" button.
  */
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 import { getApiUser } from '@/lib/api-auth'
 import { getStripeClient, deriveAccountStatus } from '@/lib/stripe'
-
-function getServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  return createClient(url, serviceKey)
-}
 
 export async function POST() {
   try {
@@ -29,7 +23,7 @@ export async function POST() {
       )
     }
 
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     const { data: org, error: orgErr } = await supabase
       .from('organizations')

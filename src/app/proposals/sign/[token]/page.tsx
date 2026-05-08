@@ -24,7 +24,6 @@ import {
 } from 'lucide-react'
 
 interface PublicProposal {
-  id: string
   proposal_number: string
   status: string
   issue_description: string
@@ -146,9 +145,34 @@ export default function PublicProposalSignPage() {
         ctx.strokeStyle = '#111'
       }
     }
-    resize()
+
+    // Mobile Safari quirk: when switching tabs, the parent container may not
+    // have laid out yet, so getBoundingClientRect() returns 0×0 and the canvas
+    // renders invisible. Defer to next frame, then fall back to a 50ms retry
+    // if the layout still hasn't settled.
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+    const rafId = window.requestAnimationFrame(() => {
+      resize()
+      if (canvas.clientWidth === 0) {
+        retryTimer = setTimeout(resize, 50)
+      }
+    })
+
+    // ResizeObserver catches subsequent layout changes (rotation, viewport
+    // resize, parent container changes) without losing crisp rendering.
+    const ro =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => resize())
+        : null
+    ro?.observe(canvas)
+
     window.addEventListener('resize', resize)
-    return () => window.removeEventListener('resize', resize)
+    return () => {
+      window.removeEventListener('resize', resize)
+      window.cancelAnimationFrame(rafId)
+      if (retryTimer) clearTimeout(retryTimer)
+      ro?.disconnect()
+    }
   }, [tab])
 
   function getCanvasPoint(e: React.PointerEvent<HTMLCanvasElement>) {
@@ -316,6 +340,7 @@ export default function PublicProposalSignPage() {
               <img
                 src={org.logo_url}
                 alt={org.name}
+                referrerPolicy="no-referrer"
                 className="max-h-12 max-w-[180px] object-contain bg-white/10 rounded p-1"
               />
             ) : (
@@ -434,24 +459,37 @@ export default function PublicProposalSignPage() {
           </p>
         </section>
 
-        {/* Done states */}
-        {totallyDone && (
-          <div className="rounded-xl border bg-green-50 border-green-200 p-6 text-center space-y-2">
-            <CheckCircle2 className="h-10 w-10 mx-auto text-green-600" />
-            <h3 className="text-lg font-semibold text-green-800">
-              {success || data.already_signed
-                ? 'Thank you — estimate signed!'
-                : rejected || data.already_rejected
-                ? 'You declined this estimate'
-                : 'This estimate is complete'}
-            </h3>
-            <p className="text-sm text-green-700">
-              {success || data.already_signed
-                ? "We've received your approval. Our team will reach out shortly to schedule the work."
-                : 'We appreciate the time you took to review. Reach out anytime if anything changes.'}
-            </p>
-          </div>
-        )}
+        {/* Done states — green for signed, red for rejected */}
+        {totallyDone && (() => {
+          const wasRejected = rejected || data.already_rejected
+          const wasSigned = success || data.already_signed
+          if (wasRejected && !wasSigned) {
+            return (
+              <div className="rounded-xl border bg-red-50 border-red-200 p-6 text-center space-y-2">
+                <XCircle className="h-10 w-10 mx-auto text-red-600" />
+                <h3 className="text-lg font-semibold text-red-800">
+                  You declined this estimate
+                </h3>
+                <p className="text-sm text-red-700">
+                  We appreciate the time you took to review. Reach out anytime if anything changes.
+                </p>
+              </div>
+            )
+          }
+          return (
+            <div className="rounded-xl border bg-green-50 border-green-200 p-6 text-center space-y-2">
+              <CheckCircle2 className="h-10 w-10 mx-auto text-green-600" />
+              <h3 className="text-lg font-semibold text-green-800">
+                {wasSigned ? 'Thank you — estimate signed!' : 'This estimate is complete'}
+              </h3>
+              <p className="text-sm text-green-700">
+                {wasSigned
+                  ? "We've received your approval. Our team will reach out shortly to schedule the work."
+                  : 'No further action is needed.'}
+              </p>
+            </div>
+          )
+        })()}
 
         {/* Sign UI */}
         {!totallyDone && data.expired && (

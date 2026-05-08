@@ -6,23 +6,9 @@
  * Uses Resend if RESEND_API_KEY is set; otherwise logs the email.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { getApiUser, apiHasPermission } from '@/lib/api-auth'
-
-function getServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  return createClient(url, serviceKey)
-}
-
-function escHtml(str: unknown): string {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
+import { createClient } from '@/lib/supabase/server'
+import { getApiUser, hasPermission } from '@/lib/api-auth'
+import { escapeHtml as escHtml } from '@/lib/escape-html'
 
 export async function POST(
   request: NextRequest,
@@ -34,10 +20,10 @@ export async function POST(
     if (!auth.authenticated) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-    if (!apiHasPermission(auth.role, 'proposals:send')) {
+    if (!hasPermission(auth.role, 'proposals:send')) {
       return NextResponse.json({ error: 'You do not have permission to send proposals' }, { status: 403 })
     }
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     // Fetch full proposal + client + org
     const { data: proposal, error: fetchError } = await supabase
@@ -68,6 +54,15 @@ export async function POST(
     }
     if (!proposal.public_token) {
       return NextResponse.json({ error: 'Proposal is missing a public sign token' }, { status: 500 })
+    }
+
+    // ── Production guard: missing email service is a hard failure in prod ──
+    const resendApiKey = process.env.RESEND_API_KEY
+    if (!resendApiKey && process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { error: 'Email service not configured' },
+        { status: 500 }
+      )
     }
 
     // Org info
@@ -104,8 +99,53 @@ export async function POST(
       validUntil: proposal.valid_until,
     })
 
-    let emailSent = false
-    const resendApiKey = process.env.RESEND_API_KEY
+    // ── Atomic claim ──
+    // Move proposal out of admin_approved BEFORE sending the email, conditional
+    // on the row still being in admin_approved with a null sent timestamp.
+    // If a parallel request already claimed it, this returns no row and we
+    // short-circuit successfully (alreadySent: true).
+    const sentAt = new Date().toISOString()
+    const { data: claimed, error: claimError } = await supabase
+      .from('proposals')
+      .update({
+        status: 'sent_to_client',
+        sent_to_client_at: sentAt,
+        sent_to_client_by: auth.userId,
+      })
+      .eq('id', id)
+      .eq('status', 'admin_approved')
+      .is('sent_to_client_at', null)
+      .select('id')
+      .maybeSingle()
+
+    if (claimError) {
+      console.error('Claim error before send:', claimError.message)
+      return NextResponse.json({ error: 'Failed to claim proposal for sending' }, { status: 500 })
+    }
+    if (!claimed) {
+      // Another request beat us to it — not an error.
+      return NextResponse.json({
+        success: true,
+        alreadySent: true,
+        sentTo: clientEmail,
+        signUrl,
+        status: 'sent_to_client',
+      })
+    }
+
+    // ── Send email (claim now held) ──
+    async function revertClaim(reason: string) {
+      console.error(`Reverting send-to-client claim for proposal ${id}: ${reason}`)
+      await supabase
+        .from('proposals')
+        .update({
+          status: 'admin_approved',
+          sent_to_client_at: null,
+          sent_to_client_by: null,
+        })
+        .eq('id', id)
+    }
+
     if (resendApiKey) {
       try {
         const { Resend } = await import('resend')
@@ -121,36 +161,21 @@ export async function POST(
           html,
         })
         if (sendError) {
-          console.error('Resend error:', sendError)
+          await revertClaim(`Resend error: ${sendError.message}`)
           return NextResponse.json({ error: `Email failed: ${sendError.message}` }, { status: 500 })
         }
-        emailSent = true
       } catch (err) {
-        console.error('Resend send failed:', err)
+        await revertClaim(`Resend exception: ${err instanceof Error ? err.message : String(err)}`)
         return NextResponse.json({ error: 'Email send failed' }, { status: 500 })
       }
     } else {
-      console.warn('[proposals/send-to-client] RESEND_API_KEY not set — logging email only')
+      // Development-only fallback. Production guard above blocks this branch
+      // when NODE_ENV === 'production'.
+      console.warn('[proposals/send-to-client] RESEND_API_KEY not set — logging email only (dev)')
       console.log('=== PROPOSAL EMAIL WOULD BE SENT ===')
       console.log('To:', clientEmail)
       console.log('Sign URL:', signUrl)
       console.log('=== END EMAIL ===')
-      emailSent = true
-    }
-
-    if (emailSent) {
-      const { error: updateError } = await supabase
-        .from('proposals')
-        .update({
-          status: 'sent_to_client',
-          sent_to_client_at: new Date().toISOString(),
-          sent_to_client_by: auth.userId,
-        })
-        .eq('id', id)
-        .eq('status', 'admin_approved')
-      if (updateError) {
-        console.error('Status update failed after send:', updateError.message)
-      }
     }
 
     return NextResponse.json({

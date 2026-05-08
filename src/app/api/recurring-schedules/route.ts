@@ -5,15 +5,8 @@
  * POST — create a new recurring pattern (managers+)
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { getApiUser, apiHasPermission } from '@/lib/api-auth'
-
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
+import { createClient } from '@/lib/supabase/server'
+import { getApiUser, hasPermission } from '@/lib/api-auth'
 
 // ── GET ──────────────────────────────────────────────────────
 export async function GET() {
@@ -23,7 +16,7 @@ export async function GET() {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const supabase = getServiceClient()
+    const supabase = await createClient()
     const { data: schedules, error } = await supabase
       .from('recurring_job_schedules')
       .select(`
@@ -54,7 +47,7 @@ export async function POST(request: NextRequest) {
     if (!auth.authenticated) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-    if (!apiHasPermission(auth.role, 'recurring:manage')) {
+    if (!hasPermission(auth.role, 'recurring:manage')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -102,7 +95,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'next_occurrence_date is required (YYYY-MM-DD)' }, { status: 400 })
     }
 
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     const { data: schedule, error } = await supabase
       .from('recurring_job_schedules')
@@ -135,7 +128,7 @@ export async function POST(request: NextRequest) {
       organization_id: auth.organizationId,
       user_id: auth.userId,
       action: 'recurring_schedule_created',
-      entity_type: 'job',
+      entity_type: 'recurring_schedule',
       entity_id: schedule.id,
       metadata: { client_id, site_id, frequency },
     })

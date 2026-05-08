@@ -5,9 +5,12 @@
  *
  * Records the e-signature, updates the proposal to status='client_approved'.
  * Uses the service-role client (the public token IS the auth).
+ *
+ * Per-IP rate limited (30 req/min per IP per token).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -23,14 +26,26 @@ interface SignBody {
   signature_type: 'drawn' | 'typed'
 }
 
+// Cap signature payload at ~150KB. Drawn PNGs at our canvas size land well
+// under this; typed signatures are tiny. Anything bigger is either a misuse
+// or an attempt at storage abuse.
+const MAX_SIGNATURE_LENGTH = 200_000
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
   const { token } = await params
   if (!token) {
-    return NextResponse.json({ error: 'Invalid token' }, { status: 404 })
+    return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
   }
+
+  // ── Rate limit: 30 req/min per IP per token ──
+  const ip = getClientIp(request)
+  if (!checkRateLimit(`pub-prop-sign:${token}:${ip}`, { limit: 30, windowMs: 60_000 })) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
+
   try {
     const body = (await request.json()) as SignBody
 
@@ -43,6 +58,19 @@ export async function POST(
     }
     if (body.signature_type !== 'drawn' && body.signature_type !== 'typed') {
       return NextResponse.json({ error: 'Invalid signature_type' }, { status: 400 })
+    }
+
+    // Size cap on signature payload (covers drawn-canvas dataURL abuse)
+    if (body.signature_data.length > MAX_SIGNATURE_LENGTH) {
+      return NextResponse.json({ error: 'Signature too large' }, { status: 413 })
+    }
+
+    // Strip data URL prefix if present (smaller stored payload + normalizes
+    // the input — the renderer can re-add the prefix when needed).
+    let signaturePayload = body.signature_data
+    const dataUrlMatch = signaturePayload.match(/^data:image\/[a-z+]+;base64,/)
+    if (dataUrlMatch) {
+      signaturePayload = signaturePayload.slice(dataUrlMatch[0].length)
     }
 
     const supabase = getServiceClient()
@@ -58,21 +86,16 @@ export async function POST(
     if (!proposal) {
       return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
     }
+    // Status-oracle prevention: if already signed/rejected/converted, return
+    // 404 — same response an attacker would get for a token that never existed.
     if (!['sent_to_client', 'admin_approved'].includes(proposal.status)) {
-      return NextResponse.json(
-        { error: `Cannot sign a proposal in '${proposal.status}' status` },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
     }
     if (proposal.valid_until && new Date(proposal.valid_until).getTime() < Date.now()) {
-      return NextResponse.json({ error: 'This estimate has expired' }, { status: 400 })
+      return NextResponse.json({ error: 'This estimate has expired' }, { status: 410 })
     }
 
     // Capture IP + user agent
-    const ip =
-      request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      request.headers.get('x-real-ip') ||
-      null
     const userAgent = request.headers.get('user-agent') || null
 
     // Insert signature
@@ -81,9 +104,9 @@ export async function POST(
       signed_by_name: body.signed_by_name,
       signed_by_email: body.signed_by_email,
       signed_by_title: body.signed_by_title || null,
-      signature_data: body.signature_data,
+      signature_data: signaturePayload,
       signature_type: body.signature_type,
-      ip_address: ip,
+      ip_address: ip === 'unknown' ? null : ip,
       user_agent: userAgent,
     })
     if (sigError) {
@@ -108,7 +131,7 @@ export async function POST(
       organization_id: proposal.organization_id,
       user_id: null,
       action: 'job_approved',
-      entity_type: 'job',
+      entity_type: 'proposal',
       entity_id: proposal.id,
       metadata: {
         proposal_signed: true,

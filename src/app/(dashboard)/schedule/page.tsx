@@ -164,7 +164,14 @@ export default function SchedulePage() {
     loadJobs()
   }, [loadJobs])
 
-  // Group jobs by date string
+  // Group jobs by date string.
+  //
+  // TODO(timezone): job.service_date is a plain DATE; the calendar's date
+  // ranges are computed via `new Date()` in the browser's local TZ. For a
+  // user in NYC viewing a job whose scheduled_time UTC falls on a different
+  // calendar day, the calendar groups by service_date (which was the
+  // browser's local date when created) — usually right, but not always.
+  // Same root cause as the TODO in src/app/api/schedule/route.ts.
   const jobsByDate = useMemo(() => {
     const map = new Map<string, ScheduleJob[]>()
     for (const job of jobs) {

@@ -5,18 +5,12 @@
  * DELETE — soft-delete (set is_active = false)
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { getApiUser, apiHasPermission } from '@/lib/api-auth'
+import { createClient } from '@/lib/supabase/server'
+import { getApiUser, hasPermission } from '@/lib/api-auth'
 
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 
-async function loadCrew(id: string, orgId: string) {
-  const supabase = getServiceClient()
+async function loadCrew(supabase: SupabaseServerClient, id: string, orgId: string) {
   const { data: crew, error } = await supabase
     .from('crews')
     .select('id, organization_id')
@@ -37,11 +31,12 @@ export async function PATCH(
     if (!auth.authenticated) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-    if (!apiHasPermission(auth.role, 'crews:manage')) {
+    if (!hasPermission(auth.role, 'crews:manage')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const crew = await loadCrew(id, auth.organizationId)
+    const supabase = await createClient()
+    const crew = await loadCrew(supabase, id, auth.organizationId)
     if (!crew) return NextResponse.json({ error: 'Crew not found' }, { status: 404 })
 
     const body = await request.json()
@@ -55,7 +50,6 @@ export async function PATCH(
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
     }
 
-    const supabase = getServiceClient()
     const { data: updated, error } = await supabase
       .from('crews')
       .update(updates)
@@ -71,7 +65,7 @@ export async function PATCH(
       organization_id: auth.organizationId,
       user_id: auth.userId,
       action: 'crew_updated',
-      entity_type: 'user',
+      entity_type: 'crew',
       entity_id: id,
       metadata: { updates },
     })
@@ -93,14 +87,14 @@ export async function DELETE(
     if (!auth.authenticated) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-    if (!apiHasPermission(auth.role, 'crews:manage')) {
+    if (!hasPermission(auth.role, 'crews:manage')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const crew = await loadCrew(id, auth.organizationId)
+    const supabase = await createClient()
+    const crew = await loadCrew(supabase, id, auth.organizationId)
     if (!crew) return NextResponse.json({ error: 'Crew not found' }, { status: 404 })
 
-    const supabase = getServiceClient()
     const { error } = await supabase
       .from('crews')
       .update({ is_active: false })

@@ -6,14 +6,8 @@
  * Sets proposal.status = 'converted_to_job' and stores the new job id.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { getApiUser, apiHasPermission } from '@/lib/api-auth'
-
-function getServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  return createClient(url, serviceKey)
-}
+import { createClient } from '@/lib/supabase/server'
+import { getApiUser, hasPermission } from '@/lib/api-auth'
 
 export async function POST(
   _request: NextRequest,
@@ -25,10 +19,10 @@ export async function POST(
     if (!auth.authenticated) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-    if (!apiHasPermission(auth.role, 'proposals:convert')) {
+    if (!hasPermission(auth.role, 'proposals:convert')) {
       return NextResponse.json({ error: 'You do not have permission to convert proposals' }, { status: 403 })
     }
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     const { data: proposal } = await supabase
       .from('proposals')
@@ -79,29 +73,35 @@ export async function POST(
       return NextResponse.json({ error: jobError?.message || 'Failed to create job' }, { status: 500 })
     }
 
-    // Copy proposal_line_items → job_line_items
+    // Copy proposal_line_items → job_line_items.
+    // Migration 005 added job_line_items.service_name so custom (non-catalog)
+    // services no longer get filtered out.
     const { data: lines } = await supabase
       .from('proposal_line_items')
       .select('*')
       .eq('proposal_id', id)
 
     if (lines && lines.length > 0) {
-      const jobLines = lines
-        .filter((li) => li.service_catalog_id) // job_line_items requires service_catalog_id
-        .map((li) => ({
-          job_id: job.id,
-          service_catalog_id: li.service_catalog_id,
-          description: li.description || li.service_name,
-          quantity: li.quantity,
-          unit_price: li.unit_price,
-          total_price: li.total,
-          notes: null,
-        }))
-      if (jobLines.length > 0) {
-        const { error: liError } = await supabase.from('job_line_items').insert(jobLines)
-        if (liError) {
-          console.error('convert-to-job: failed to copy line items:', liError.message)
-        }
+      const jobLines = lines.map((li) => ({
+        job_id: job.id,
+        service_catalog_id: li.service_catalog_id || null,
+        service_name: li.service_name,
+        description: li.description || li.service_name,
+        quantity: li.quantity,
+        unit_price: li.unit_price,
+        total_price: li.total,
+        notes: null,
+      }))
+      const { error: liError } = await supabase.from('job_line_items').insert(jobLines)
+      if (liError) {
+        // Pseudo-transaction: roll back the job we just created so the proposal
+        // is not left half-converted.
+        console.error('convert-to-job: failed to copy line items, rolling back job:', liError.message)
+        await supabase.from('jobs').delete().eq('id', job.id)
+        return NextResponse.json(
+          { error: `Failed to copy line items: ${liError.message}` },
+          { status: 500 }
+        )
       }
     }
 

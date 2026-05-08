@@ -63,6 +63,13 @@ export async function POST(request: NextRequest) {
         break
       }
       case 'account.updated': {
+        // event.account is set on Connect-account events. When it's absent the
+        // event refers to our platform account itself — nothing to sync to an
+        // org row, so log and skip.
+        if (!event.account) {
+          console.log('Stripe webhook: account.updated for platform account (no event.account) — skipping')
+          break
+        }
         const account = event.data.object as Stripe.Account
         await handleAccountUpdated(supabase, account)
         break
@@ -135,31 +142,21 @@ async function handleCheckoutCompleted(
   }
 
   // Activity log (best-effort — don't fail the webhook if this errors).
-  // We don't have a real user_id here so we use the organization's
-  // first user; if none found, we skip the log.
+  // No real user is associated with a webhook payment, so user_id is null.
+  // Migration 006 makes activity_log.user_id nullable for exactly this case.
   const orgId = organizationId || invoice.organization_id
-  const { data: anyUser } = await supabase
-    .from('users')
-    .select('id')
-    .eq('organization_id', orgId)
-    .eq('is_active', true)
-    .limit(1)
-    .maybeSingle()
-
-  if (anyUser?.id) {
-    await supabase.from('activity_log').insert({
-      organization_id: orgId,
-      user_id: anyUser.id,
-      action: 'invoice_paid_via_stripe',
-      entity_type: 'invoice',
-      entity_id: invoiceId,
-      metadata: {
-        stripe_session_id: session.id,
-        stripe_payment_intent_id: paymentIntentId,
-        amount: invoice.total_amount,
-      },
-    })
-  }
+  await supabase.from('activity_log').insert({
+    organization_id: orgId,
+    user_id: null,
+    action: 'invoice_paid_via_stripe',
+    entity_type: 'invoice',
+    entity_id: invoiceId,
+    metadata: {
+      stripe_session_id: session.id,
+      stripe_payment_intent_id: paymentIntentId,
+      amount: invoice.total_amount,
+    },
+  })
 }
 
 async function handleAccountUpdated(

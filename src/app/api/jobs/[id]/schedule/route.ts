@@ -14,15 +14,8 @@
  * }
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { getApiUser, apiHasPermission } from '@/lib/api-auth'
-
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
+import { createClient } from '@/lib/supabase/server'
+import { getApiUser, hasPermission } from '@/lib/api-auth'
 
 export async function POST(
   request: NextRequest,
@@ -35,7 +28,7 @@ export async function POST(
     if (!auth.authenticated) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-    if (!apiHasPermission(auth.role, 'jobs:schedule')) {
+    if (!hasPermission(auth.role, 'jobs:schedule')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -58,7 +51,7 @@ export async function POST(
       return NextResponse.json({ error: 'scheduled_time is required' }, { status: 400 })
     }
 
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     // Verify job belongs to org
     const { data: job, error: jobError } = await supabase

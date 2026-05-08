@@ -2,15 +2,8 @@
  * DELETE /api/crew-members/[id] — remove a crew_members row by its id
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { getApiUser, apiHasPermission } from '@/lib/api-auth'
-
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
+import { createClient } from '@/lib/supabase/server'
+import { getApiUser, hasPermission } from '@/lib/api-auth'
 
 export async function DELETE(
   _request: NextRequest,
@@ -22,11 +15,11 @@ export async function DELETE(
     if (!auth.authenticated) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-    if (!apiHasPermission(auth.role, 'crews:manage')) {
+    if (!hasPermission(auth.role, 'crews:manage')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     // Verify the crew_member row exists and belongs to a crew in our org
     const { data: member } = await supabase

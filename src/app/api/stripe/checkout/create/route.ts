@@ -10,15 +10,9 @@
  * (avoids creating duplicate sessions when the email is re-sent).
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 import { getApiUser } from '@/lib/api-auth'
 import { createInvoiceCheckoutSession } from '@/lib/stripe-helpers'
-
-function getServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  return createClient(url, serviceKey)
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,7 +35,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     const { data: invoice, error: invErr } = await supabase
       .from('invoices')

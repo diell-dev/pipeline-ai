@@ -3,15 +3,8 @@
  * Body: { crew_id, user_id }
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { getApiUser, apiHasPermission } from '@/lib/api-auth'
-
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
+import { createClient } from '@/lib/supabase/server'
+import { getApiUser, hasPermission } from '@/lib/api-auth'
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +12,7 @@ export async function POST(request: NextRequest) {
     if (!auth.authenticated) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-    if (!apiHasPermission(auth.role, 'crews:manage')) {
+    if (!hasPermission(auth.role, 'crews:manage')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -30,7 +23,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'crew_id and user_id are required' }, { status: 400 })
     }
 
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     // Verify crew belongs to org
     const { data: crew } = await supabase

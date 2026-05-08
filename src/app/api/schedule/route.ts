@@ -6,15 +6,8 @@
  * Excludes cancelled jobs.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 import { getApiUser } from '@/lib/api-auth'
-
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -34,10 +27,37 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const supabase = getServiceClient()
+    // Cap the date range so a stray request can't pull years of data.
+    // 92 days covers the longest reasonable calendar view (a quarter).
+    const fromDate = new Date(from + 'T00:00:00Z')
+    const toDate = new Date(to + 'T00:00:00Z')
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+      return NextResponse.json(
+        { error: 'from and to must be valid YYYY-MM-DD dates' },
+        { status: 400 }
+      )
+    }
+    const dayMs = 24 * 60 * 60 * 1000
+    const rangeDays = Math.round((toDate.getTime() - fromDate.getTime()) / dayMs)
+    if (rangeDays < 0 || rangeDays > 92) {
+      return NextResponse.json(
+        { error: 'Date range too large; max 92 days' },
+        { status: 400 }
+      )
+    }
+
+    const supabase = await createClient()
 
     // We use service_date for date-range filtering since scheduled_time may be null
     // for jobs created on-the-fly by techs (without explicit scheduling).
+    //
+    // TODO(timezone): service_date is a plain DATE column (no timezone), populated
+    // from the browser's local date when the job was created. scheduled_time is a
+    // TIMESTAMPTZ stored in UTC. A job at 11pm local Sunday with scheduled_time of
+    // 4am Monday UTC will show on Sunday in the jobs list (filtered by service_date)
+    // but on Monday in calendar views derived from scheduled_time. Real fix:
+    // add a service_date_local column derived from org timezone, or always derive
+    // service_date from scheduled_time using the org's stored TZ.
     const { data: jobs, error } = await supabase
       .from('jobs')
       .select(`
@@ -55,6 +75,7 @@ export async function GET(request: NextRequest) {
       .gte('service_date', from)
       .lte('service_date', to)
       .order('scheduled_time', { ascending: true, nullsFirst: false })
+      .limit(2000)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })

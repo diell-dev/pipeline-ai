@@ -7,7 +7,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { getApiUser, apiHasPermission } from '@/lib/api-auth'
+import { getApiUser, hasPermission } from '@/lib/api-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     if (!auth.authenticated) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-    if (!apiHasPermission(auth.role, 'users:invite')) {
+    if (!hasPermission(auth.role, 'users:invite')) {
       return NextResponse.json({ error: 'You do not have permission to invite users' }, { status: 403 })
     }
 

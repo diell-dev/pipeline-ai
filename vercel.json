@@ -2,8 +2,7 @@
   "crons": [
     {
       "path": "/api/internal/cron/spawn-recurring-jobs",
-      "schedule": "0 6 * * *",
-      "comment": "Daily at 06:00 UTC (01:00 NYC)"
+      "schedule": "0 6 * * *"
     }
   ]
 }

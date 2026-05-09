@@ -133,6 +133,7 @@ export default function DashboardPage() {
 
   const canViewAll = user?.role ? hasPermission(user.role, 'jobs:view_all') : false
   const canCreate = user?.role ? hasPermission(user.role, 'jobs:create') : false
+  const canCreateProposal = user?.role ? hasPermission(user.role, 'proposals:create') : false
   // Analytics layer is only useful to people who can see all jobs (owners/managers).
   const showAnalytics = canViewAll
 
@@ -266,12 +267,20 @@ export default function DashboardPage() {
             {organization?.name} — {user?.role ? getRoleLabel(user.role) : ''}
           </p>
         </div>
-        {canCreate && (
-          <Button onClick={() => router.push('/jobs/new')}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Job
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {canCreateProposal && (
+            <Button variant="outline" onClick={() => router.push('/proposals/new')}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Proposal
+            </Button>
+          )}
+          {canCreate && (
+            <Button onClick={() => router.push('/jobs/new')}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Job
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filter bar — sticky so it stays visible while scrolling KPI sections */}
@@ -526,16 +535,24 @@ export default function DashboardPage() {
       )}
 
       {/* Quick Actions */}
-      {canCreate && (
+      {(canCreate || canCreateProposal) && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
-            <Button onClick={() => router.push('/jobs/new')}>
-              <Plus className="mr-2 h-4 w-4" />
-              Submit New Job
-            </Button>
+            {canCreateProposal && (
+              <Button onClick={() => router.push('/proposals/new')}>
+                <Plus className="mr-2 h-4 w-4" />
+                New Proposal
+              </Button>
+            )}
+            {canCreate && (
+              <Button variant={canCreateProposal ? 'outline' : 'default'} onClick={() => router.push('/jobs/new')}>
+                <Plus className="mr-2 h-4 w-4" />
+                Submit New Job
+              </Button>
+            )}
             <Button variant="outline" onClick={() => router.push('/clients')}>
               View Clients
             </Button>

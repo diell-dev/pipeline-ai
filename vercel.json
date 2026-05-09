@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/internal/cron/spawn-recurring-jobs",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}

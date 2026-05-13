@@ -6,15 +6,8 @@
  * The invoice number is preserved but marked as 'void'.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 import { getApiUser } from '@/lib/api-auth'
-
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
 
 export async function POST(
   request: NextRequest,
@@ -33,7 +26,7 @@ export async function POST(
       return NextResponse.json({ error: 'Only the owner can delete jobs' }, { status: 403 })
     }
 
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     // Verify job exists and belongs to org
     const { data: job, error: jobError } = await supabase

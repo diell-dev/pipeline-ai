@@ -10,14 +10,16 @@
  *   - Invoice table with sorting
  *   - Quick actions: mark paid, view job
  */
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
+import { hasPermission } from '@/lib/permissions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { MarkPaidDialog } from '@/components/invoices/mark-paid-dialog'
 import { toast } from 'sonner'
 import {
   DollarSign,
@@ -38,6 +40,8 @@ import {
   ChevronRight,
   X,
 } from 'lucide-react'
+
+const MARK_PAID_STATUSES = ['draft', 'sent', 'overdue', 'partially_paid']
 
 // Status config for badges
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -86,7 +90,8 @@ const PAGE_SIZE = 15
 
 export default function FinancesPage() {
   const router = useRouter()
-  const { organization } = useAuthStore()
+  const { organization, user } = useAuthStore()
+  const canMarkPaid = user?.role ? hasPermission(user.role, 'invoices:mark_paid') : false
 
   // Data
   const [invoices, setInvoices] = useState<InvoiceRow[]>([])
@@ -211,63 +216,64 @@ export default function FinancesPage() {
   }, [organization])
 
   // Load filtered invoices
-  useEffect(() => {
+  const loadInvoices = useCallback(async () => {
     if (!organization) return
-    async function loadInvoices() {
-      setLoading(true)
-      const supabase = createClient()
+    setLoading(true)
+    const supabase = createClient()
 
-      let query = supabase
-        .from('invoices')
-        .select('*, clients(company_name)', { count: 'exact' })
-        .eq('organization_id', organization!.id)
+    let query = supabase
+      .from('invoices')
+      .select('*, clients(company_name)', { count: 'exact' })
+      .eq('organization_id', organization.id)
 
-      // Status filter
-      if (statusFilter === 'unpaid') {
-        query = query.in('status', ['draft', 'sent', 'overdue', 'partially_paid'])
-      } else if (statusFilter === 'paid') {
-        query = query.eq('status', 'paid')
-      } else if (statusFilter) {
-        query = query.eq('status', statusFilter)
-      }
-
-      // Client filter
-      if (clientFilter) {
-        query = query.eq('client_id', clientFilter)
-      }
-
-      // Date range filter
-      if (dateFrom) {
-        query = query.gte('created_at', `${dateFrom}T00:00:00`)
-      }
-      if (dateTo) {
-        query = query.lte('created_at', `${dateTo}T23:59:59`)
-      }
-
-      // Search by invoice number
-      if (searchQuery.trim()) {
-        query = query.ilike('invoice_number', `%${searchQuery.trim()}%`)
-      }
-
-      // Sorting
-      query = query.order(sortField, { ascending: sortDir === 'asc' })
-
-      // Pagination
-      const from = page * PAGE_SIZE
-      const to = from + PAGE_SIZE - 1
-      const { data, error, count } = await query.range(from, to)
-
-      if (error) {
-        console.error('Failed to load invoices:', error.message)
-        toast.error('Failed to load financial data')
-      } else {
-        setInvoices((data || []) as unknown as InvoiceRow[])
-        setTotalCount(count || 0)
-      }
-      setLoading(false)
+    // Status filter
+    if (statusFilter === 'unpaid') {
+      query = query.in('status', ['draft', 'sent', 'overdue', 'partially_paid'])
+    } else if (statusFilter === 'paid') {
+      query = query.eq('status', 'paid')
+    } else if (statusFilter) {
+      query = query.eq('status', statusFilter)
     }
-    loadInvoices()
+
+    // Client filter
+    if (clientFilter) {
+      query = query.eq('client_id', clientFilter)
+    }
+
+    // Date range filter
+    if (dateFrom) {
+      query = query.gte('created_at', `${dateFrom}T00:00:00`)
+    }
+    if (dateTo) {
+      query = query.lte('created_at', `${dateTo}T23:59:59`)
+    }
+
+    // Search by invoice number
+    if (searchQuery.trim()) {
+      query = query.ilike('invoice_number', `%${searchQuery.trim()}%`)
+    }
+
+    // Sorting
+    query = query.order(sortField, { ascending: sortDir === 'asc' })
+
+    // Pagination
+    const from = page * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
+    const { data, error, count } = await query.range(from, to)
+
+    if (error) {
+      console.error('Failed to load invoices:', error.message)
+      toast.error('Failed to load financial data')
+    } else {
+      setInvoices((data || []) as unknown as InvoiceRow[])
+      setTotalCount(count || 0)
+    }
+    setLoading(false)
   }, [organization, statusFilter, clientFilter, dateFrom, dateTo, searchQuery, sortField, sortDir, page])
+
+  useEffect(() => {
+    loadInvoices()
+  }, [loadInvoices])
 
   // Filtered client list for dropdown
   const filteredClients = useMemo(() => {
@@ -596,14 +602,35 @@ export default function FinancesPage() {
                             {new Date(inv.created_at).toLocaleDateString()}
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 px-2"
-                              onClick={() => router.push(`/jobs/${inv.job_id}`)}
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                            </Button>
+                            <div className="flex items-center justify-end gap-1">
+                              {canMarkPaid && MARK_PAID_STATUSES.includes(inv.status) && (
+                                <MarkPaidDialog
+                                  invoice={{
+                                    id: inv.id,
+                                    invoice_number: inv.invoice_number,
+                                    total_amount: Number(inv.total_amount) || 0,
+                                  }}
+                                  onSuccess={loadInvoices}
+                                >
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs text-green-700 hover:text-green-800 hover:bg-green-50"
+                                  >
+                                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                                    Mark Paid
+                                  </Button>
+                                </MarkPaidDialog>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2"
+                                onClick={() => router.push(`/jobs/${inv.job_id}`)}
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       )

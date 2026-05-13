@@ -89,6 +89,7 @@ interface JobDetail extends Job {
   submitter?: { full_name: string; email: string } | null
   approver?: { full_name: string } | null
   job_line_items?: JobLineItemWithCatalog[]
+  proposal?: { id: string; proposal_number: string } | null
 }
 
 const JOB_SELECT_QUERY = `
@@ -97,6 +98,7 @@ const JOB_SELECT_QUERY = `
   sites:site_id ( name, address, borough ),
   submitter:submitted_by ( full_name, email ),
   approver:approved_by ( full_name ),
+  proposal:proposal_id ( id, proposal_number ),
   job_line_items (
     id, service_catalog_id, description, quantity, unit_price, total_price, notes,
     service_catalog:service_catalog_id ( name, code, unit )
@@ -921,6 +923,16 @@ export default function JobDetailPage() {
             <p className="text-sm text-muted-foreground mt-1">
               Job ID: {job.id.slice(0, 8)}...
             </p>
+            {job.proposal_id && job.proposal && (
+              <button
+                type="button"
+                onClick={() => router.push(`/proposals/${job.proposal_id}`)}
+                className="mt-2 inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
+              >
+                <FileText className="h-3 w-3" />
+                From Proposal #{job.proposal.proposal_number}
+              </button>
+            )}
           </div>
         </div>
         {canDelete && job.status !== 'cancelled' && (
@@ -934,6 +946,51 @@ export default function JobDetailPage() {
           </Button>
         )}
       </div>
+
+      {/* Approval Banner — surfaces approve/reject prominently for managers when job is awaiting review */}
+      {canApprove && ['submitted', 'pending_review', 'revised'].includes(job.status) && (
+        <Card className="border-amber-300 bg-gradient-to-r from-amber-50 to-yellow-50 shadow-sm">
+          <CardContent className="py-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="rounded-full bg-amber-100 p-2 mt-0.5 flex-shrink-0">
+                  <AlertTriangle className="h-5 w-5 text-amber-700" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-amber-900">
+                    {job.status === 'revised' ? 'Revised — needs your re-approval' : 'Awaiting your approval'}
+                  </h3>
+                  <p className="text-sm text-amber-800 mt-0.5">
+                    Review the report and invoice below, then approve to send to the client — or request changes.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <Button
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={() => handleStatusUpdate('approved')}
+                  disabled={actionLoading}
+                >
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  Approve & Send
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    // Smooth-scroll to the bottom Actions card so user can pick Revise/Reject
+                    document.getElementById('approval-actions')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  }}
+                  disabled={actionLoading}
+                >
+                  Other actions…
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && (
@@ -1594,9 +1651,9 @@ export default function JobDetailPage() {
 
       {/* Action Buttons — Approval workflow for owners/managers */}
       {(canApprove || canReject) && ['submitted', 'pending_review', 'revised'].includes(job.status) && (
-        <Card>
+        <Card id="approval-actions" className="border-amber-200">
           <CardHeader>
-            <CardTitle className="text-sm">Actions</CardTitle>
+            <CardTitle className="text-sm">Approval Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-2">

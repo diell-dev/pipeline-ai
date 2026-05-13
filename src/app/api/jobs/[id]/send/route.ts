@@ -10,10 +10,17 @@
  *   3. Build HTML email with report summary + invoice
  *   4. Send via Resend (or fallback log)
  *   5. Update job status to 'sent', record sent_at timestamp
+ *
+ * NOTE: Uses the service-role Supabase client by design. The send flow
+ * does an outbound email + multiple DB writes (invoice + Stripe checkout
+ * session); we don't want a slow request to fail at the final write
+ * because the cookie-bound session expired. Org scoping is enforced
+ * manually via the getApiUser() + organization_id check below.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { getApiUser, apiHasPermission } from '@/lib/api-auth'
+import { getApiUser, hasPermission } from '@/lib/api-auth'
+import { createInvoiceCheckoutSession } from '@/lib/stripe-helpers'
 
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -33,7 +40,7 @@ export async function POST(
     if (!auth.authenticated) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-    if (!apiHasPermission(auth.role, 'jobs:send')) {
+    if (!hasPermission(auth.role, 'jobs:send')) {
       return NextResponse.json({ error: 'You do not have permission to send jobs' }, { status: 403 })
     }
 
@@ -94,14 +101,61 @@ export async function POST(
       )
     }
 
-    // 2. Get organization info
+    // ── Production guard: missing email service is a hard failure in prod ──
+    const resendApiKey = process.env.RESEND_API_KEY
+    if (!resendApiKey && process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { error: 'Email service not configured' },
+        { status: 500 }
+      )
+    }
+
+    // 2. Get organization info (incl. Stripe Connect state + branding)
     const { data: org } = await supabase
       .from('organizations')
-      .select('name, settings')
+      .select(
+        'id, name, settings, primary_color, stripe_account_id, stripe_charges_enabled'
+      )
       .eq('id', job.organization_id)
       .single()
 
     const orgName = org?.name || 'NY Sewer & Drain'
+
+    // 2b. If Stripe Connect is set up, ensure a Checkout Session exists
+    // for the invoice tied to this job. Fail-soft: if Stripe errors,
+    // we still send the email without a Pay button.
+    let payWithCardUrl: string | null = null
+    if (
+      org?.stripe_account_id &&
+      org?.stripe_charges_enabled
+    ) {
+      try {
+        const { data: dbInvoice } = await supabase
+          .from('invoices')
+          .select(
+            'id, organization_id, invoice_number, total_amount, stripe_checkout_session_id, stripe_payment_link_url'
+          )
+          .eq('job_id', jobId)
+          .maybeSingle()
+
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL
+        if (dbInvoice && appUrl) {
+          const result = await createInvoiceCheckoutSession(
+            supabase,
+            dbInvoice,
+            {
+              id: org.id as string,
+              stripe_account_id: org.stripe_account_id as string,
+              stripe_charges_enabled: org.stripe_charges_enabled as boolean,
+            },
+            appUrl
+          )
+          payWithCardUrl = result.url
+        }
+      } catch (stripeErr) {
+        console.error('Stripe checkout creation failed (sending without Pay button):', stripeErr)
+      }
+    }
 
     // 3. Build the email
     const report = job.ai_report_content as Record<string, unknown>
@@ -116,12 +170,51 @@ export async function POST(
       serviceDate: job.service_date as string,
       report,
       invoice,
+      payWithCardUrl,
+      payButtonColor: (org?.primary_color as string) || undefined,
     })
 
-    // 4. Send via Resend or fallback
-    const resendApiKey = process.env.RESEND_API_KEY
-    let emailSent = false
+    // ── 4. Atomic claim BEFORE sending ──
+    // Move job out of 'approved' first, conditional on it still being 'approved'
+    // and not already sent. If a parallel request already claimed it, return
+    // alreadySent (not an error — the user just clicked twice).
+    const sentAt = new Date().toISOString()
+    const { data: claimed, error: claimErr } = await supabase
+      .from('jobs')
+      .update({
+        status: 'sent',
+        sent_at: sentAt,
+      })
+      .eq('id', jobId)
+      .eq('status', 'approved')
+      .is('sent_at', null)
+      .select('id')
+      .maybeSingle()
 
+    if (claimErr) {
+      console.error('Claim error before send:', claimErr.message)
+      return NextResponse.json({ error: 'Failed to claim job for sending' }, { status: 500 })
+    }
+    if (!claimed) {
+      // Another request beat us to it — not an error.
+      return NextResponse.json({
+        success: true,
+        emailSent: false,
+        alreadySent: true,
+        sentTo: clientEmail,
+        status: 'sent',
+      })
+    }
+
+    async function revertClaim(reason: string) {
+      console.error(`Reverting job send claim for ${jobId}: ${reason}`)
+      await supabase
+        .from('jobs')
+        .update({ status: 'approved', sent_at: null })
+        .eq('id', jobId)
+    }
+
+    // ── 5. Send email (claim now held) ──
     if (resendApiKey) {
       const { Resend } = await import('resend')
       const resend = new Resend(resendApiKey)
@@ -129,76 +222,54 @@ export async function POST(
       const fromEmail = (org?.settings as Record<string, unknown>)?.from_email as string
         || `reports@${orgName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`
 
-      const { error: sendError } = await resend.emails.send({
-        from: `${orgName} <${fromEmail}>`,
-        to: clientEmail,
-        subject: `Service Report & Invoice — ${(site?.address as string) || 'Your Property'}`,
-        html: emailHtml,
-      })
+      try {
+        const { error: sendError } = await resend.emails.send({
+          from: `${orgName} <${fromEmail}>`,
+          to: clientEmail,
+          subject: `Service Report & Invoice — ${(site?.address as string) || 'Your Property'}`,
+          html: emailHtml,
+        })
 
-      if (sendError) {
-        console.error('Resend error:', sendError)
-        // Revert status so it can be retried
-        await supabase.from('jobs').update({ status: 'approved' }).eq('id', jobId)
+        if (sendError) {
+          await revertClaim(`Resend error: ${sendError.message}`)
+          return NextResponse.json(
+            { error: `Email failed: ${sendError.message}` },
+            { status: 500 }
+          )
+        }
+      } catch (err) {
+        await revertClaim(`Resend exception: ${err instanceof Error ? err.message : String(err)}`)
         return NextResponse.json(
-          { error: `Email failed: ${sendError.message}` },
+          { error: 'Email send failed' },
           { status: 500 }
         )
       }
-
-      emailSent = true
     } else {
-      // No Resend key — log the email for development
-      console.log('=== EMAIL WOULD BE SENT ===')
+      // Development-only fallback. Production guard above blocks this branch
+      // when NODE_ENV === 'production'.
+      console.log('=== EMAIL WOULD BE SENT (dev only) ===')
       console.log('To:', clientEmail)
       console.log('Subject: Service Report & Invoice')
       console.log('HTML length:', emailHtml.length)
       console.log('=== END EMAIL ===')
-      emailSent = true // Mark as sent for dev purposes
     }
 
-    // 5. Atomic status update: only set to 'sent' if still 'approved'
-    // This prevents race conditions if two users try to approve/send simultaneously
-    if (emailSent) {
-      const { data: updated, error: updateErr } = await supabase
-        .from('jobs')
-        .update({
-          status: 'sent',
-          sent_at: new Date().toISOString(),
-        })
-        .eq('id', jobId)
-        .eq('status', 'approved') // Only succeeds if still approved
-        .select('id')
-        .single()
-
-      if (updateErr || !updated) {
-        // Another request already sent this — that's fine, not an error
-        return NextResponse.json({
-          success: true,
-          emailSent: false,
-          alreadySent: true,
-          sentTo: clientEmail,
-          status: 'sent',
-        })
-      }
-
-      // Log activity
-      await supabase.from('activity_log').insert({
-        organization_id: job.organization_id,
-        user_id: job.approved_by || job.submitted_by,
-        action: 'job_sent',
-        entity_type: 'job',
-        entity_id: jobId,
-        metadata: {
-          client_email: clientEmail,
-          invoice_number: invoice.invoice_number,
-        },
-      })
-    }
+    // Log activity
+    await supabase.from('activity_log').insert({
+      organization_id: job.organization_id,
+      user_id: job.approved_by || job.submitted_by,
+      action: 'job_sent',
+      entity_type: 'job',
+      entity_id: jobId,
+      metadata: {
+        client_email: clientEmail,
+        invoice_number: invoice.invoice_number,
+      },
+    })
 
     return NextResponse.json({
       success: true,
-      emailSent,
+      emailSent: true,
       sentTo: clientEmail,
       status: 'sent',
     })
@@ -212,17 +283,10 @@ export async function POST(
 }
 
 // ============================================================
-// HTML Escape Helper — prevents XSS from AI-generated content in email
+// HTML Escape Helper — re-export from shared lib so callers stay terse
 // ============================================================
 
-function escHtml(str: unknown): string {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
+import { escapeHtml as escHtml } from '@/lib/escape-html'
 
 // ============================================================
 // Email HTML Builder
@@ -236,6 +300,8 @@ interface EmailInput {
   serviceDate: string
   report: Record<string, unknown>
   invoice: Record<string, unknown>
+  payWithCardUrl?: string | null
+  payButtonColor?: string  // hex, defaults to a brand-neutral green
 }
 
 function buildEmailHtml({
@@ -246,7 +312,12 @@ function buildEmailHtml({
   serviceDate,
   report,
   invoice,
+  payWithCardUrl,
+  payButtonColor,
 }: EmailInput): string {
+  // Pay-with-Card button picks up the org's primary color so branding stays
+  // consistent. Fallback is brand-neutral green if the org hasn't set one.
+  const payColor = payButtonColor || '#00a447'
   const lineItems = (invoice.line_items as Array<Record<string, unknown>>) || []
 
   const workPerformed = Array.isArray(report.work_performed)
@@ -364,6 +435,18 @@ function buildEmailHtml({
           Total: $${Number(invoice.total_amount).toFixed(2)}
         </p>
       </div>
+
+      ${payWithCardUrl ? `
+      <div style="text-align: center; margin: 24px 0 8px;">
+        <a href="${escHtml(payWithCardUrl)}"
+           style="display: inline-block; background: ${payColor}; color: #ffffff; font-weight: 600; font-size: 15px; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
+          Pay with Card
+        </a>
+        <p style="font-size: 12px; color: #888; margin: 10px 0 0;">
+          Or pay by check, ACH, or wire &mdash; see invoice for details.
+        </p>
+      </div>
+      ` : ''}
 
       <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 12px 16px; margin-top: 16px;">
         <p style="font-size: 13px; color: #0369a1; margin: 0;">

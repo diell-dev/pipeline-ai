@@ -6,15 +6,8 @@
  * Invoice numbers are NEVER reused — voided numbers stay in the sequence.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 import { getApiUser } from '@/lib/api-auth'
-
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
 
 export async function POST(
   request: NextRequest,
@@ -32,7 +25,7 @@ export async function POST(
       return NextResponse.json({ error: 'Only the owner can delete invoices' }, { status: 403 })
     }
 
-    const supabase = getServiceClient()
+    const supabase = await createClient()
 
     const { data: invoice, error: invError } = await supabase
       .from('invoices')

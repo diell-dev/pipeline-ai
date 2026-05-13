@@ -7,7 +7,10 @@
  */
 import { createClient } from '@/lib/supabase/server'
 import type { UserRole } from '@/types/database'
-import type { Permission } from '@/lib/permissions'
+import { hasPermission } from '@/lib/permissions'
+
+// Re-export so API routes can import permission helpers from one place.
+export { hasPermission }
 
 interface AuthResult {
   authenticated: true
@@ -64,26 +67,3 @@ export async function getApiUser(): Promise<ApiAuth> {
   }
 }
 
-/**
- * Simple permission check map (subset of full permissions.ts)
- * Duplicated here so API routes don't import client-side code.
- */
-const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
-  super_admin: [
-    'jobs:create', 'jobs:view_all', 'jobs:edit_all', 'jobs:approve', 'jobs:reject', 'jobs:send',
-    'users:invite', 'users:manage',
-  ],
-  owner: [
-    'jobs:create', 'jobs:view_all', 'jobs:edit_all', 'jobs:approve', 'jobs:reject', 'jobs:send',
-    'users:invite', 'users:manage',
-  ],
-  office_manager: [
-    'jobs:create', 'jobs:view_all', 'jobs:edit_all', 'jobs:approve', 'jobs:reject', 'jobs:send',
-  ],
-  field_tech: ['jobs:create', 'jobs:view_own', 'jobs:edit_own'],
-  client: [],
-}
-
-export function apiHasPermission(role: UserRole, permission: Permission): boolean {
-  return ROLE_PERMISSIONS[role]?.includes(permission) ?? false
-}

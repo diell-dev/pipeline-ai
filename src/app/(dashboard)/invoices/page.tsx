@@ -9,7 +9,7 @@
  * - Searchable client filter dropdown
  * - Status badges (paid, unpaid, overdue, etc.)
  */
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
@@ -18,6 +18,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { MarkPaidDialog } from '@/components/invoices/mark-paid-dialog'
 import { toast } from 'sonner'
 import {
   FileText,
@@ -27,9 +28,12 @@ import {
   Search,
   X,
   Trash2,
+  CheckCircle2,
   AlertTriangle,
 } from 'lucide-react'
 import type { InvoiceStatus, Client } from '@/types/database'
+
+const MARK_PAID_STATUSES: InvoiceStatus[] = ['draft', 'sent', 'overdue', 'partially_paid']
 
 interface InvoiceRow {
   id: string
@@ -62,6 +66,7 @@ export default function InvoicesPage() {
   const { organization, user } = useAuthStore()
   const searchParams = useSearchParams()
   const canDeleteInvoice = user?.role ? hasPermission(user.role, 'invoices:delete') : false
+  const canMarkPaid = user?.role ? hasPermission(user.role, 'invoices:mark_paid') : false
 
   const [invoices, setInvoices] = useState<InvoiceRow[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -108,47 +113,46 @@ export default function InvoicesPage() {
   }, [organization, clientIdFromParam])
 
   // Load invoices
-  useEffect(() => {
+  const loadInvoices = useCallback(async () => {
     if (!organization) return
+    setLoading(true)
+    const supabase = createClient()
 
-    async function loadInvoices() {
-      setLoading(true)
-      const supabase = createClient()
+    let query = supabase
+      .from('invoices')
+      .select('*, clients(company_name)', { count: 'exact' })
+      .eq('organization_id', organization.id)
+      .order('created_at', { ascending: false })
 
-      let query = supabase
-        .from('invoices')
-        .select('*, clients(company_name)', { count: 'exact' })
-        .eq('organization_id', organization!.id)
-        .order('created_at', { ascending: false })
-
-      if (selectedClientId) {
-        query = query.eq('client_id', selectedClientId)
-      }
-
-      if (statusFilter === 'unpaid' as string) {
-        // Special "unpaid" filter: show draft, sent, overdue, partially_paid
-        query = query.in('status', ['draft', 'sent', 'overdue', 'partially_paid'])
-      } else if (statusFilter) {
-        query = query.eq('status', statusFilter)
-      }
-
-      const from = page * PAGE_SIZE
-      const to = from + PAGE_SIZE - 1
-
-      const { data, error, count } = await query.range(from, to)
-
-      if (error) {
-        console.error('Failed to load invoices:', error.message)
-        toast.error('Failed to load invoices')
-      } else {
-        setInvoices((data || []) as unknown as InvoiceRow[])
-        setTotalCount(count || 0)
-      }
-      setLoading(false)
+    if (selectedClientId) {
+      query = query.eq('client_id', selectedClientId)
     }
 
-    loadInvoices()
+    if (statusFilter === 'unpaid' as string) {
+      // Special "unpaid" filter: show draft, sent, overdue, partially_paid
+      query = query.in('status', ['draft', 'sent', 'overdue', 'partially_paid'])
+    } else if (statusFilter) {
+      query = query.eq('status', statusFilter)
+    }
+
+    const from = page * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
+
+    const { data, error, count } = await query.range(from, to)
+
+    if (error) {
+      console.error('Failed to load invoices:', error.message)
+      toast.error('Failed to load invoices')
+    } else {
+      setInvoices((data || []) as unknown as InvoiceRow[])
+      setTotalCount(count || 0)
+    }
+    setLoading(false)
   }, [organization, page, selectedClientId, statusFilter])
+
+  useEffect(() => {
+    loadInvoices()
+  }, [loadInvoices])
 
   // Filtered client list for dropdown
   const filteredClients = useMemo(() => {
@@ -308,7 +312,9 @@ export default function InvoicesPage() {
                   <th className="text-right font-medium px-4 py-3">Amount</th>
                   <th className="text-right font-medium px-4 py-3">Paid</th>
                   <th className="text-center font-medium px-4 py-3">Status</th>
-                  {canDeleteInvoice && <th className="text-center font-medium px-4 py-3 w-20"></th>}
+                  {(canDeleteInvoice || canMarkPaid) && (
+                    <th className="text-center font-medium px-4 py-3 w-40">Actions</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -352,40 +358,61 @@ export default function InvoicesPage() {
                           {displayStatus.label}
                         </Badge>
                       </td>
-                      {canDeleteInvoice && (
+                      {(canDeleteInvoice || canMarkPaid) && (
                         <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                          {inv.status !== 'void' && inv.status !== 'paid' && (
-                            confirmVoidId === inv.id ? (
-                              <div className="flex items-center gap-1 justify-center">
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  className="h-7 text-xs px-2"
-                                  onClick={() => handleVoidInvoice(inv.id)}
-                                  disabled={voidingId === inv.id}
-                                >
-                                  {voidingId === inv.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Void'}
-                                </Button>
+                          <div className="flex items-center gap-1 justify-center">
+                            {canMarkPaid && MARK_PAID_STATUSES.includes(inv.status) && (
+                              <MarkPaidDialog
+                                invoice={{
+                                  id: inv.id,
+                                  invoice_number: inv.invoice_number,
+                                  total_amount: Number(inv.total_amount) || 0,
+                                }}
+                                onSuccess={loadInvoices}
+                              >
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-7 text-xs px-2"
-                                  onClick={() => setConfirmVoidId(null)}
+                                  className="h-7 text-xs px-2 text-green-700 hover:text-green-800 hover:bg-green-50"
                                 >
-                                  No
+                                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                                  Mark Paid
                                 </Button>
-                              </div>
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 text-xs px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => setConfirmVoidId(inv.id)}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            )
-                          )}
+                              </MarkPaidDialog>
+                            )}
+                            {canDeleteInvoice && inv.status !== 'void' && inv.status !== 'paid' && (
+                              confirmVoidId === inv.id ? (
+                                <>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    className="h-7 text-xs px-2"
+                                    onClick={() => handleVoidInvoice(inv.id)}
+                                    disabled={voidingId === inv.id}
+                                  >
+                                    {voidingId === inv.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Void'}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs px-2"
+                                    onClick={() => setConfirmVoidId(null)}
+                                  >
+                                    No
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-xs px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => setConfirmVoidId(inv.id)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )
+                            )}
+                          </div>
                         </td>
                       )}
                     </tr>

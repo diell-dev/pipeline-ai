@@ -315,4 +315,3 @@ function nextWeekdayInPattern(
   fallback.setUTCDate(fallback.getUTCDate() + intervalDays)
   return fallback
 }
-

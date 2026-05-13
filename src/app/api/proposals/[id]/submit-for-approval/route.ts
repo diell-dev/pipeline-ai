@@ -6,7 +6,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getApiUser, hasPermission } from '@/lib/api-auth'
+import { getApiUser, hasPermission, canAccessOrg } from '@/lib/api-auth'
 
 export async function POST(
   _request: NextRequest,
@@ -30,7 +30,7 @@ export async function POST(
     if (!existing) {
       return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
     }
-    if (existing.organization_id !== auth.organizationId) {
+    if (!canAccessOrg(auth, existing.organization_id)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     if (existing.status !== 'draft') {

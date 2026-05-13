@@ -7,7 +7,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getApiUser, hasPermission } from '@/lib/api-auth'
+import { getApiUser, hasPermission, canAccessOrg } from '@/lib/api-auth'
 import { escapeHtml as escHtml } from '@/lib/escape-html'
 
 export async function POST(
@@ -38,7 +38,7 @@ export async function POST(
     if (fetchError || !proposal) {
       return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
     }
-    if (proposal.organization_id !== auth.organizationId) {
+    if (!canAccessOrg(auth, proposal.organization_id)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     if (proposal.status !== 'admin_approved') {

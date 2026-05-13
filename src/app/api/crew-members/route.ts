@@ -4,7 +4,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getApiUser, hasPermission } from '@/lib/api-auth'
+import { getApiUser, hasPermission, canAccessOrg } from '@/lib/api-auth'
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       .eq('id', crew_id)
       .single()
 
-    if (!crew || crew.organization_id !== auth.organizationId) {
+    if (!crew || !canAccessOrg(auth, crew.organization_id)) {
       return NextResponse.json({ error: 'Crew not found' }, { status: 404 })
     }
 
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       .eq('id', user_id)
       .single()
 
-    if (!targetUser || targetUser.organization_id !== auth.organizationId) {
+    if (!targetUser || !canAccessOrg(auth, targetUser.organization_id)) {
       return NextResponse.json({ error: 'User not in your organization' }, { status: 403 })
     }
 

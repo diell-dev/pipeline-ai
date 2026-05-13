@@ -8,7 +8,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getApiUser, hasPermission } from '@/lib/api-auth'
+import { getApiUser, hasPermission, canAccessOrg } from '@/lib/api-auth'
 import type { ProposalMaterial } from '@/types/database'
 
 interface ProposalPatchBody {
@@ -64,7 +64,7 @@ export async function PATCH(
     if (loadError || !existing) {
       return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
     }
-    if (existing.organization_id !== auth.organizationId) {
+    if (!canAccessOrg(auth, existing.organization_id)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -215,7 +215,7 @@ export async function DELETE(
     if (!existing) {
       return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
     }
-    if (existing.organization_id !== auth.organizationId) {
+    if (!canAccessOrg(auth, existing.organization_id)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

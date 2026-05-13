@@ -22,7 +22,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getApiUser } from '@/lib/api-auth'
+import { getApiUser, canAccessOrg } from '@/lib/api-auth'
 import { hasPermission } from '@/lib/permissions'
 import type { PaymentMethod } from '@/types/database'
 
@@ -133,7 +133,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
     }
 
-    if (invoice.organization_id !== auth.organizationId) {
+    if (!canAccessOrg(auth, invoice.organization_id)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

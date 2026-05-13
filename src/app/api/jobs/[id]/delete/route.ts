@@ -7,7 +7,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getApiUser } from '@/lib/api-auth'
+import { getApiUser, canAccessOrg } from '@/lib/api-auth'
 
 export async function POST(
   request: NextRequest,
@@ -40,7 +40,7 @@ export async function POST(
       return NextResponse.json({ error: 'Job not found' }, { status: 404 })
     }
 
-    if (job.organization_id !== auth.organizationId) {
+    if (!canAccessOrg(auth, job.organization_id)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

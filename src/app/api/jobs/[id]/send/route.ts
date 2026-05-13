@@ -19,7 +19,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { getApiUser, hasPermission } from '@/lib/api-auth'
+import { getApiUser, hasPermission, canAccessOrg } from '@/lib/api-auth'
 import { createInvoiceCheckoutSession } from '@/lib/stripe-helpers'
 
 function getServiceClient() {
@@ -65,7 +65,7 @@ export async function POST(
     }
 
     // Verify caller belongs to the same organization
-    if (job.organization_id !== auth.organizationId) {
+    if (!canAccessOrg(auth, job.organization_id)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

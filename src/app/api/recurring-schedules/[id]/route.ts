@@ -6,7 +6,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getApiUser, hasPermission } from '@/lib/api-auth'
+import { getApiUser, hasPermission, canAccessOrg } from '@/lib/api-auth'
 
 const ALLOWED_FIELDS = new Set([
   'assigned_to',
@@ -47,7 +47,7 @@ export async function PATCH(
       .eq('id', id)
       .single()
 
-    if (!existing || existing.organization_id !== auth.organizationId) {
+    if (!existing || !canAccessOrg(auth, existing.organization_id)) {
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
     }
 
@@ -101,7 +101,7 @@ export async function DELETE(
       .eq('id', id)
       .single()
 
-    if (!existing || existing.organization_id !== auth.organizationId) {
+    if (!existing || !canAccessOrg(auth, existing.organization_id)) {
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
     }
 

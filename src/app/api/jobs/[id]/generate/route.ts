@@ -22,7 +22,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
-import { getApiUser } from '@/lib/api-auth'
+import { getApiUser, canAccessOrg } from '@/lib/api-auth'
 
 // Use service role client (bypasses RLS) for server-side operations
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -75,7 +75,7 @@ export async function POST(
     }
 
     // Verify caller belongs to the same organization
-    if (job.organization_id !== auth.organizationId) {
+    if (!canAccessOrg(auth, job.organization_id)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

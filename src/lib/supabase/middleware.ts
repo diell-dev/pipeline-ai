@@ -20,8 +20,20 @@ function getSupabaseConfig() {
   return { url, key }
 }
 
-/** Routes that don't require authentication */
-const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password'] as const
+/** Pages (NOT api routes) that don't require authentication */
+const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password', '/proposals/sign'] as const
+
+/**
+ * API path prefixes that are public by design — they authenticate themselves
+ * (Stripe webhook signature, public proposal token, cron bearer token, etc.).
+ * The middleware must NOT redirect these to /login; the route handlers return
+ * proper JSON errors when their own auth fails.
+ */
+const PUBLIC_API_PREFIXES = [
+  '/api/stripe/webhook',
+  '/api/proposals/public/',
+  '/api/internal/cron/',
+] as const
 
 export async function updateSession(request: NextRequest) {
   const { url, key } = getSupabaseConfig()
@@ -54,19 +66,29 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isPublicRoute = PUBLIC_ROUTES.some((route) =>
-    request.nextUrl.pathname.startsWith(route)
-  )
+  const pathname = request.nextUrl.pathname
+  const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname.startsWith(route))
+  const isPublicApi = PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p))
+  // ALL /api/* routes handle their own auth via getApiUser; never redirect
+  // them to /login — they should return JSON errors. The middleware still
+  // refreshes the user session above so cookie-bound API routes Just Work.
+  const isApiRoute = pathname.startsWith('/api/')
 
-  // Redirect unauthenticated users to login
-  if (!user && !isPublicRoute) {
+  // Redirect unauthenticated PAGE users to login. API routes return JSON.
+  if (!user && !isPublicRoute && !isApiRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  // Redirect authenticated users away from auth pages
-  if (user && isPublicRoute) {
+  // Redirect authenticated users away from auth pages (login/register etc.)
+  // but NOT away from the public /proposals/sign/* or public APIs.
+  if (
+    user &&
+    isPublicRoute &&
+    !pathname.startsWith('/proposals/sign') &&
+    !isPublicApi
+  ) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     return NextResponse.redirect(url)

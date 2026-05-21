@@ -250,17 +250,18 @@ export default function SchedulePage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Header — stacks on mobile */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-2">
           <Calendar className="h-5 w-5 text-muted-foreground" />
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Schedule</h1>
         </div>
         {canSchedule && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
+              className="h-10 flex-1 sm:flex-initial"
               onClick={() => router.push('/schedule/recurring')}
             >
               Recurring
@@ -268,12 +269,17 @@ export default function SchedulePage() {
             <Button
               variant="outline"
               size="sm"
+              className="h-10 flex-1 sm:flex-initial"
               onClick={() => router.push('/schedule/crews')}
             >
               <UsersIcon className="mr-2 h-3.5 w-3.5" />
               Crews
             </Button>
-            <Button size="sm" onClick={() => router.push('/jobs/new')}>
+            <Button
+              size="sm"
+              className="h-10 flex-1 sm:flex-initial"
+              onClick={() => router.push('/jobs/new')}
+            >
               <Plus className="mr-2 h-3.5 w-3.5" />
               New Job
             </Button>
@@ -281,22 +287,23 @@ export default function SchedulePage() {
         )}
       </div>
 
-      {/* Controls — date nav + view tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate('prev')}>
+      {/* Controls — date nav + view tabs. Mobile forces list view, so view tabs hidden */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <Button variant="outline" size="icon" className="h-10 w-10 flex-shrink-0" onClick={() => navigate('prev')}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => navigate('today')}>
+          <Button variant="outline" size="sm" className="h-10 flex-shrink-0" onClick={() => navigate('today')}>
             Today
           </Button>
-          <Button variant="outline" size="sm" onClick={() => navigate('next')}>
+          <Button variant="outline" size="icon" className="h-10 w-10 flex-shrink-0" onClick={() => navigate('next')}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <div className="ml-2 text-sm font-medium">{headerLabel}</div>
+          <div className="ml-1 sm:ml-2 text-sm font-medium truncate">{headerLabel}</div>
         </div>
 
-        <div className="flex items-center gap-1 rounded-lg border bg-white p-1">
+        {/* View tabs — hidden on mobile (list view is forced there) */}
+        <div className="hidden sm:flex items-center gap-1 rounded-lg border bg-white p-1">
           {(['day', 'week', 'month'] as ViewMode[]).map((v) => (
             <button
               key={v}

@@ -328,36 +328,36 @@ export default function PublicProposalSignPage() {
     proposal.status === 'converted_to_job'
 
   return (
-    <div className="max-w-3xl mx-auto py-8 px-4">
+    <div className="max-w-3xl mx-auto py-4 sm:py-8 px-3 sm:px-4">
       {/* Branded header */}
       <div
-        className="rounded-t-2xl text-white p-6 shadow-md"
+        className="rounded-t-2xl text-white p-4 sm:p-6 shadow-md"
         style={{ background: primaryColor }}
       >
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             {org?.logo_url ? (
               <img
                 src={org.logo_url}
                 alt={org.name}
                 referrerPolicy="no-referrer"
-                className="max-h-12 max-w-[180px] object-contain bg-white/10 rounded p-1"
+                className="max-h-10 sm:max-h-12 max-w-[140px] sm:max-w-[180px] object-contain bg-white/10 rounded p-1"
               />
             ) : (
-              <h1 className="text-xl font-bold">{org?.name || 'Service Estimate'}</h1>
+              <h1 className="text-lg sm:text-xl font-bold truncate">{org?.name || 'Service Estimate'}</h1>
             )}
           </div>
-          <div className="text-right">
+          <div className="text-right flex-shrink-0">
             <p className="text-xs opacity-80">Estimate</p>
-            <p className="text-sm font-mono">{proposal.proposal_number}</p>
+            <p className="text-xs sm:text-sm font-mono">{proposal.proposal_number}</p>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-b-2xl shadow-md p-6 sm:p-8 space-y-6">
+      <div className="bg-white rounded-b-2xl shadow-md p-4 sm:p-8 space-y-6">
         {/* Greeting */}
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
             Estimate for {proposal.client?.company_name || 'Your Property'}
           </h2>
           {proposal.site?.address && (
@@ -406,7 +406,8 @@ export default function PublicProposalSignPage() {
             >
               Services
             </h3>
-            <div className="border rounded-lg overflow-hidden text-sm">
+            {/* Desktop: table */}
+            <div className="hidden sm:block border rounded-lg overflow-hidden text-sm">
               <table className="w-full">
                 <thead className="bg-zinc-50">
                   <tr>
@@ -434,6 +435,23 @@ export default function PublicProposalSignPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            {/* Mobile: card list */}
+            <div className="sm:hidden space-y-2">
+              {data.line_items.map((li) => (
+                <div key={li.id} className="border rounded-lg p-3 text-sm">
+                  <p className="font-medium">{li.service_name}</p>
+                  {li.description && (
+                    <p className="text-xs text-muted-foreground mt-0.5">{li.description}</p>
+                  )}
+                  <div className="flex items-baseline justify-between mt-2 pt-2 border-t">
+                    <p className="text-xs text-muted-foreground">
+                      {li.quantity} × {fmtUSD(Number(li.unit_price))}
+                    </p>
+                    <p className="font-semibold">{fmtUSD(Number(li.total))}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
         )}

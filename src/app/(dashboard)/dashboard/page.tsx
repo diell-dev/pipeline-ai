@@ -250,9 +250,9 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
         <Skeleton className="h-8 w-64" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {[...Array(4)].map((_, i) => (
             <Skeleton key={i} className="h-32 rounded-xl" />
           ))}
@@ -262,17 +262,17 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
             Welcome back{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {organization?.name} — {user?.role ? getRoleLabel(user.role) : ''}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {canCreateProposal && (
             <Button variant="outline" onClick={() => router.push('/proposals/new')}>
               <Plus className="mr-2 h-4 w-4" />
@@ -290,17 +290,17 @@ export default function DashboardPage() {
 
       {/* Filter bar — sticky so it stays visible while scrolling KPI sections */}
       {showAnalytics && (
-        <div className="sticky top-0 z-10 -mx-6 px-6 py-3 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="sticky top-0 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">
                 Timeframe
               </span>
               <Select
                 value={timeframe}
                 onValueChange={(value) => value && setTimeframe(value as Timeframe)}
               >
-                <SelectTrigger className="min-w-[140px]">
+                <SelectTrigger className="min-w-[140px] flex-1 sm:flex-none">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -314,14 +314,14 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">
                 Client
               </span>
               <Select
                 value={clientId}
                 onValueChange={(value) => value && setClientId(value)}
               >
-                <SelectTrigger className="min-w-[180px]">
+                <SelectTrigger className="min-w-[180px] flex-1 sm:flex-none">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -339,7 +339,7 @@ export default function DashboardPage() {
       )}
 
       {/* KPI Cards — Pipeline summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card
           className="cursor-pointer hover:shadow-md transition-shadow"
           onClick={() => router.push('/jobs')}
@@ -351,7 +351,7 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">
+            <div className="text-2xl sm:text-3xl font-bold">
               {loadingStats ? '—' : stats?.totalJobs ?? 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -371,7 +371,7 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-blue-600">
+            <div className="text-2xl sm:text-3xl font-bold text-blue-600">
               {loadingStats ? '—' : stats?.submitted ?? 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">being processed</p>
@@ -389,7 +389,7 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-amber-600">
+            <div className="text-2xl sm:text-3xl font-bold text-amber-600">
               {loadingStats ? '—' : stats?.pendingReview ?? 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">awaiting approval</p>
@@ -407,7 +407,7 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-green-600">
+            <div className="text-2xl sm:text-3xl font-bold text-green-600">
               {loadingStats ? '—' : stats?.approved ?? 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">completed or sent</p>
@@ -417,7 +417,7 @@ export default function DashboardPage() {
 
       {/* Financials row — owner/manager only */}
       {showAnalytics && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -429,7 +429,7 @@ export default function DashboardPage() {
               {loadingAnalytics ? (
                 <Skeleton className="h-9 w-28" />
               ) : (
-                <div className="text-3xl font-bold">
+                <div className="text-2xl sm:text-3xl font-bold">
                   {formatCurrency(analytics?.outstandingRevenue ?? 0)}
                 </div>
               )}
@@ -448,9 +448,9 @@ export default function DashboardPage() {
               {loadingAnalytics ? (
                 <Skeleton className="h-9 w-28" />
               ) : analytics?.avgCostPerJob == null ? (
-                <div className="text-3xl font-bold">—</div>
+                <div className="text-2xl sm:text-3xl font-bold">—</div>
               ) : (
-                <div className="text-3xl font-bold">
+                <div className="text-2xl sm:text-3xl font-bold">
                   {formatCurrency(analytics.avgCostPerJob)}
                 </div>
               )}
@@ -473,9 +473,9 @@ export default function DashboardPage() {
               {loadingAnalytics ? (
                 <Skeleton className="h-9 w-28" />
               ) : analytics?.avgProposalToSignedHours == null ? (
-                <div className="text-3xl font-bold">—</div>
+                <div className="text-2xl sm:text-3xl font-bold">—</div>
               ) : (
-                <div className="text-3xl font-bold">
+                <div className="text-2xl sm:text-3xl font-bold">
                   {formatDuration(analytics.avgProposalToSignedHours)}
                 </div>
               )}
@@ -498,9 +498,9 @@ export default function DashboardPage() {
               {loadingAnalytics ? (
                 <Skeleton className="h-9 w-28" />
               ) : analytics?.avgSignedToStartedHours == null ? (
-                <div className="text-3xl font-bold">—</div>
+                <div className="text-2xl sm:text-3xl font-bold">—</div>
               ) : (
-                <div className="text-3xl font-bold">
+                <div className="text-2xl sm:text-3xl font-bold">
                   {formatDuration(analytics.avgSignedToStartedHours)}
                 </div>
               )}
@@ -523,9 +523,9 @@ export default function DashboardPage() {
               {loadingAnalytics ? (
                 <Skeleton className="h-9 w-28" />
               ) : analytics?.avgStartedToCompletedHours == null ? (
-                <div className="text-3xl font-bold">—</div>
+                <div className="text-2xl sm:text-3xl font-bold">—</div>
               ) : (
-                <div className="text-3xl font-bold">
+                <div className="text-2xl sm:text-3xl font-bold">
                   {formatDuration(analytics.avgStartedToCompletedHours)}
                 </div>
               )}

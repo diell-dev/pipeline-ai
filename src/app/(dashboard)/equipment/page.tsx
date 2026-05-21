@@ -269,24 +269,31 @@ export default function EquipmentListPage() {
   ]
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Equipment</h1>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Equipment</h1>
           <p className="text-muted-foreground text-sm">
             HVAC and mechanical assets registered across your client sites.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           {canManageBatches && (
-            <Button variant="outline" onClick={() => router.push('/equipment/qr-batches')}>
+            <Button
+              variant="outline"
+              className="min-h-10 w-full sm:w-auto"
+              onClick={() => router.push('/equipment/qr-batches')}
+            >
               <QrCode className="mr-2 h-4 w-4" />
               QR Batches
             </Button>
           )}
           {canRegister && (
-            <Button onClick={() => router.push('/equipment/scan')}>
+            <Button
+              className="min-h-10 w-full sm:w-auto"
+              onClick={() => router.push('/equipment/scan')}
+            >
               <ScanLine className="mr-2 h-4 w-4" />
               Scan
             </Button>
@@ -295,25 +302,26 @@ export default function EquipmentListPage() {
       </div>
 
       {/* Filter row */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
         {/* Site filter */}
-        <div className="relative" ref={siteDropdownRef}>
+        <div className="relative w-full sm:w-auto" ref={siteDropdownRef}>
           <Button
             variant="outline"
-            size="sm"
-            className="min-w-[180px] justify-between"
+            className="w-full sm:min-w-[180px] sm:w-auto justify-between min-h-10"
             onClick={() => setSiteDropdownOpen(!siteDropdownOpen)}
           >
-            <span className="flex items-center gap-2">
-              <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-              {siteFilter
-                ? sites.find((s) => s.id === siteFilter)?.name || 'Site'
-                : 'All Sites'}
+            <span className="flex items-center gap-2 truncate">
+              <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="truncate">
+                {siteFilter
+                  ? sites.find((s) => s.id === siteFilter)?.name || 'Site'
+                  : 'All Sites'}
+              </span>
             </span>
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
           </Button>
           {siteDropdownOpen && (
-            <div className="absolute z-50 mt-1 w-[240px] rounded-md border bg-popover shadow-lg">
+            <div className="absolute z-50 mt-1 w-full sm:w-[240px] rounded-md border bg-popover shadow-lg">
               <div className="max-h-[260px] overflow-y-auto p-1">
                 <button
                   className={`flex w-full items-center rounded-sm px-3 py-2 text-sm hover:bg-accent ${
@@ -346,23 +354,24 @@ export default function EquipmentListPage() {
         </div>
 
         {/* Category filter */}
-        <div className="relative" ref={categoryDropdownRef}>
+        <div className="relative w-full sm:w-auto" ref={categoryDropdownRef}>
           <Button
             variant="outline"
-            size="sm"
-            className="min-w-[180px] justify-between"
+            className="w-full sm:min-w-[180px] sm:w-auto justify-between min-h-10"
             onClick={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
           >
-            <span className="flex items-center gap-2">
-              <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
-              {categoryFilter
-                ? categories.find((c) => c.id === categoryFilter)?.name || 'Category'
-                : 'All Categories'}
+            <span className="flex items-center gap-2 truncate">
+              <Wrench className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="truncate">
+                {categoryFilter
+                  ? categories.find((c) => c.id === categoryFilter)?.name || 'Category'
+                  : 'All Categories'}
+              </span>
             </span>
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
           </Button>
           {categoryDropdownOpen && (
-            <div className="absolute z-50 mt-1 w-[240px] rounded-md border bg-popover shadow-lg">
+            <div className="absolute z-50 mt-1 w-full sm:w-[240px] rounded-md border bg-popover shadow-lg">
               <div className="max-h-[300px] overflow-y-auto p-1">
                 <button
                   className={`flex w-full items-center rounded-sm px-3 py-2 text-sm hover:bg-accent ${
@@ -396,13 +405,13 @@ export default function EquipmentListPage() {
         </div>
 
         {/* Search */}
-        <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+        <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-md">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search make, model, serial…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 h-9"
+            className="pl-9 h-10"
           />
         </div>
       </div>

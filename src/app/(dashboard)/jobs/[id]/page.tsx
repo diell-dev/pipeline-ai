@@ -960,16 +960,21 @@ export default function JobDetailPage() {
   const invoiceWasEdited = invoiceMeta?.manually_edited === true
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => router.push('/jobs')}>
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+      {/* Header — stacks on mobile */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="flex items-start gap-2 sm:gap-3 min-w-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 flex-shrink-0 -ml-2"
+            onClick={() => router.push('/jobs')}
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-bold tracking-tight">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight break-words">
                 {job.clients?.company_name || 'Job Details'}
               </h1>
               <Badge className={statusConf.className}>{statusConf.label}</Badge>
@@ -999,6 +1004,7 @@ export default function JobDetailPage() {
           <Button
             variant="destructive"
             size="sm"
+            className="h-10 w-full sm:w-auto flex-shrink-0"
             onClick={() => setShowDeleteConfirm(true)}
           >
             <Trash2 className="mr-2 h-4 w-4" />
@@ -1093,8 +1099,8 @@ export default function JobDetailPage() {
         </Card>
       )}
 
-      {/* Info Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Info Cards — single column on mobile, two on tablet+ */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         {/* Location */}
         <Card>
           <CardHeader>

@@ -185,11 +185,11 @@ export default function JobsPage() {
   }, [organization, user, canViewAll, clientFilter, jobs])
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+      {/* Header — stacks on mobile, side-by-side on sm+ */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
             {canViewAll ? 'All Jobs' : 'My Jobs'}
           </h1>
           <p className="text-muted-foreground text-sm">
@@ -199,7 +199,7 @@ export default function JobsPage() {
           </p>
         </div>
         {canCreate && (
-          <Button onClick={() => router.push('/jobs/new')}>
+          <Button onClick={() => router.push('/jobs/new')} className="w-full sm:w-auto">
             <Plus className="mr-2 h-4 w-4" />
             New Job
           </Button>
@@ -209,11 +209,11 @@ export default function JobsPage() {
       {/* Filters row: Client dropdown + Status tabs */}
       <div className="flex flex-wrap items-center gap-4">
         {/* Client dropdown */}
-        <div className="relative" ref={dropdownRef}>
+        <div className="relative w-full sm:w-auto" ref={dropdownRef}>
           <Button
             variant="outline"
             size="sm"
-            className="min-w-[200px] justify-between"
+            className="w-full sm:min-w-[200px] justify-between h-10"
             onClick={() => setClientDropdownOpen(!clientDropdownOpen)}
           >
             <span className="flex items-center gap-2">
@@ -225,7 +225,7 @@ export default function JobsPage() {
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
           </Button>
           {clientDropdownOpen && (
-            <div className="absolute z-50 mt-1 w-[240px] rounded-md border bg-popover shadow-lg">
+            <div className="absolute z-50 mt-1 w-full sm:w-[240px] max-w-[calc(100vw-2rem)] rounded-md border bg-popover shadow-lg">
               <div className="max-h-[260px] overflow-y-auto p-1">
                 <button
                   className={`flex w-full items-center rounded-sm px-3 py-2 text-sm hover:bg-accent ${
@@ -265,13 +265,13 @@ export default function JobsPage() {
           onClick={() => setFilter('pending_review')}
           className="w-full text-left rounded-lg border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 hover:shadow-md transition-shadow group"
         >
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-start sm:items-center gap-3">
               <div className="rounded-full bg-amber-100 p-2 flex-shrink-0">
                 <AlertTriangle className="h-5 w-5 text-amber-700" />
               </div>
-              <div>
-                <p className="font-semibold text-amber-900">
+              <div className="min-w-0">
+                <p className="font-semibold text-amber-900 text-sm sm:text-base">
                   {counts.pending_review} {counts.pending_review === 1 ? 'job' : 'jobs'} waiting for your review
                 </p>
                 <p className="text-xs text-amber-800">
@@ -279,7 +279,7 @@ export default function JobsPage() {
                 </p>
               </div>
             </div>
-            <span className="flex items-center gap-1 text-sm font-medium text-amber-900 group-hover:translate-x-0.5 transition-transform">
+            <span className="flex items-center gap-1 text-sm font-medium text-amber-900 group-hover:translate-x-0.5 transition-transform pl-11 sm:pl-0 flex-shrink-0">
               Review now <ArrowRight className="h-4 w-4" />
             </span>
           </div>

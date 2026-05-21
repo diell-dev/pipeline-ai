@@ -300,8 +300,126 @@ export default function InvoicesPage() {
         </Card>
       ) : (
         <>
-          {/* Table */}
-          <div className="border rounded-lg overflow-hidden">
+          {/* Mobile: card list */}
+          <div className="md:hidden space-y-3">
+            {invoices.map((inv) => {
+              const style = STATUS_STYLES[inv.status] || STATUS_STYLES.draft
+              const isOverdue =
+                inv.status === 'sent' && new Date(inv.due_date) < new Date()
+              const displayStatus = isOverdue ? STATUS_STYLES.overdue : style
+              const showActions =
+                (canMarkPaid && MARK_PAID_STATUSES.includes(inv.status)) ||
+                (canDeleteInvoice && inv.status !== 'void' && inv.status !== 'paid')
+
+              return (
+                <div
+                  key={inv.id}
+                  className="rounded-lg border bg-white p-4 space-y-3"
+                  onClick={() => {
+                    if (inv.job_id) {
+                      window.location.href = `/jobs/${inv.job_id}`
+                    }
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-mono text-xs font-medium truncate">
+                        {inv.invoice_number}
+                      </p>
+                      <p className="text-sm font-medium truncate mt-0.5">
+                        {inv.clients?.company_name || '—'}
+                      </p>
+                    </div>
+                    <Badge className={`text-[10px] border-0 shrink-0 ${displayStatus.className}`}>
+                      {displayStatus.label}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Total:</span>{' '}
+                      <span className="font-medium">{formatCurrency(inv.total_amount)}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Paid:</span>{' '}
+                      <span>
+                        {inv.paid_amount > 0 ? formatCurrency(inv.paid_amount) : '—'}
+                      </span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Due:</span>{' '}
+                      <span>{formatDate(inv.due_date)}</span>
+                    </div>
+                  </div>
+                  {showActions && (
+                    <div
+                      className="flex gap-2 pt-2 border-t"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {canMarkPaid && MARK_PAID_STATUSES.includes(inv.status) && (
+                        <MarkPaidDialog
+                          invoice={{
+                            id: inv.id,
+                            invoice_number: inv.invoice_number,
+                            total_amount: Number(inv.total_amount) || 0,
+                          }}
+                          onSuccess={loadInvoices}
+                        >
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 h-10 text-green-700 hover:text-green-800 hover:bg-green-50"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                            Mark Paid
+                          </Button>
+                        </MarkPaidDialog>
+                      )}
+                      {canDeleteInvoice && inv.status !== 'void' && inv.status !== 'paid' && (
+                        confirmVoidId === inv.id ? (
+                          <>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="flex-1 h-10"
+                              onClick={() => handleVoidInvoice(inv.id)}
+                              disabled={voidingId === inv.id}
+                            >
+                              {voidingId === inv.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                'Confirm Void'
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 h-10"
+                              onClick={() => setConfirmVoidId(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 h-10 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => setConfirmVoidId(inv.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1" />
+                            Void
+                          </Button>
+                        )
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden md:block border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-zinc-50">

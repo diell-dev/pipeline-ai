@@ -7,8 +7,8 @@ export default function NotificationsSettingsPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Notifications</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Notifications</h1>
+        <p className="text-sm text-muted-foreground">
           Configure how and when you receive notifications.
         </p>
       </div>

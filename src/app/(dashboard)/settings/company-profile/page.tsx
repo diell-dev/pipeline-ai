@@ -317,10 +317,10 @@ export default function CompanyProfilePage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6 sm:space-y-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Company Profile</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Company Profile</h1>
+        <p className="text-sm text-muted-foreground">
           Your company details, branding, and document settings. Changes apply to all future invoices and reports.
         </p>
       </div>
@@ -408,8 +408,8 @@ export default function CompanyProfilePage() {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Logo */}
-          <div className="flex items-start gap-6">
-            <div className="shrink-0">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-6">
+            <div className="shrink-0 self-start">
               {logoUrl ? (
                 <div className="h-24 w-24 rounded-lg border overflow-hidden bg-zinc-50">
                   <img src={logoUrl} alt="Company logo" className="h-full w-full object-contain" />
@@ -420,7 +420,7 @@ export default function CompanyProfilePage() {
                 </div>
               )}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 flex-1 min-w-0">
               <p className="text-sm font-medium">Company Logo</p>
               <p className="text-xs text-muted-foreground">
                 PNG or JPG, max 2MB. Square or wide format recommended.
@@ -434,14 +434,14 @@ export default function CompanyProfilePage() {
               />
               <Button
                 variant="outline"
-                size="sm"
+                className="w-full sm:w-auto h-10"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
               >
                 {uploading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
                 ) : (
-                  <Upload className="h-3.5 w-3.5 mr-1" />
+                  <Upload className="h-4 w-4 mr-2" />
                 )}
                 {logoUrl ? 'Replace Logo' : 'Upload Logo'}
               </Button>
@@ -457,7 +457,7 @@ export default function CompanyProfilePage() {
                   type="color"
                   value={primaryColor}
                   onChange={(e) => setPrimaryColor(e.target.value)}
-                  className="h-9 w-12 rounded border cursor-pointer"
+                  className="h-10 w-12 rounded border cursor-pointer shrink-0"
                 />
                 <Input
                   value={primaryColor}
@@ -474,7 +474,7 @@ export default function CompanyProfilePage() {
                   type="color"
                   value={accentColor}
                   onChange={(e) => setAccentColor(e.target.value)}
-                  className="h-9 w-12 rounded border cursor-pointer"
+                  className="h-10 w-12 rounded border cursor-pointer shrink-0"
                 />
                 <Input
                   value={accentColor}
@@ -491,7 +491,7 @@ export default function CompanyProfilePage() {
                   type="color"
                   value={secondaryColor || '#666666'}
                   onChange={(e) => setSecondaryColor(e.target.value)}
-                  className="h-9 w-12 rounded border cursor-pointer"
+                  className="h-10 w-12 rounded border cursor-pointer shrink-0"
                 />
                 <Input
                   value={secondaryColor}
@@ -645,7 +645,7 @@ export default function CompanyProfilePage() {
               <Badge variant="outline" className="text-xs">Header</Badge>
               <span className="text-xs text-muted-foreground">Top of every page</span>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <PillarEditor
                 label="Left"
                 pillar={header.left}
@@ -696,7 +696,7 @@ export default function CompanyProfilePage() {
               <Badge variant="outline" className="text-xs">Footer</Badge>
               <span className="text-xs text-muted-foreground">Bottom of every page</span>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <PillarEditor
                 label="Left"
                 pillar={footer.left}
@@ -718,8 +718,13 @@ export default function CompanyProfilePage() {
       </Card>
 
       {/* ======== SAVE BUTTON ======== */}
-      <div className="flex items-center gap-3 pb-8">
-        <Button onClick={handleSave} disabled={saving} size="lg">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 pb-8">
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          size="lg"
+          className="w-full sm:w-auto"
+        >
           {saving ? (
             <Loader2 className="h-4 w-4 animate-spin mr-2" />
           ) : (

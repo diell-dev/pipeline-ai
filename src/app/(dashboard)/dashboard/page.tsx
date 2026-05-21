@@ -272,15 +272,22 @@ export default function DashboardPage() {
             {organization?.name} — {user?.role ? getRoleLabel(user.role) : ''}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
           {canCreateProposal && (
-            <Button variant="outline" onClick={() => router.push('/proposals/new')}>
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto h-10"
+              onClick={() => router.push('/proposals/new')}
+            >
               <Plus className="mr-2 h-4 w-4" />
               New Proposal
             </Button>
           )}
           {canCreate && (
-            <Button onClick={() => router.push('/jobs/new')}>
+            <Button
+              className="w-full sm:w-auto h-10"
+              onClick={() => router.push('/jobs/new')}
+            >
               <Plus className="mr-2 h-4 w-4" />
               New Job
             </Button>
@@ -548,23 +555,27 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="text-base">Quick Actions</CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-wrap gap-3">
+          <CardContent className="flex flex-wrap gap-2">
             {canCreateProposal && (
-              <Button onClick={() => router.push('/proposals/new')}>
+              <Button className="h-10" onClick={() => router.push('/proposals/new')}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Proposal
               </Button>
             )}
             {canCreate && (
-              <Button variant={canCreateProposal ? 'outline' : 'default'} onClick={() => router.push('/jobs/new')}>
+              <Button
+                className="h-10"
+                variant={canCreateProposal ? 'outline' : 'default'}
+                onClick={() => router.push('/jobs/new')}
+              >
                 <Plus className="mr-2 h-4 w-4" />
                 Submit New Job
               </Button>
             )}
-            <Button variant="outline" onClick={() => router.push('/clients')}>
+            <Button variant="outline" className="h-10" onClick={() => router.push('/clients')}>
               View Clients
             </Button>
-            <Button variant="outline" onClick={() => router.push('/jobs')}>
+            <Button variant="outline" className="h-10" onClick={() => router.push('/jobs')}>
               View {canViewAll ? 'All' : 'My'} Jobs
             </Button>
           </CardContent>

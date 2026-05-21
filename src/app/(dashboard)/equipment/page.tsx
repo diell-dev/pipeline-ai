@@ -493,7 +493,7 @@ export default function EquipmentListPage() {
       {!loading && filteredEquipment.length > 0 && (
         <>
           {/* Mobile / tablet cards */}
-          <div className="space-y-3 lg:hidden">
+          <div className="space-y-3 md:hidden">
             {filteredEquipment.map((eq) => {
               const d = daysUntil(eq.next_service_due_date)
               const chip = dueChip(d)
@@ -535,7 +535,7 @@ export default function EquipmentListPage() {
           </div>
 
           {/* Desktop table */}
-          <div className="hidden lg:block">
+          <div className="hidden md:block">
             <Card>
               <CardContent className="p-0 overflow-x-auto">
                 <table className="w-full text-sm">

@@ -224,15 +224,15 @@ export default function CrewsPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Crews</h1>
           <p className="text-xs sm:text-sm text-muted-foreground">
             Group field techs into crews for easier scheduling and dispatch.
           </p>
         </div>
         {canManage && (
-          <Button onClick={openCreate}>
+          <Button onClick={openCreate} className="h-10 w-full sm:w-auto">
             <Plus className="mr-2 h-4 w-4" />
             New Crew
           </Button>
@@ -293,22 +293,23 @@ export default function CrewsPage() {
                     </div>
                   </div>
                   {canManage && (
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0">
                       <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="icon"
+                        className="h-10 w-10 sm:h-8 sm:w-8"
                         onClick={() => openEdit(crew)}
                       >
-                        <Pencil className="h-3.5 w-3.5" />
+                        <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                       </Button>
                       {crew.is_active && (
                         <Button
                           variant="ghost"
-                          size="icon-sm"
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          size="icon"
+                          className="h-10 w-10 sm:h-8 sm:w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
                           onClick={() => handleDelete(crew)}
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                         </Button>
                       )}
                     </div>
@@ -340,7 +341,7 @@ export default function CrewsPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit Crew' : 'Create Crew'}</DialogTitle>
             <DialogDescription>
@@ -369,10 +370,11 @@ export default function CrewsPage() {
                     key={c}
                     type="button"
                     onClick={() => setForm({ ...form, color: c })}
-                    className={`h-8 w-8 rounded-md transition-transform ${
+                    className={`h-10 w-10 sm:h-9 sm:w-9 rounded-md transition-transform ${
                       form.color === c ? 'ring-2 ring-offset-2 ring-zinc-900 scale-110' : ''
                     }`}
                     style={{ backgroundColor: c }}
+                    aria-label={`Color ${c}`}
                   />
                 ))}
               </div>
@@ -404,15 +406,16 @@ export default function CrewsPage() {
                   users.map((u) => (
                     <label
                       key={u.id}
-                      className="flex items-center gap-2 px-2 py-1 rounded hover:bg-zinc-50 cursor-pointer"
+                      className="flex items-center gap-2 px-2 py-2 min-h-[40px] rounded hover:bg-zinc-50 cursor-pointer"
                     >
                       <input
                         type="checkbox"
+                        className="h-4 w-4 flex-shrink-0"
                         checked={form.member_user_ids.includes(u.id)}
                         onChange={() => toggleMember(u.id)}
                       />
-                      <span className="text-sm">{u.full_name}</span>
-                      <span className="text-xs text-muted-foreground ml-auto">
+                      <span className="text-sm break-words min-w-0 flex-1">{u.full_name}</span>
+                      <span className="text-xs text-muted-foreground ml-auto flex-shrink-0">
                         {u.role}
                       </span>
                     </label>

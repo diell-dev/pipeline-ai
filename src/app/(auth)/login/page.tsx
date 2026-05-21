@@ -42,7 +42,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--brand-primary,#05093d)] p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md mx-4 sm:mx-auto">
         <CardHeader className="text-center">
           {/* Logo placeholder — will be dynamic per org */}
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--brand-primary,#05093d)]">
@@ -65,6 +65,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isLoading}
+                className="h-11"
               />
             </div>
             <div className="space-y-2">
@@ -77,9 +78,10 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={isLoading}
+                className="h-11"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full h-11" disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -91,7 +93,10 @@ export default function LoginPage() {
             </Button>
           </form>
           <div className="mt-4 text-center text-sm text-muted-foreground">
-            <Link href="/forgot-password" className="hover:underline">
+            <Link
+              href="/forgot-password"
+              className="inline-flex items-center justify-center min-h-10 px-2 hover:underline"
+            >
               Forgot your password?
             </Link>
           </div>

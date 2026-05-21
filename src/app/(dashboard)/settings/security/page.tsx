@@ -7,8 +7,8 @@ export default function SecuritySettingsPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Security</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Security</h1>
+        <p className="text-sm text-muted-foreground">
           Manage your password and security settings.
         </p>
       </div>

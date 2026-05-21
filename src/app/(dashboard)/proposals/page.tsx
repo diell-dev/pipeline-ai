@@ -271,7 +271,62 @@ export default function ProposalsPage() {
       )}
 
       {!loading && proposals.length > 0 && (
-        <div className="overflow-hidden border rounded-lg bg-white">
+        <>
+          {/* Mobile: card list */}
+          <div className="md:hidden space-y-3">
+            {proposals.map((p) => {
+              const statusConf = STATUS_CONFIG[p.status]
+              return (
+                <div
+                  key={p.id}
+                  className="rounded-lg border bg-white p-4 space-y-3 cursor-pointer"
+                  onClick={() => router.push(`/proposals/${p.id}`)}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-mono text-xs font-medium truncate">
+                        {p.proposal_number}
+                      </p>
+                      <p className="text-sm font-medium truncate mt-0.5">
+                        {p.clients?.company_name || 'Unknown'}
+                      </p>
+                      {p.sites?.address && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {p.sites.address}
+                        </p>
+                      )}
+                    </div>
+                    <Badge className={`shrink-0 ${statusConf.className}`} variant="outline">
+                      {statusConf.label}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Total:</span>{' '}
+                      <span className="font-medium">
+                        {formatCurrency(Number(p.total_amount) || 0)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Created:</span>{' '}
+                      <span>{new Date(p.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Valid until:</span>{' '}
+                      <span>
+                        {p.valid_until
+                          ? new Date(p.valid_until).toLocaleDateString()
+                          : '—'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden md:block overflow-hidden border rounded-lg bg-white">
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 border-b">
               <tr>
@@ -324,6 +379,7 @@ export default function ProposalsPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   )

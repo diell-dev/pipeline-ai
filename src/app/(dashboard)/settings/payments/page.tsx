@@ -175,13 +175,18 @@ export default function PaymentsSettingsPage() {
   const connected = !!state?.stripe_account_id
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.push('/settings')}>
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-6">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-10 w-10 shrink-0"
+          onClick={() => router.push('/settings')}
+        >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Payments</h1>
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Payments</h1>
           <p className="text-muted-foreground text-sm">
             Accept credit-card invoice payments via Stripe.
           </p>
@@ -209,7 +214,11 @@ export default function PaymentsSettingsPage() {
               Stripe account &mdash; we never hold your money. You&apos;ll be
               redirected to Stripe to complete a short verification.
             </p>
-            <Button onClick={handleConnect} disabled={connecting}>
+            <Button
+              onClick={handleConnect}
+              disabled={connecting}
+              className="w-full sm:w-auto h-10"
+            >
               {connecting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -269,9 +278,10 @@ export default function PaymentsSettingsPage() {
               </div>
             )}
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
               <Button
                 variant="outline"
+                className="w-full sm:w-auto h-10"
                 onClick={handleConnect}
                 disabled={connecting}
               >
@@ -284,6 +294,7 @@ export default function PaymentsSettingsPage() {
               </Button>
               <Button
                 variant="outline"
+                className="w-full sm:w-auto h-10"
                 onClick={() => handleRefresh(false)}
                 disabled={refreshing}
               >
@@ -292,7 +303,7 @@ export default function PaymentsSettingsPage() {
               </Button>
               <Button
                 variant="ghost"
-                className="text-red-600 hover:text-red-700"
+                className="w-full sm:w-auto h-10 text-red-600 hover:text-red-700"
                 onClick={handleDisconnect}
                 disabled={disconnecting}
               >
@@ -315,9 +326,9 @@ function StatusRow({
   badge: React.ReactNode
 }) {
   return (
-    <div className="flex items-center justify-between text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
       <span className="text-muted-foreground">{label}</span>
-      {badge}
+      <div className="min-w-0 max-w-full break-all text-right">{badge}</div>
     </div>
   )
 }

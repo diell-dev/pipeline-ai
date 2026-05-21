@@ -209,12 +209,12 @@ export default function MyScheduleePage() {
                       <div className="space-y-2 mb-4">
                         <div className="flex items-start gap-2">
                           <Building2 className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                          <div className="min-w-0">
-                            <p className="text-base font-semibold">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-base font-semibold break-words">
                               {job.clients?.company_name || 'Unknown Client'}
                             </p>
                             {job.sites?.name && (
-                              <p className="text-sm text-muted-foreground truncate">
+                              <p className="text-sm text-muted-foreground break-words">
                                 {job.sites.name}
                               </p>
                             )}
@@ -237,7 +237,7 @@ export default function MyScheduleePage() {
                       </div>
 
                       <Button
-                        className="w-full"
+                        className="w-full h-12 sm:h-10 text-base sm:text-sm"
                         onClick={() => router.push(`/jobs/${job.id}`)}
                       >
                         <PlayCircle className="mr-2 h-4 w-4" />

@@ -162,12 +162,12 @@ export default function EditProposalPage() {
 
   if (errorMessage || !initial) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
+          <CardContent className="flex flex-col items-center justify-center py-16 gap-3 text-center">
             <h3 className="text-lg font-semibold mb-1">Cannot edit proposal</h3>
             <p className="text-sm text-muted-foreground">{errorMessage}</p>
-            <Button variant="outline" onClick={() => router.push(`/proposals/${id}`)}>
+            <Button variant="outline" className="h-10" onClick={() => router.push(`/proposals/${id}`)}>
               Back to proposal
             </Button>
           </CardContent>
@@ -177,13 +177,18 @@ export default function EditProposalPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.push(`/proposals/${id}`)}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-10 w-10 shrink-0"
+          onClick={() => router.push(`/proposals/${id}`)}
+        >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Edit Proposal</h1>
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Edit Proposal</h1>
           <p className="text-muted-foreground text-sm">
             Update fields. Totals are recalculated on save.
           </p>

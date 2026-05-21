@@ -60,21 +60,25 @@ export default function SettingsPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Settings</h1>
+        <p className="text-sm text-muted-foreground">
           Manage your account and organization preferences.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {visibleSections.map((section) => {
           const Icon = section.icon
           return (
-            <Link key={section.href} href={section.href}>
-              <Card className="hover:border-zinc-300 transition-colors cursor-pointer h-full">
+            <Link
+              key={section.href}
+              href={section.href}
+              className="block h-full"
+            >
+              <Card className="hover:border-zinc-300 transition-colors cursor-pointer h-full min-h-[88px]">
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-100">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-zinc-100">
                       <Icon className="h-5 w-5 text-zinc-600" />
                     </div>
                     <CardTitle className="text-base">{section.title}</CardTitle>

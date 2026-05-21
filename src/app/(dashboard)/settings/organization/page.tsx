@@ -12,8 +12,8 @@ export default function OrganizationSettingsPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Organization</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Organization</h1>
+        <p className="text-sm text-muted-foreground">
           Company details and billing information.
         </p>
       </div>
@@ -30,6 +30,7 @@ export default function OrganizationSettingsPage() {
                 id="orgName"
                 defaultValue={organization?.name || ''}
                 disabled
+                className="h-10"
               />
             </div>
             <div className="space-y-2">
@@ -38,11 +39,14 @@ export default function OrganizationSettingsPage() {
                 id="slug"
                 defaultValue={organization?.slug || ''}
                 disabled
+                className="h-10"
               />
             </div>
           </div>
           <div className="pt-4">
-            <Button disabled>Save Changes</Button>
+            <Button disabled className="w-full sm:w-auto h-10">
+              Save Changes
+            </Button>
             <p className="text-xs text-muted-foreground mt-2">
               Organization editing will be available soon.
             </p>

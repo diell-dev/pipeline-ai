@@ -324,15 +324,15 @@ export default function RecurringPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Recurring Schedules</h1>
           <p className="text-xs sm:text-sm text-muted-foreground">
             Auto-create jobs on a schedule (weekly cleanouts, monthly inspections, etc.).
           </p>
         </div>
         {canManage && (
-          <Button onClick={openWizard}>
+          <Button onClick={openWizard} className="h-10 w-full sm:w-auto">
             <Plus className="mr-2 h-4 w-4" />
             New Recurring Schedule
           </Button>
@@ -379,7 +379,7 @@ export default function RecurringPage() {
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground mb-1">
+                      <p className="text-xs text-muted-foreground mb-1 break-words">
                         {s.sites?.name} — {s.sites?.address}
                       </p>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
@@ -405,30 +405,32 @@ export default function RecurringPage() {
                         {isPaused ? (
                           <Button
                             variant="ghost"
-                            size="icon-sm"
+                            size="icon"
+                            className="h-10 w-10 sm:h-8 sm:w-8"
                             title="Resume"
                             onClick={() => resumeSchedule(s)}
                           >
-                            <Play className="h-3.5 w-3.5" />
+                            <Play className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                           </Button>
                         ) : (
                           <Button
                             variant="ghost"
-                            size="icon-sm"
+                            size="icon"
+                            className="h-10 w-10 sm:h-8 sm:w-8"
                             title="Pause"
                             onClick={() => pauseSchedule(s)}
                           >
-                            <Pause className="h-3.5 w-3.5" />
+                            <Pause className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                           </Button>
                         )}
                         <Button
                           variant="ghost"
-                          size="icon-sm"
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          size="icon"
+                          className="h-10 w-10 sm:h-8 sm:w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
                           title="End pattern"
                           onClick={() => endSchedule(s)}
                         >
-                          <X className="h-3.5 w-3.5" />
+                          <X className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                         </Button>
                       </div>
                     )}
@@ -450,7 +452,7 @@ export default function RecurringPage() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Client *</Label>
                 <ClientCombobox
@@ -478,7 +480,7 @@ export default function RecurringPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Frequency *</Label>
                 <select
@@ -513,7 +515,7 @@ export default function RecurringPage() {
                       key={idx}
                       type="button"
                       onClick={() => toggleDay(idx)}
-                      className={`px-3 py-1 text-xs rounded-md border transition-colors ${
+                      className={`min-w-[44px] h-10 px-3 text-xs rounded-md border transition-colors ${
                         form.day_of_week.includes(idx)
                           ? 'bg-zinc-900 text-white border-zinc-900'
                           : 'bg-white border-zinc-200 hover:bg-zinc-50'
@@ -539,7 +541,7 @@ export default function RecurringPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Duration (min)</Label>
                 <Input
@@ -582,7 +584,7 @@ export default function RecurringPage() {
                 <button
                   type="button"
                   onClick={() => setForm({ ...form, assignee_kind: 'tech' })}
-                  className={`flex-1 px-3 py-1.5 text-xs rounded-md border ${
+                  className={`flex-1 h-10 px-3 text-xs rounded-md border ${
                     form.assignee_kind === 'tech' ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white'
                   }`}
                 >
@@ -591,7 +593,7 @@ export default function RecurringPage() {
                 <button
                   type="button"
                   onClick={() => setForm({ ...form, assignee_kind: 'crew' })}
-                  className={`flex-1 px-3 py-1.5 text-xs rounded-md border ${
+                  className={`flex-1 h-10 px-3 text-xs rounded-md border ${
                     form.assignee_kind === 'crew' ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white'
                   }`}
                 >
@@ -632,14 +634,15 @@ export default function RecurringPage() {
                 {services.map((s) => (
                   <label
                     key={s.id}
-                    className="flex items-center gap-2 px-2 py-1 rounded hover:bg-zinc-50 cursor-pointer text-sm"
+                    className="flex items-center gap-2 px-2 py-2 min-h-[40px] rounded hover:bg-zinc-50 cursor-pointer text-sm"
                   >
                     <input
                       type="checkbox"
+                      className="h-4 w-4 flex-shrink-0"
                       checked={form.service_ids.includes(s.id)}
                       onChange={() => toggleService(s.id)}
                     />
-                    {s.name}
+                    <span className="break-words min-w-0 flex-1">{s.name}</span>
                   </label>
                 ))}
               </div>

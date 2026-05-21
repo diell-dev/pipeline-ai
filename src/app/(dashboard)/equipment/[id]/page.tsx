@@ -327,14 +327,19 @@ export default function EquipmentDetailPage() {
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-start gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.push('/equipment')}>
+      <div className="flex items-start gap-2 sm:gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-10 w-10 shrink-0"
+          onClick={() => router.push('/equipment')}
+        >
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-2xl">{icon}</span>
-            <h1 className="text-2xl font-bold tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight break-words">
               {category?.name || 'Equipment'}
             </h1>
             {equipment.status === 'replaced' && (
@@ -347,13 +352,15 @@ export default function EquipmentDetailPage() {
               </Badge>
             )}
           </div>
-          <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
-            <MapPin className="h-3.5 w-3.5" />
-            {site?.name || 'Unknown site'} — {unitLabel}
+          <p className="text-sm text-muted-foreground mt-1 flex items-start gap-1 break-words">
+            <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span className="min-w-0 break-words">
+              {site?.name || 'Unknown site'} — {unitLabel}
+            </span>
           </p>
           {equipment.qr_code && (
-            <Badge variant="outline" className="mt-2 font-mono text-[11px]">
-              <QrCode className="h-3 w-3 mr-1" />
+            <Badge variant="outline" className="mt-2 font-mono text-[11px] break-all">
+              <QrCode className="h-3 w-3 mr-1 shrink-0" />
               {equipment.qr_code}
             </Badge>
           )}
@@ -361,14 +368,19 @@ export default function EquipmentDetailPage() {
       </div>
 
       {/* Action bar */}
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={handleStartWorkOrder} disabled={actionLoading}>
+      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+        <Button
+          className="h-10 col-span-2 sm:col-auto"
+          onClick={handleStartWorkOrder}
+          disabled={actionLoading}
+        >
           <PlayCircle className="mr-2 h-4 w-4" />
           Start Work Order
         </Button>
         {canEdit && (
           <Button
             variant="outline"
+            className="h-10"
             onClick={() => router.push(`/equipment/${equipment.id}?edit=1`)}
           >
             <Pencil className="mr-2 h-4 w-4" />
@@ -377,6 +389,7 @@ export default function EquipmentDetailPage() {
         )}
         <Button
           variant="outline"
+          className="h-10"
           onClick={handleRerunAiLookup}
           disabled={aiLookupLoading}
         >
@@ -385,11 +398,12 @@ export default function EquipmentDetailPage() {
           ) : (
             <Sparkles className="mr-2 h-4 w-4" />
           )}
-          Re-run AI Lookup
+          <span className="truncate">Re-run AI Lookup</span>
         </Button>
         {canDelete && (
           <Button
             variant="destructive"
+            className="h-10"
             onClick={() => setShowDeleteConfirm(true)}
             disabled={actionLoading}
           >
@@ -435,13 +449,13 @@ export default function EquipmentDetailPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+          <dl className="grid grid-cols-[7rem_1fr] sm:grid-cols-[8rem_1fr_8rem_1fr] gap-x-4 gap-y-2 text-sm">
             <dt className="text-muted-foreground">Make</dt>
-            <dd className="font-medium">{equipment.make || '—'}</dd>
+            <dd className="font-medium break-words">{equipment.make || '—'}</dd>
             <dt className="text-muted-foreground">Model</dt>
-            <dd className="font-medium">{equipment.model || '—'}</dd>
+            <dd className="font-medium break-words">{equipment.model || '—'}</dd>
             <dt className="text-muted-foreground">Serial</dt>
-            <dd className="font-mono">{equipment.serial_number || '—'}</dd>
+            <dd className="font-mono break-all">{equipment.serial_number || '—'}</dd>
             <dt className="text-muted-foreground">Manufactured</dt>
             <dd>{fmtDate(equipment.manufacture_date)}</dd>
             <dt className="text-muted-foreground">Installed</dt>
@@ -449,7 +463,7 @@ export default function EquipmentDetailPage() {
             <dt className="text-muted-foreground">Last serviced</dt>
             <dd>{fmtDate(equipment.last_serviced_date)}</dd>
             <dt className="text-muted-foreground">Next service due</dt>
-            <dd className="flex items-center gap-2">
+            <dd className="flex flex-wrap items-center gap-2">
               {fmtDate(equipment.next_service_due_date)}
               {chip && (
                 <Badge variant="outline" className={chip.className}>
@@ -467,7 +481,7 @@ export default function EquipmentDetailPage() {
           <button
             type="button"
             onClick={() => setAiOpen(!aiOpen)}
-            className="w-full flex items-center justify-between"
+            className="w-full flex items-center justify-between min-h-10 -my-1.5"
           >
             <CardTitle className="text-sm flex items-center gap-2">
               <Sparkles className="h-4 w-4" /> AI Manufacturer Data
@@ -549,7 +563,7 @@ export default function EquipmentDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {equipment.unit_photo_url && (
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Unit</p>
@@ -640,16 +654,19 @@ export default function EquipmentDetailPage() {
           ) : (
             <ul className="divide-y">
               {jobs.map((j) => (
-                <li key={j.id} className="py-2 flex items-center justify-between text-sm">
-                  <div>
+                <li
+                  key={j.id}
+                  className="py-2 flex items-center justify-between gap-3 text-sm"
+                >
+                  <div className="min-w-0">
                     <p className="font-medium">{fmtDate(j.service_date)}</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground truncate">
                       {j.tech_name || 'Unknown tech'} • {j.status.replace(/_/g, ' ')}
                     </p>
                   </div>
                   <Link
                     href={`/jobs/${j.id}`}
-                    className="text-blue-600 hover:underline text-xs"
+                    className="text-blue-600 hover:underline text-xs shrink-0 min-h-10 flex items-center px-2"
                   >
                     View report
                   </Link>
@@ -681,7 +698,7 @@ export default function EquipmentDetailPage() {
                     <button
                       type="button"
                       onClick={() => toggleInspection(insp.id)}
-                      className="w-full flex items-center justify-between text-sm"
+                      className="w-full flex items-center justify-between gap-3 text-sm min-h-10"
                     >
                       <div className="text-left">
                         <p className="font-medium">{fmtDate(insp.inspected_at)}</p>
@@ -741,7 +758,7 @@ export default function EquipmentDetailPage() {
           <button
             type="button"
             onClick={() => setScansOpen(!scansOpen)}
-            className="w-full flex items-center justify-between"
+            className="w-full flex items-center justify-between min-h-10 -my-1.5"
           >
             <CardTitle className="text-sm flex items-center gap-2">
               <QrCode className="h-4 w-4" /> Recent Scans ({scans.length})

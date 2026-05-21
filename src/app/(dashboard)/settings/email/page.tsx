@@ -167,14 +167,19 @@ export default function EmailSettingsPage() {
   }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.push('/settings')}>
+      <div className="flex items-center gap-2 sm:gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-10 w-10 shrink-0"
+          onClick={() => router.push('/settings')}
+        >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Email Settings</h1>
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Email Settings</h1>
           <p className="text-muted-foreground text-sm">
             Configure how reports and invoices are emailed to clients.
           </p>
@@ -262,7 +267,7 @@ export default function EmailSettingsPage() {
             />
           </div>
 
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto h-10">
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
             Save Settings
           </Button>
@@ -277,15 +282,20 @@ export default function EmailSettingsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <Input
               type="email"
               placeholder="your@email.com"
               value={testEmail}
               onChange={(e) => setTestEmail(e.target.value)}
-              className="flex-1"
+              className="flex-1 h-10"
             />
-            <Button onClick={handleTestEmail} disabled={testing} variant="outline">
+            <Button
+              onClick={handleTestEmail}
+              disabled={testing}
+              variant="outline"
+              className="w-full sm:w-auto h-10"
+            >
               {testing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
               Send Test
             </Button>
@@ -308,8 +318,8 @@ export default function EmailSettingsPage() {
             Connect your Google Workspace or Microsoft 365 account to send reports
             directly from your business email — no API keys needed.
           </p>
-          <div className="flex gap-2">
-            <Button variant="outline" disabled className="opacity-50">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+            <Button variant="outline" disabled className="opacity-50 w-full sm:w-auto h-10">
               <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.76h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                 <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -318,7 +328,7 @@ export default function EmailSettingsPage() {
               </svg>
               Connect Google
             </Button>
-            <Button variant="outline" disabled className="opacity-50">
+            <Button variant="outline" disabled className="opacity-50 w-full sm:w-auto h-10">
               <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24">
                 <path fill="#0078D4" d="M24 12c0-6.627-5.373-12-12-12S0 5.373 0 12s5.373 12 12 12 12-5.373 12-12zm-5.196-4.328H12.85v8.656h2.07V13.12h2.874l.507-2.058h-3.38v-1.175c0-.596.165-.882.94-.882h2.44V7.672z"/>
               </svg>

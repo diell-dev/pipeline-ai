@@ -522,7 +522,105 @@ export default function FinancesPage() {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              {/* Mobile: card list */}
+              <div className="md:hidden p-4 space-y-3">
+                {invoices.map((inv) => {
+                  const statusConf = STATUS_CONFIG[inv.status] || STATUS_CONFIG.draft
+                  const total = Number(inv.total_amount) || 0
+                  const paid = Number(inv.paid_amount) || 0
+                  const isOverdue =
+                    new Date(inv.due_date) < new Date() &&
+                    inv.status !== 'paid' &&
+                    inv.status !== 'void' &&
+                    inv.status !== 'draft'
+                  const displayLabel =
+                    isOverdue && inv.status !== 'overdue' ? 'Overdue' : statusConf.label
+                  const displayClass =
+                    isOverdue && inv.status !== 'overdue'
+                      ? STATUS_CONFIG.overdue.className
+                      : statusConf.className
+
+                  return (
+                    <div
+                      key={inv.id}
+                      className="rounded-lg border bg-white p-4 space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-mono text-xs font-medium truncate">
+                            {inv.invoice_number}
+                          </p>
+                          <p className="text-sm truncate mt-0.5">
+                            {inv.clients?.company_name || '—'}
+                          </p>
+                        </div>
+                        <Badge className={`shrink-0 ${displayClass}`} variant="outline">
+                          {displayLabel}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Amount:</span>{' '}
+                          <span className="font-medium">
+                            ${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Paid:</span>{' '}
+                          {paid > 0 ? (
+                            <span className="text-green-600">
+                              ${paid.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            </span>
+                          ) : (
+                            <span>—</span>
+                          )}
+                        </div>
+                        <div className={isOverdue ? 'text-red-600 font-medium' : ''}>
+                          <span className="text-muted-foreground">Due:</span>{' '}
+                          {new Date(inv.due_date).toLocaleDateString()}
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Created:</span>{' '}
+                          {new Date(inv.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 pt-2 border-t">
+                        {canMarkPaid && MARK_PAID_STATUSES.includes(inv.status) && (
+                          <MarkPaidDialog
+                            invoice={{
+                              id: inv.id,
+                              invoice_number: inv.invoice_number,
+                              total_amount: Number(inv.total_amount) || 0,
+                            }}
+                            onSuccess={loadInvoices}
+                          >
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 h-10 text-green-700 hover:text-green-800 hover:bg-green-50"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                              Mark Paid
+                            </Button>
+                          </MarkPaidDialog>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 h-10"
+                          onClick={() => router.push(`/jobs/${inv.job_id}`)}
+                        >
+                          <Eye className="h-3.5 w-3.5 mr-1" />
+                          View
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Desktop: table */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-zinc-50 border-y">
                     <tr>

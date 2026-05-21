@@ -86,7 +86,7 @@ export default function NewProposalPage() {
 
   if (!canCreate) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
             <h3 className="text-lg font-semibold mb-1">Access Denied</h3>
@@ -100,13 +100,13 @@ export default function NewProposalPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+        <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => router.back()}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">New Proposal</h1>
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">New Proposal</h1>
           <p className="text-muted-foreground text-sm">
             Capture a first-visit estimate. Saves as a draft until submitted for approval.
           </p>

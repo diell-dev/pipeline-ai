@@ -70,8 +70,8 @@ export default function ProfilePage() {
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Profile</h1>
+        <p className="text-sm text-muted-foreground">
           Your personal account information.
         </p>
       </div>
@@ -83,11 +83,11 @@ export default function ProfilePage() {
         <CardContent>
           <form onSubmit={handleSave} className="space-y-4">
             <div className="flex items-center gap-4 mb-6">
-              <div className="h-16 w-16 rounded-full bg-zinc-200 flex items-center justify-center text-2xl font-semibold text-zinc-600">
+              <div className="h-16 w-16 shrink-0 rounded-full bg-zinc-200 flex items-center justify-center text-2xl font-semibold text-zinc-600">
                 {fullName?.charAt(0) || '?'}
               </div>
-              <div>
-                <p className="font-medium text-lg">{fullName || user?.full_name}</p>
+              <div className="min-w-0">
+                <p className="font-medium text-lg truncate">{fullName || user?.full_name}</p>
                 <p className="text-sm text-muted-foreground">
                   {user?.role ? getRoleLabel(user.role) : ''}
                 </p>
@@ -103,6 +103,7 @@ export default function ProfilePage() {
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="Your full name"
                   required
+                  className="h-10"
                 />
               </div>
               <div className="space-y-2">
@@ -115,7 +116,7 @@ export default function ProfilePage() {
                   type="email"
                   defaultValue={user?.email || ''}
                   disabled
-                  className="bg-zinc-50"
+                  className="h-10 bg-zinc-50"
                 />
                 {!isOwner && (
                   <p className="text-xs text-muted-foreground">
@@ -131,6 +132,7 @@ export default function ProfilePage() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="(555) 123-4567"
+                  className="h-10"
                 />
               </div>
               <div className="space-y-2">
@@ -142,13 +144,13 @@ export default function ProfilePage() {
                   id="role"
                   defaultValue={user?.role ? getRoleLabel(user.role) : ''}
                   disabled
-                  className="bg-zinc-50"
+                  className="h-10 bg-zinc-50"
                 />
               </div>
             </div>
 
             <div className="pt-4">
-              <Button type="submit" disabled={saving}>
+              <Button type="submit" disabled={saving} className="w-full sm:w-auto h-10">
                 {saving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

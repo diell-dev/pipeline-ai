@@ -44,7 +44,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--brand-primary,#05093d)] p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md mx-4 sm:mx-auto">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--brand-primary,#05093d)]">
             <span className="text-lg font-bold text-[var(--brand-accent,#00ff85)]">P</span>
@@ -65,7 +65,7 @@ export default function ForgotPasswordPage() {
               </p>
               <Button
                 variant="outline"
-                className="w-full"
+                className="w-full h-11"
                 onClick={() => { setIsSent(false); setEmail('') }}
               >
                 Send again
@@ -83,9 +83,10 @@ export default function ForgotPasswordPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   disabled={isLoading}
+                  className="h-11"
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" className="w-full h-11" disabled={isLoading}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -100,7 +101,7 @@ export default function ForgotPasswordPage() {
           <div className="mt-4 text-center">
             <Link
               href="/login"
-              className="inline-flex items-center text-sm text-muted-foreground hover:underline"
+              className="inline-flex items-center justify-center min-h-10 px-2 text-sm text-muted-foreground hover:underline"
             >
               <ArrowLeft className="mr-1 h-3 w-3" />
               Back to login

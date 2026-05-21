@@ -455,51 +455,59 @@ function MobileListView({
         })
         return (
           <div key={key}>
-            <h2 className="text-sm font-semibold mb-2 sticky top-0 bg-zinc-50 py-1">
+            <h2 className="text-sm font-semibold mb-2 sticky top-0 bg-zinc-50 py-2 z-10 border-b">
               {dateLabel}
             </h2>
             <div className="space-y-2">
-              {(groups.get(key) || []).map((job) => (
-                <Card
-                  key={job.id}
-                  className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => onSelect(job)}
-                >
-                  <CardContent className="py-3">
-                    <div
-                      className="border-l-4 pl-3"
-                      style={{ borderColor: getJobColor(job) }}
-                    >
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                        <Clock className="h-3 w-3" />
-                        {formatTime(job.scheduled_time)}
-                      </div>
-                      <p className="text-sm font-medium">
-                        {job.clients?.company_name || 'Unknown Client'}
-                      </p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                        <MapPin className="h-3 w-3" />
-                        {job.sites?.address || job.sites?.name || ''}
-                      </p>
-                      {(job.assigned_user || job.crew) && (
-                        <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                          {job.crew ? (
-                            <>
-                              <UsersIcon className="h-3 w-3" />
-                              {job.crew.name}
-                            </>
-                          ) : (
-                            <>
-                              <UserIcon className="h-3 w-3" />
-                              {job.assigned_user?.full_name}
-                            </>
-                          )}
+              {(groups.get(key) || []).map((job) => {
+                const assigneeChip = job.crew?.name || job.assigned_user?.full_name
+                return (
+                  <Card
+                    key={job.id}
+                    className="cursor-pointer hover:shadow-md active:bg-zinc-50 transition-shadow min-h-[60px]"
+                    onClick={() => onSelect(job)}
+                  >
+                    <CardContent className="p-3">
+                      <div
+                        className="border-l-4 pl-3"
+                        style={{ borderColor: getJobColor(job) }}
+                      >
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                          <Clock className="h-3 w-3 flex-shrink-0" />
+                          <span className="font-medium text-foreground">
+                            {formatTime(job.scheduled_time) || 'No time'}
+                          </span>
                         </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                        <p className="text-sm font-medium break-words">
+                          {job.clients?.company_name || 'Unknown Client'}
+                        </p>
+                        <p className="text-xs text-muted-foreground flex items-start gap-1 mt-0.5">
+                          <MapPin className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                          <span className="break-words">
+                            {job.sites?.address || job.sites?.name || ''}
+                          </span>
+                        </p>
+                        {assigneeChip && (
+                          <div
+                            className="text-[11px] mt-2 inline-flex items-center gap-1 px-2 py-1 rounded-full max-w-full"
+                            style={{
+                              backgroundColor: getJobColor(job) + '22',
+                              color: getJobColor(job),
+                            }}
+                          >
+                            {job.crew ? (
+                              <UsersIcon className="h-3 w-3 flex-shrink-0" />
+                            ) : (
+                              <UserIcon className="h-3 w-3 flex-shrink-0" />
+                            )}
+                            <span className="font-medium truncate">{assigneeChip}</span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
           </div>
         )

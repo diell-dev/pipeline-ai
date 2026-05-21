@@ -424,14 +424,14 @@ export default function NewJobPage() {
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+        <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => router.back()}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">New Job</h1>
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">New Job</h1>
           <p className="text-muted-foreground text-sm">
             Submit a new field service job with photos and notes.
           </p>
@@ -441,10 +441,10 @@ export default function NewJobPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Client & Site Selection */}
         <Card>
-          <CardHeader>
+          <CardHeader className="p-4 sm:p-6">
             <CardTitle className="text-base">Location</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 p-4 sm:p-6 pt-0 sm:pt-0">
             <div className="space-y-2">
               <Label htmlFor="client">Client *</Label>
               <ClientCombobox
@@ -467,7 +467,7 @@ export default function NewJobPage() {
                 onChange={(e) => setSiteId(e.target.value)}
                 disabled={!clientId || loadingSites}
                 required
-                className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="">
                   {!clientId
@@ -493,43 +493,57 @@ export default function NewJobPage() {
 
         {/* Service Selection */}
         <Card>
-          <CardHeader>
+          <CardHeader className="p-4 sm:p-6">
             <CardTitle className="text-base flex items-center gap-2">
               <Wrench className="h-4 w-4" /> Services Performed
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Selected services */}
+          <CardContent className="space-y-4 p-4 sm:p-6 pt-0 sm:pt-0">
+            {/* Selected services — card list (mobile-friendly) */}
             {selectedServices.length > 0 && (
               <div className="space-y-2">
                 {selectedServices.map((svc) => (
                   <div
                     key={svc.id}
-                    className="flex items-center justify-between border rounded-lg px-3 py-2"
+                    className="border rounded-lg p-3 space-y-3 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-3"
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{svc.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {svc.isCustom ? 'Custom' : svc.code} · {formatCurrency(svc.unit_price)}
-                        </p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2 sm:block">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium break-words">{svc.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {svc.isCustom ? 'Custom' : svc.code} · {formatCurrency(svc.unit_price)}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeService(svc.id)}
+                          className="sm:hidden text-muted-foreground hover:text-red-500 transition-colors p-1 -m-1 shrink-0"
+                          aria-label="Remove service"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Input
-                        type="number"
-                        min="1"
-                        value={svc.quantity}
-                        onChange={(e) => updateQuantity(svc.id, parseInt(e.target.value) || 1)}
-                        className="w-16 h-8 text-center text-sm"
-                      />
-                      <span className="text-sm font-medium w-20 text-right">
+                    <div className="flex items-center justify-between gap-2 sm:justify-end sm:shrink-0">
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-muted-foreground sm:hidden">Qty</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={svc.quantity}
+                          onChange={(e) => updateQuantity(svc.id, parseInt(e.target.value) || 1)}
+                          className="w-16 h-10 sm:h-9 text-center text-sm"
+                        />
+                      </div>
+                      <span className="text-sm font-medium w-24 sm:w-20 text-right">
                         {formatCurrency(svc.unit_price * svc.quantity)}
                       </span>
                       <button
                         type="button"
                         onClick={() => removeService(svc.id)}
-                        className="text-muted-foreground hover:text-red-500 transition-colors"
+                        className="hidden sm:inline-flex text-muted-foreground hover:text-red-500 transition-colors"
+                        aria-label="Remove service"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -551,16 +565,16 @@ export default function NewJobPage() {
                 }}
                 onFocus={() => setShowServiceDropdown(true)}
                 onBlur={() => setTimeout(() => setShowServiceDropdown(false), 200)}
-                className="pl-9 h-9"
+                className="pl-9 h-10"
               />
               {showServiceDropdown && filteredServices.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-48 overflow-auto">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-60 overflow-auto">
                   {filteredServices.map((s) => (
                     <button
                       key={s.id}
                       type="button"
                       onClick={() => addService(s)}
-                      className="w-full text-left px-3 py-2 hover:bg-zinc-50 transition-colors"
+                      className="w-full text-left px-3 py-2.5 hover:bg-zinc-50 transition-colors min-h-[44px]"
                     >
                       <span className="text-sm font-medium">{s.name}</span>
                       <span className="text-xs text-muted-foreground ml-2">
@@ -576,14 +590,14 @@ export default function NewJobPage() {
             {showCustomForm ? (
               <div className="border rounded-lg p-3 space-y-3 bg-zinc-50">
                 <p className="text-sm font-medium">Custom Service</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Service Name</Label>
                     <Input
                       value={customService.name}
                       onChange={(e) => setCustomService({ ...customService, name: e.target.value })}
                       placeholder="e.g. Emergency call-out"
-                      className="h-8 text-sm"
+                      className="h-10 text-sm"
                     />
                   </div>
                   <div className="space-y-1">
@@ -595,22 +609,22 @@ export default function NewJobPage() {
                       value={customService.price}
                       onChange={(e) => setCustomService({ ...customService, price: e.target.value })}
                       placeholder="0.00"
-                      className="h-8 text-sm"
+                      className="h-10 text-sm"
                     />
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button type="button" size="sm" onClick={addCustomService}>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button type="button" onClick={addCustomService} className="w-full sm:w-auto h-10">
                     Add
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
                     onClick={() => {
                       setShowCustomForm(false)
                       setCustomService({ name: '', price: '' })
                     }}
+                    className="w-full sm:w-auto h-10"
                   >
                     Cancel
                   </Button>
@@ -620,10 +634,10 @@ export default function NewJobPage() {
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
                 onClick={() => setShowCustomForm(true)}
+                className="w-full sm:w-auto h-10"
               >
-                <Plus className="mr-2 h-3 w-3" />
+                <Plus className="mr-2 h-4 w-4" />
                 Custom Service
               </Button>
             )}
@@ -636,10 +650,10 @@ export default function NewJobPage() {
 
         {/* Service Details */}
         <Card>
-          <CardHeader>
+          <CardHeader className="p-4 sm:p-6">
             <CardTitle className="text-base">Service Details</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 p-4 sm:p-6 pt-0 sm:pt-0">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="service-date">Service Date *</Label>
@@ -649,7 +663,7 @@ export default function NewJobPage() {
                   value={serviceDate}
                   onChange={(e) => setServiceDate(e.target.value)}
                   required
-                  className="h-9"
+                  className="h-10"
                 />
               </div>
 
@@ -659,7 +673,7 @@ export default function NewJobPage() {
                   id="priority"
                   value={priority}
                   onChange={(e) => setPriority(e.target.value as JobPriority)}
-                  className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
                   <option value="normal">Normal</option>
                   <option value="urgent">Urgent</option>
@@ -673,12 +687,12 @@ export default function NewJobPage() {
         {/* Scheduling — managers only */}
         {canSchedule && (
           <Card>
-            <CardHeader>
+            <CardHeader className="p-4 sm:p-6">
               <CardTitle className="text-base flex items-center gap-2">
                 <Clock className="h-4 w-4" /> Schedule (Optional)
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 p-4 sm:p-6 pt-0 sm:pt-0">
               <p className="text-xs text-muted-foreground">
                 Set a time to schedule this job for a future date. Leave blank to submit it immediately for AI processing.
               </p>
@@ -691,7 +705,7 @@ export default function NewJobPage() {
                     type="time"
                     value={scheduledTime}
                     onChange={(e) => setScheduledTime(e.target.value)}
-                    className="h-9"
+                    className="h-10"
                   />
                 </div>
                 <div className="space-y-2">
@@ -703,7 +717,7 @@ export default function NewJobPage() {
                     step="15"
                     value={estimatedDuration}
                     onChange={(e) => setEstimatedDuration(parseInt(e.target.value) || 60)}
-                    className="h-9"
+                    className="h-10"
                     disabled={!scheduledTime}
                   />
                 </div>
@@ -712,13 +726,13 @@ export default function NewJobPage() {
               {scheduledTime && (
                 <div className="space-y-2">
                   <Label>Assign To</Label>
-                  <div className="flex gap-2 mb-2">
+                  <div className="grid grid-cols-3 gap-2 mb-2">
                     {(['none', 'tech', 'crew'] as const).map((k) => (
                       <button
                         key={k}
                         type="button"
                         onClick={() => setAssigneeKind(k)}
-                        className={`flex-1 px-3 py-1.5 text-xs rounded-md border capitalize ${
+                        className={`px-2 py-2.5 min-h-[44px] text-xs rounded-md border capitalize ${
                           assigneeKind === k
                             ? 'bg-zinc-900 text-white border-zinc-900'
                             : 'bg-white border-zinc-200 hover:bg-zinc-50'
@@ -732,7 +746,7 @@ export default function NewJobPage() {
                     <select
                       value={assignedTo}
                       onChange={(e) => setAssignedTo(e.target.value)}
-                      className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                      className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                     >
                       <option value="">Select tech</option>
                       {users.map((u) => (
@@ -746,7 +760,7 @@ export default function NewJobPage() {
                     <select
                       value={crewId}
                       onChange={(e) => setCrewId(e.target.value)}
-                      className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                      className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                     >
                       <option value="">Select crew</option>
                       {crews.map((c) => (
@@ -764,10 +778,10 @@ export default function NewJobPage() {
 
         {/* Photos */}
         <Card>
-          <CardHeader>
+          <CardHeader className="p-4 sm:p-6">
             <CardTitle className="text-base">Photos</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <PhotoUpload
               photos={photos}
               onPhotosChange={setPhotos}
@@ -779,10 +793,10 @@ export default function NewJobPage() {
 
         {/* Tech Notes */}
         <Card>
-          <CardHeader>
+          <CardHeader className="p-4 sm:p-6">
             <CardTitle className="text-base">Technician Notes</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <Textarea
               id="tech-notes"
               value={techNotes}
@@ -797,16 +811,17 @@ export default function NewJobPage() {
         </Card>
 
         {/* Submit */}
-        <div className="flex items-center justify-end gap-3 pt-2">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 pt-2">
           <Button
             type="button"
             variant="outline"
             onClick={() => router.back()}
             disabled={isSubmitting}
+            className="w-full sm:w-auto h-10"
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto h-10">
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -10,8 +10,8 @@ export default function BrandingSettingsPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Branding</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Branding</h1>
+        <p className="text-sm text-muted-foreground">
           Customize your organization&apos;s look and feel.
         </p>
       </div>
@@ -21,35 +21,35 @@ export default function BrandingSettingsPage() {
           <CardTitle className="text-base">Brand Colors</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-2">
               <p className="text-sm font-medium">Primary</p>
               <div className="flex items-center gap-2">
                 <div
-                  className="h-10 w-10 rounded-lg border"
+                  className="h-10 w-10 shrink-0 rounded-lg border"
                   style={{ backgroundColor: theme.primaryColor }}
                 />
-                <span className="text-sm text-muted-foreground">{theme.primaryColor}</span>
+                <span className="text-sm text-muted-foreground font-mono">{theme.primaryColor}</span>
               </div>
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium">Accent</p>
               <div className="flex items-center gap-2">
                 <div
-                  className="h-10 w-10 rounded-lg border"
+                  className="h-10 w-10 shrink-0 rounded-lg border"
                   style={{ backgroundColor: theme.accentColor }}
                 />
-                <span className="text-sm text-muted-foreground">{theme.accentColor}</span>
+                <span className="text-sm text-muted-foreground font-mono">{theme.accentColor}</span>
               </div>
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium">Secondary</p>
               <div className="flex items-center gap-2">
                 <div
-                  className="h-10 w-10 rounded-lg border"
+                  className="h-10 w-10 shrink-0 rounded-lg border"
                   style={{ backgroundColor: theme.secondaryColor }}
                 />
-                <span className="text-sm text-muted-foreground">{theme.secondaryColor}</span>
+                <span className="text-sm text-muted-foreground font-mono">{theme.secondaryColor}</span>
               </div>
             </div>
           </div>

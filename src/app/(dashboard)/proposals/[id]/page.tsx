@@ -194,11 +194,11 @@ export default function ProposalDetailPage() {
 
   if (!proposal) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
             <h3 className="text-lg font-semibold mb-1">Proposal not found</h3>
-            <Button className="mt-4" variant="outline" onClick={() => router.push('/proposals')}>
+            <Button className="mt-4 h-10" variant="outline" onClick={() => router.push('/proposals')}>
               Back to Proposals
             </Button>
           </CardContent>
@@ -212,62 +212,92 @@ export default function ProposalDetailPage() {
   const canEditDraft = ['draft', 'pending_admin_approval'].includes(proposal.status) && (isCreator || canApprove)
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => router.push('/proposals')}>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex items-start gap-3 min-w-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 shrink-0"
+            onClick={() => router.push('/proposals')}
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-bold tracking-tight">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight break-all">
                 {proposal.proposal_number}
               </h1>
               <Badge className={statusConf.className}>{statusConf.label}</Badge>
             </div>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-sm text-muted-foreground mt-1 break-words">
               {proposal.clients?.company_name || 'Unknown Client'}
               {proposal.sites?.address ? ` · ${proposal.sites.address}` : ''}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 lg:shrink-0">
           {canEditDraft && (
-            <Button variant="outline" size="sm" onClick={() => router.push(`/proposals/${id}/edit`)}>
+            <Button
+              variant="outline"
+              onClick={() => router.push(`/proposals/${id}/edit`)}
+              className="h-10 w-full sm:w-auto"
+            >
               <Pencil className="h-4 w-4 mr-1" /> Edit
             </Button>
           )}
           {proposal.status === 'draft' && isCreator && (
-            <Button size="sm" onClick={handleSubmitForApproval} disabled={actionLoading === 'submit'}>
+            <Button
+              onClick={handleSubmitForApproval}
+              disabled={actionLoading === 'submit'}
+              className="h-10 w-full sm:w-auto"
+            >
               <Send className="h-4 w-4 mr-1" /> Submit for Approval
             </Button>
           )}
           {proposal.status === 'pending_admin_approval' && canApprove && (
-            <Button size="sm" onClick={handleAdminApprove} disabled={actionLoading === 'approve'}>
+            <Button
+              onClick={handleAdminApprove}
+              disabled={actionLoading === 'approve'}
+              className="h-10 w-full sm:w-auto"
+            >
               <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
             </Button>
           )}
           {proposal.status === 'admin_approved' && canSend && (
-            <Button size="sm" onClick={handleSendToClient} disabled={actionLoading === 'send'}>
+            <Button
+              onClick={handleSendToClient}
+              disabled={actionLoading === 'send'}
+              className="h-10 w-full sm:w-auto"
+            >
               <Mail className="h-4 w-4 mr-1" /> Send to Client
             </Button>
           )}
           {proposal.status === 'client_approved' && canConvert && (
-            <Button size="sm" onClick={handleConvert} disabled={actionLoading === 'convert'}>
+            <Button
+              onClick={handleConvert}
+              disabled={actionLoading === 'convert'}
+              className="h-10 w-full sm:w-auto"
+            >
               <ArrowRightCircle className="h-4 w-4 mr-1" /> Convert to Job
             </Button>
           )}
           {!['expired', 'cancelled', 'converted_to_job', 'client_approved'].includes(proposal.status) && canApprove && (
-            <Button variant="outline" size="sm" onClick={handleMarkExpired} disabled={actionLoading === 'expire'}>
+            <Button
+              variant="outline"
+              onClick={handleMarkExpired}
+              disabled={actionLoading === 'expire'}
+              className="h-10 w-full sm:w-auto"
+            >
               Mark Expired
             </Button>
           )}
           {canDelete && (
             <Button
               variant="destructive"
-              size="sm"
               onClick={() => setShowDeleteConfirm(true)}
+              className="h-10 w-full sm:w-auto"
             >
               <Trash2 className="h-4 w-4 mr-1" /> Delete
             </Button>
@@ -277,15 +307,24 @@ export default function ProposalDetailPage() {
 
       {showDeleteConfirm && (
         <Card className="border-red-200 bg-red-50">
-          <CardContent className="py-4 flex items-center justify-between">
+          <CardContent className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-red-700">
               Soft-delete this proposal? You can recover it from the database.
             </p>
-            <div className="flex gap-2">
-              <Button variant="destructive" size="sm" onClick={handleDelete} disabled={actionLoading === 'delete'}>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={actionLoading === 'delete'}
+                className="h-10 w-full sm:w-auto"
+              >
                 {actionLoading === 'delete' ? 'Deleting…' : 'Yes, delete'}
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="h-10 w-full sm:w-auto"
+              >
                 Cancel
               </Button>
             </div>
@@ -296,195 +335,218 @@ export default function ProposalDetailPage() {
       {/* Public sign URL panel */}
       {['admin_approved', 'sent_to_client', 'client_approved', 'client_rejected'].includes(proposal.status) && signUrl && (
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 p-4 sm:p-6">
             <CardTitle className="text-sm flex items-center gap-2">
               <FileSignature className="h-4 w-4" /> Public Sign Link
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex items-center gap-2">
-              <code className="flex-1 text-xs bg-zinc-50 rounded px-2 py-1 truncate">
+          <CardContent className="space-y-2 p-4 sm:p-6 pt-0 sm:pt-0">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <code className="flex-1 text-xs bg-zinc-50 rounded px-2 py-2 break-all">
                 {signUrl}
               </code>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  navigator.clipboard.writeText(signUrl)
-                  toast.success('Link copied')
-                }}
-              >
-                <Copy className="h-3.5 w-3.5" />
-              </Button>
-              <a
-                href={signUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center justify-center h-7 w-7 rounded-md border bg-background hover:bg-muted text-foreground"
-                title="Open public sign page"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    navigator.clipboard.writeText(signUrl)
+                    toast.success('Link copied')
+                  }}
+                  className="h-10 flex-1 sm:flex-none"
+                >
+                  <Copy className="h-3.5 w-3.5 sm:mr-0 mr-2" />
+                  <span className="sm:hidden">Copy</span>
+                </Button>
+                <a
+                  href={signUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center h-10 px-3 sm:w-10 sm:px-0 rounded-md border bg-background hover:bg-muted text-foreground flex-1 sm:flex-none gap-2"
+                  title="Open public sign page"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span className="sm:hidden text-sm">Open</span>
+                </a>
+              </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Internal block */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Hash className="h-4 w-4" /> Internal (not visible to client)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 text-sm">
-          <div>
-            <p className="text-muted-foreground text-xs mb-1">Measurements</p>
-            <p className="whitespace-pre-wrap">{proposal.measurements || '—'}</p>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border rounded-lg p-3 bg-zinc-50">
+      {/* Internal + Client-facing — single col on mobile, 2-col on lg+ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Internal block */}
+        <Card>
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Hash className="h-4 w-4" /> Internal (not visible to client)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm p-4 sm:p-6 pt-0 sm:pt-0">
             <div>
-              <p className="text-[11px] uppercase text-muted-foreground">Hours</p>
-              <p className="font-semibold">{proposal.estimated_hours ?? '—'}</p>
+              <p className="text-muted-foreground text-xs mb-1">Measurements</p>
+              <p className="whitespace-pre-wrap break-words">{proposal.measurements || '—'}</p>
             </div>
-            <div>
-              <p className="text-[11px] uppercase text-muted-foreground">Techs</p>
-              <p className="font-semibold">{proposal.num_techs_needed}</p>
-            </div>
-            <div>
-              <p className="text-[11px] uppercase text-muted-foreground">Days</p>
-              <p className="font-semibold">{proposal.estimated_days}</p>
-            </div>
-            <div>
-              <p className="text-[11px] uppercase text-muted-foreground">Material Cost</p>
-              <p className="font-semibold">{fmtUSD(Number(proposal.material_cost_total) || 0)}</p>
-            </div>
-          </div>
-          <div>
-            <p className="text-muted-foreground text-xs mb-1">Materials</p>
-            {proposal.material_list && proposal.material_list.length > 0 ? (
-              <ul className="space-y-1">
-                {(proposal.material_list as ProposalMaterial[]).map((m, i) => (
-                  <li key={i} className="text-sm">
-                    {m.qty} × {m.name} @ {fmtUSD(Number(m.cost) || 0)} ={' '}
-                    <strong>{fmtUSD((Number(m.qty) || 0) * (Number(m.cost) || 0))}</strong>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-muted-foreground text-sm">—</p>
-            )}
-          </div>
-          <div>
-            <p className="text-muted-foreground text-xs mb-1">Equipment</p>
-            <div className="flex flex-wrap gap-1">
-              {proposal.equipment_list && proposal.equipment_list.length > 0 ? (
-                proposal.equipment_list.map((eq) => (
-                  <Badge key={eq} variant="outline" className="text-xs">
-                    {eq}
-                  </Badge>
-                ))
-              ) : (
-                <span className="text-muted-foreground text-sm">—</span>
-              )}
-            </div>
-          </div>
-          <div>
-            <p className="text-muted-foreground text-xs mb-1">Internal Notes</p>
-            <p className="whitespace-pre-wrap">{proposal.internal_notes || '—'}</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Client-facing block */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Client-Facing Estimate</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 text-sm">
-          <div>
-            <p className="text-muted-foreground text-xs mb-1">Issue</p>
-            <p className="whitespace-pre-wrap">{proposal.issue_description}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground text-xs mb-1">Proposed Solution</p>
-            <p className="whitespace-pre-wrap">{proposal.proposed_solution}</p>
-          </div>
-
-          {proposal.proposal_line_items && proposal.proposal_line_items.length > 0 && (
-            <div>
-              <p className="text-muted-foreground text-xs mb-1 flex items-center gap-1">
-                <Wrench className="h-3 w-3" /> Line Items
-              </p>
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-zinc-50">
-                    <tr>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Service</th>
-                      <th className="text-center px-3 py-2 font-medium text-muted-foreground">Qty</th>
-                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Price</th>
-                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {proposal.proposal_line_items.map((li) => (
-                      <tr key={li.id} className="border-t">
-                        <td className="px-3 py-2">{li.service_name}</td>
-                        <td className="px-3 py-2 text-center">{li.quantity}</td>
-                        <td className="px-3 py-2 text-right">{fmtUSD(Number(li.unit_price))}</td>
-                        <td className="px-3 py-2 text-right font-medium">
-                          {fmtUSD(Number(li.total))}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border rounded-lg p-3 bg-zinc-50">
+              <div>
+                <p className="text-[11px] uppercase text-muted-foreground">Hours</p>
+                <p className="font-semibold">{proposal.estimated_hours ?? '—'}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase text-muted-foreground">Techs</p>
+                <p className="font-semibold">{proposal.num_techs_needed}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase text-muted-foreground">Days</p>
+                <p className="font-semibold">{proposal.estimated_days}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase text-muted-foreground">Material Cost</p>
+                <p className="font-semibold">{fmtUSD(Number(proposal.material_cost_total) || 0)}</p>
               </div>
             </div>
-          )}
+            <div>
+              <p className="text-muted-foreground text-xs mb-1">Materials</p>
+              {proposal.material_list && proposal.material_list.length > 0 ? (
+                <ul className="space-y-1">
+                  {(proposal.material_list as ProposalMaterial[]).map((m, i) => (
+                    <li key={i} className="text-sm break-words">
+                      {m.qty} × {m.name} @ {fmtUSD(Number(m.cost) || 0)} ={' '}
+                      <strong>{fmtUSD((Number(m.qty) || 0) * (Number(m.cost) || 0))}</strong>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted-foreground text-sm">—</p>
+              )}
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs mb-1">Equipment</p>
+              <div className="flex flex-wrap gap-1">
+                {proposal.equipment_list && proposal.equipment_list.length > 0 ? (
+                  proposal.equipment_list.map((eq) => (
+                    <Badge key={eq} variant="outline" className="text-xs">
+                      {eq}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-muted-foreground text-sm">—</span>
+                )}
+              </div>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs mb-1">Internal Notes</p>
+              <p className="whitespace-pre-wrap break-words">{proposal.internal_notes || '—'}</p>
+            </div>
+          </CardContent>
+        </Card>
 
-          <div className="border-t pt-3 text-right space-y-1 text-sm">
-            <p>
-              <span className="text-muted-foreground">Subtotal:</span>{' '}
-              <strong>{fmtUSD(Number(proposal.subtotal))}</strong>
-            </p>
-            {proposal.discount_enabled && Number(proposal.discount_amount) > 0 && (
-              <p className="text-muted-foreground">
-                Discount{proposal.discount_reason ? ` (${proposal.discount_reason})` : ''}:{' '}
-                <strong className="text-red-600">−{fmtUSD(Number(proposal.discount_amount))}</strong>
-              </p>
+        {/* Client-facing block */}
+        <Card>
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="text-sm">Client-Facing Estimate</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm p-4 sm:p-6 pt-0 sm:pt-0">
+            <div>
+              <p className="text-muted-foreground text-xs mb-1">Issue</p>
+              <p className="whitespace-pre-wrap break-words">{proposal.issue_description}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs mb-1">Proposed Solution</p>
+              <p className="whitespace-pre-wrap break-words">{proposal.proposed_solution}</p>
+            </div>
+
+            {proposal.proposal_line_items && proposal.proposal_line_items.length > 0 && (
+              <div>
+                <p className="text-muted-foreground text-xs mb-1 flex items-center gap-1">
+                  <Wrench className="h-3 w-3" /> Line Items
+                </p>
+                {/* Mobile: card list */}
+                <div className="sm:hidden space-y-2">
+                  {proposal.proposal_line_items.map((li) => (
+                    <div key={li.id} className="border rounded-lg p-3 space-y-1.5">
+                      <p className="text-sm font-medium break-words">{li.service_name}</p>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Qty: <span className="text-foreground">{li.quantity}</span></span>
+                        <span>Price: <span className="text-foreground">{fmtUSD(Number(li.unit_price))}</span></span>
+                      </div>
+                      <div className="text-right text-sm font-medium pt-1 border-t">
+                        {fmtUSD(Number(li.total))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Desktop: table */}
+                <div className="hidden sm:block border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-zinc-50">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground">Service</th>
+                        <th className="text-center px-3 py-2 font-medium text-muted-foreground">Qty</th>
+                        <th className="text-right px-3 py-2 font-medium text-muted-foreground">Price</th>
+                        <th className="text-right px-3 py-2 font-medium text-muted-foreground">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {proposal.proposal_line_items.map((li) => (
+                        <tr key={li.id} className="border-t">
+                          <td className="px-3 py-2">{li.service_name}</td>
+                          <td className="px-3 py-2 text-center">{li.quantity}</td>
+                          <td className="px-3 py-2 text-right">{fmtUSD(Number(li.unit_price))}</td>
+                          <td className="px-3 py-2 text-right font-medium">
+                            {fmtUSD(Number(li.total))}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             )}
-            <p>
-              <span className="text-muted-foreground">Tax ({proposal.tax_rate}%):</span>{' '}
-              <strong>{fmtUSD(Number(proposal.tax_amount))}</strong>
-            </p>
-            <p className="text-lg font-bold pt-1 border-t">
-              Total: {fmtUSD(Number(proposal.total_amount))}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+
+            <div className="border-t pt-3 text-right space-y-1 text-sm">
+              <p>
+                <span className="text-muted-foreground">Subtotal:</span>{' '}
+                <strong>{fmtUSD(Number(proposal.subtotal))}</strong>
+              </p>
+              {proposal.discount_enabled && Number(proposal.discount_amount) > 0 && (
+                <p className="text-muted-foreground">
+                  Discount{proposal.discount_reason ? ` (${proposal.discount_reason})` : ''}:{' '}
+                  <strong className="text-red-600">−{fmtUSD(Number(proposal.discount_amount))}</strong>
+                </p>
+              )}
+              <p>
+                <span className="text-muted-foreground">Tax ({proposal.tax_rate}%):</span>{' '}
+                <strong>{fmtUSD(Number(proposal.tax_amount))}</strong>
+              </p>
+              <p className="text-lg font-bold pt-1 border-t">
+                Total: {fmtUSD(Number(proposal.total_amount))}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Signatures */}
       {proposal.proposal_signatures && proposal.proposal_signatures.length > 0 && (
         <Card>
-          <CardHeader>
+          <CardHeader className="p-4 sm:p-6">
             <CardTitle className="text-sm flex items-center gap-2">
               <FileSignature className="h-4 w-4" /> Signature Audit Trail
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 p-4 sm:p-6 pt-0 sm:pt-0">
             {proposal.proposal_signatures.map((sig) => (
               <div key={sig.id} className="border rounded-lg p-3 space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <div>
-                    <p className="font-medium">{sig.signed_by_name}</p>
-                    <p className="text-xs text-muted-foreground">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-sm">
+                  <div className="min-w-0">
+                    <p className="font-medium break-words">{sig.signed_by_name}</p>
+                    <p className="text-xs text-muted-foreground break-words">
                       {sig.signed_by_email}
                       {sig.signed_by_title ? ` · ${sig.signed_by_title}` : ''}
                     </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground sm:text-right shrink-0">
                     {new Date(sig.signed_at).toLocaleString()}
                   </p>
                 </div>
@@ -492,12 +554,12 @@ export default function ProposalDetailPage() {
                   <img
                     src={sig.signature_data}
                     alt="Signature"
-                    className="max-h-24 bg-white border rounded"
+                    className="max-h-24 max-w-full bg-white border rounded"
                   />
                 ) : (
-                  <p className="font-serif italic text-lg">{sig.signature_data}</p>
+                  <p className="font-serif italic text-lg break-words">{sig.signature_data}</p>
                 )}
-                <div className="text-[11px] text-muted-foreground">
+                <div className="text-[11px] text-muted-foreground break-all">
                   Type: {sig.signature_type} · IP: {sig.ip_address || '—'}
                 </div>
               </div>

@@ -251,14 +251,14 @@ export default function ClientDetailPage() {
   if (!client) return null
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.push('/clients')}>
+        <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => router.push('/clients')}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{client.company_name}</h1>
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight break-words">{client.company_name}</h1>
           <p className="text-muted-foreground text-sm">
             Client details and site management
           </p>
@@ -267,7 +267,7 @@ export default function ClientDetailPage() {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Link href={`/jobs?client=${clientId}`}>
             <Card className="cursor-pointer hover:shadow-md transition-shadow">
               <CardContent className="pt-4 pb-3 px-4">
@@ -345,30 +345,30 @@ export default function ClientDetailPage() {
 
       {/* Client Info */}
       <Card>
-        <CardHeader>
+        <CardHeader className="p-4 sm:p-6">
           <CardTitle className="text-sm flex items-center gap-2">
             <Building2 className="h-4 w-4" /> Client Information
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-muted-foreground">Contact</p>
-              <p className="font-medium">{client.primary_contact_name}</p>
+              <p className="font-medium break-words">{client.primary_contact_name}</p>
             </div>
             {client.primary_contact_phone && (
               <div>
                 <p className="text-muted-foreground">Phone</p>
-                <p className="font-medium flex items-center gap-1">
-                  <Phone className="h-3 w-3" /> {client.primary_contact_phone}
+                <p className="font-medium flex items-center gap-1 break-all">
+                  <Phone className="h-3 w-3 shrink-0" /> {client.primary_contact_phone}
                 </p>
               </div>
             )}
             {client.primary_contact_email && (
               <div>
                 <p className="text-muted-foreground">Email</p>
-                <p className="font-medium flex items-center gap-1">
-                  <Mail className="h-3 w-3" /> {client.primary_contact_email}
+                <p className="font-medium flex items-center gap-1 break-all">
+                  <Mail className="h-3 w-3 shrink-0" /> {client.primary_contact_email}
                 </p>
               </div>
             )}
@@ -379,13 +379,13 @@ export default function ClientDetailPage() {
             {client.billing_address && (
               <div className="sm:col-span-2">
                 <p className="text-muted-foreground">Billing Address</p>
-                <p className="font-medium">{client.billing_address}</p>
+                <p className="font-medium break-words">{client.billing_address}</p>
               </div>
             )}
             {client.notes && (
               <div className="sm:col-span-2">
                 <p className="text-muted-foreground">Notes</p>
-                <p className="text-sm whitespace-pre-wrap">{client.notes}</p>
+                <p className="text-sm whitespace-pre-wrap break-words">{client.notes}</p>
               </div>
             )}
           </div>
@@ -393,10 +393,10 @@ export default function ClientDetailPage() {
       </Card>
 
       {/* Sites */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h2 className="text-lg font-semibold">Sites ({sites.length})</h2>
         {canCreateSite && (
-          <Button size="sm" onClick={() => setShowAddSite(true)}>
+          <Button onClick={() => setShowAddSite(true)} className="h-10 w-full sm:w-auto">
             <Plus className="mr-2 h-4 w-4" />
             Add Site
           </Button>
@@ -457,10 +457,10 @@ export default function ClientDetailPage() {
 
       {/* Add Site Dialog */}
       <Dialog open={showAddSite} onOpenChange={setShowAddSite}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Site</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="break-words">
               Add a service location for {client.company_name}.
             </DialogDescription>
           </DialogHeader>
@@ -474,7 +474,7 @@ export default function ClientDetailPage() {
                   onChange={(e) => setSiteForm({ ...siteForm, name: e.target.value })}
                   placeholder="e.g. Building A - 123 Main St"
                   required
-                  className="h-9"
+                  className="h-10"
                 />
               </div>
 
@@ -486,7 +486,7 @@ export default function ClientDetailPage() {
                   onChange={(e) => setSiteForm({ ...siteForm, address: e.target.value })}
                   placeholder="123 Main St, New York, NY 10001"
                   required
-                  className="h-9"
+                  className="h-10"
                 />
               </div>
 
@@ -497,7 +497,7 @@ export default function ClientDetailPage() {
                   value={siteForm.borough}
                   onChange={(e) => setSiteForm({ ...siteForm, borough: e.target.value })}
                   placeholder="Manhattan"
-                  className="h-9"
+                  className="h-10"
                 />
               </div>
 
@@ -507,7 +507,7 @@ export default function ClientDetailPage() {
                   id="site_type"
                   value={siteForm.site_type}
                   onChange={(e) => setSiteForm({ ...siteForm, site_type: e.target.value as SiteType })}
-                  className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
                   <option value="residential">Residential</option>
                   <option value="commercial">Commercial</option>
@@ -524,7 +524,7 @@ export default function ClientDetailPage() {
                   value={siteForm.unit_count}
                   onChange={(e) => setSiteForm({ ...siteForm, unit_count: e.target.value })}
                   placeholder="e.g. 12"
-                  className="h-9"
+                  className="h-10"
                 />
               </div>
 
@@ -534,7 +534,7 @@ export default function ClientDetailPage() {
                   id="pipe_material"
                   value={siteForm.pipe_material}
                   onChange={(e) => setSiteForm({ ...siteForm, pipe_material: e.target.value as PipeMaterial })}
-                  className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
                   <option value="unknown">Unknown</option>
                   <option value="cast_iron">Cast Iron</option>
@@ -552,7 +552,7 @@ export default function ClientDetailPage() {
                       key={dt}
                       type="button"
                       onClick={() => toggleDrainType(dt)}
-                      className={`px-2.5 py-1 rounded-md text-xs border transition-colors ${
+                      className={`px-3 py-2 min-h-[44px] rounded-md text-xs border transition-colors ${
                         siteForm.drain_types.includes(dt)
                           ? 'bg-blue-100 border-blue-300 text-blue-700'
                           : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100'
@@ -587,11 +587,16 @@ export default function ClientDetailPage() {
               </div>
             </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowAddSite(false)}>
+            <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowAddSite(false)}
+                className="h-10 w-full sm:w-auto"
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={savingSite}>
+              <Button type="submit" disabled={savingSite} className="h-10 w-full sm:w-auto">
                 {savingSite ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -399,17 +399,21 @@ function InvoiceEditor({
       </div>
 
       {/* Editable line items */}
-      <div className="space-y-2">
+      <div className="space-y-3 md:space-y-2">
         {lineItems.map((item, i) => (
-          <div key={i} className="grid grid-cols-12 gap-2 items-end relative">
-            <div className="col-span-4 relative">
-              {i === 0 && <Label className="text-xs">Service</Label>}
+          <div
+            key={i}
+            className="grid grid-cols-2 md:grid-cols-12 gap-2 items-end relative border md:border-0 rounded-lg md:rounded-none p-3 md:p-0 bg-zinc-50/40 md:bg-transparent"
+          >
+            <div className="col-span-2 md:col-span-4 relative">
+              <Label className="text-xs md:hidden">Service</Label>
+              {i === 0 && <Label className="text-xs hidden md:block">Service</Label>}
               <Input
                 value={item.service}
                 onChange={(e) => handleServiceInput(i, e.target.value)}
                 onFocus={() => setOpenDropdownIndex(i)}
                 placeholder="Service name or search catalog"
-                className="text-sm"
+                className="text-sm w-full"
               />
               {openDropdownIndex === i && services.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-48 overflow-auto">
@@ -439,45 +443,49 @@ function InvoiceEditor({
                 </div>
               )}
             </div>
-            <div className="col-span-2">
-              {i === 0 && <Label className="text-xs">Code</Label>}
+            <div className="col-span-1 md:col-span-2">
+              <Label className="text-xs md:hidden">Code</Label>
+              {i === 0 && <Label className="text-xs hidden md:block">Code</Label>}
               <Input
                 value={item.code}
                 onChange={(e) => updateItem(i, 'code', e.target.value)}
                 placeholder="Code"
-                className="text-sm"
+                className="text-sm w-full"
               />
             </div>
-            <div className="col-span-1">
-              {i === 0 && <Label className="text-xs">Qty</Label>}
+            <div className="col-span-1 md:col-span-1">
+              <Label className="text-xs md:hidden">Qty</Label>
+              {i === 0 && <Label className="text-xs hidden md:block">Qty</Label>}
               <Input
                 type="number"
                 min={1}
                 value={item.quantity}
                 onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value) || 1)}
-                className="text-sm"
+                className="text-sm w-full"
               />
             </div>
-            <div className="col-span-2">
-              {i === 0 && <Label className="text-xs">Unit Price</Label>}
+            <div className="col-span-1 md:col-span-2">
+              <Label className="text-xs md:hidden">Unit Price</Label>
+              {i === 0 && <Label className="text-xs hidden md:block">Unit Price</Label>}
               <Input
                 type="number"
                 min={0}
                 step={0.01}
                 value={item.unit_price}
                 onChange={(e) => updateItem(i, 'unit_price', parseFloat(e.target.value) || 0)}
-                className="text-sm"
+                className="text-sm w-full"
               />
             </div>
-            <div className="col-span-2 text-right text-sm font-medium pt-1">
+            <div className="col-span-1 md:col-span-2 text-right text-sm font-medium pt-1">
+              <span className="text-xs text-muted-foreground md:hidden mr-1">Total:</span>
               ${(item.quantity * item.unit_price).toFixed(2)}
             </div>
-            <div className="col-span-1">
+            <div className="col-span-1 md:col-span-1 flex justify-end md:justify-start">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="text-red-400 hover:text-red-600 h-8 w-8"
+                className="text-red-400 hover:text-red-600 h-10 w-10 md:h-8 md:w-8"
                 onClick={() => removeItem(i)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -486,7 +494,7 @@ function InvoiceEditor({
           </div>
         ))}
 
-        <Button type="button" variant="outline" size="sm" onClick={addItem}>
+        <Button type="button" variant="outline" size="sm" className="h-10 md:h-9 w-full md:w-auto" onClick={addItem}>
           <Plus className="h-3 w-3 mr-1" /> Add Line Item
         </Button>
       </div>
@@ -985,17 +993,17 @@ export default function JobDetailPage() {
                 </Badge>
               )}
             </div>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-sm text-muted-foreground mt-1 break-all">
               Job ID: {job.id.slice(0, 8)}...
             </p>
             {job.proposal_id && job.proposal && (
               <button
                 type="button"
                 onClick={() => router.push(`/proposals/${job.proposal_id}`)}
-                className="mt-2 inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
+                className="mt-2 inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors max-w-full break-words"
               >
-                <FileText className="h-3 w-3" />
-                From Proposal #{job.proposal.proposal_number}
+                <FileText className="h-3 w-3 flex-shrink-0" />
+                <span className="break-all">From Proposal #{job.proposal.proposal_number}</span>
               </button>
             )}
           </div>
@@ -1031,10 +1039,10 @@ export default function JobDetailPage() {
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2 flex-shrink-0">
+              <div className="flex flex-col sm:flex-row gap-2 sm:flex-shrink-0 w-full sm:w-auto">
                 <Button
                   size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 w-full sm:w-auto"
                   onClick={() => handleStatusUpdate('approved')}
                   disabled={actionLoading}
                 >
@@ -1044,6 +1052,7 @@ export default function JobDetailPage() {
                 <Button
                   size="sm"
                   variant="outline"
+                  className="h-10 w-full sm:w-auto"
                   onClick={() => {
                     // Smooth-scroll to the bottom Actions card so user can pick Revise/Reject
                     document.getElementById('approval-actions')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -1157,7 +1166,7 @@ export default function JobDetailPage() {
         </CardHeader>
         <CardContent>
           {job.photos && job.photos.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               {job.photos.map((url, idx) => (
                 <div
                   key={idx}
@@ -1186,8 +1195,9 @@ export default function JobDetailPage() {
               <Wrench className="h-4 w-4" /> Services ({job.job_line_items.length})
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="border rounded-lg overflow-hidden">
+          <CardContent className="p-4 sm:p-6">
+            {/* Desktop table */}
+            <div className="hidden md:block border rounded-lg overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-zinc-50">
                   <tr>
@@ -1207,7 +1217,7 @@ export default function JobDetailPage() {
                     return (
                       <tr key={idx} className="border-t">
                         <td className="px-3 py-2">
-                          <span className="font-medium">{name}</span>
+                          <span className="font-medium break-words">{name}</span>
                           {code && <span className="text-xs text-muted-foreground ml-2">{code}</span>}
                         </td>
                         <td className="px-3 py-2 text-center">{qty}</td>
@@ -1219,6 +1229,32 @@ export default function JobDetailPage() {
                 </tbody>
               </table>
             </div>
+            {/* Mobile cards */}
+            <div className="md:hidden space-y-3">
+              {job.job_line_items.map((li, idx) => {
+                const name = li.service_catalog?.name || li.description || 'Service'
+                const code = li.service_catalog?.code || ''
+                const qty = li.quantity || 1
+                const price = li.unit_price || 0
+                const total = li.total_price || qty * price
+                return (
+                  <div key={idx} className="border rounded-lg p-3 bg-white">
+                    <div className="font-medium text-sm break-words">{name}</div>
+                    {code && (
+                      <div className="text-xs text-muted-foreground mt-0.5">{code}</div>
+                    )}
+                    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                      <span>
+                        {qty} × ${price.toFixed(2)}
+                      </span>
+                      <span className="text-sm font-semibold text-foreground">
+                        ${total.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -1228,9 +1264,9 @@ export default function JobDetailPage() {
         <CardHeader>
           <CardTitle className="text-sm">Technician Notes</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
           {job.tech_notes ? (
-            <p className="text-sm whitespace-pre-wrap">{job.tech_notes}</p>
+            <p className="text-sm whitespace-pre-wrap break-words">{job.tech_notes}</p>
           ) : (
             <p className="text-sm text-muted-foreground italic">No notes provided</p>
           )}
@@ -1277,20 +1313,21 @@ export default function JobDetailPage() {
       {job.ai_report_content && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <FileText className="h-4 w-4" /> Service Report
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
+                <FileText className="h-4 w-4 flex-shrink-0" /> Service Report
                 {reportWasEdited && (
                   <Badge variant="outline" className="text-[10px] ml-1 text-amber-600 border-amber-300">
                     Manually Edited
                   </Badge>
                 )}
               </CardTitle>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap">
                 {canManuallyEdit && !editingReport && (
                   <Button
                     variant="ghost"
                     size="sm"
+                    className="h-10 sm:h-9"
                     onClick={() => {
                       setEditingReport(true)
                       setEditingInvoice(false) // Close invoice editor if open
@@ -1304,6 +1341,7 @@ export default function JobDetailPage() {
                   <Button
                     variant="ghost"
                     size="sm"
+                    className="h-10 sm:h-9"
                     onClick={handleRegenerate}
                     disabled={regenerating}
                   >
@@ -1341,7 +1379,7 @@ export default function JobDetailPage() {
 
                       {/* Tech findings — the actual bullet points from the tech */}
                       {Array.isArray(report.findings) && report.findings.length > 0 && (
-                        <ul className="text-sm text-muted-foreground space-y-1 pl-4">
+                        <ul className="text-sm text-muted-foreground space-y-1 pl-4 break-words">
                           {(report.findings as string[]).map((item, i) => (
                             <li key={i} className="before:content-['-'] before:mr-2">{item}</li>
                           ))}
@@ -1384,7 +1422,7 @@ export default function JobDetailPage() {
                     {Array.isArray(report.work_performed) && report.work_performed.length > 0 && (
                       <div>
                         <h4 className="text-sm font-medium mb-1">Work Performed</h4>
-                        <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                        <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside break-words">
                           {(report.work_performed as string[]).map((item, i) => (
                             <li key={i}>{item}</li>
                           ))}
@@ -1395,7 +1433,7 @@ export default function JobDetailPage() {
                     {Array.isArray(report.findings) && report.findings.length > 0 && (
                       <div>
                         <h4 className="text-sm font-medium mb-1">Findings</h4>
-                        <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                        <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside break-words">
                           {(report.findings as string[]).map((item, i) => (
                             <li key={i}>{item}</li>
                           ))}
@@ -1406,7 +1444,7 @@ export default function JobDetailPage() {
                     {Array.isArray(report.recommendations) && report.recommendations.length > 0 && (
                       <div>
                         <h4 className="text-sm font-medium mb-1">Recommendations</h4>
-                        <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                        <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside break-words">
                           {(report.recommendations as string[]).map((item, i) => (
                             <li key={i}>{item}</li>
                           ))}
@@ -1445,9 +1483,9 @@ export default function JobDetailPage() {
       {job.ai_invoice_content && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Receipt className="h-4 w-4" /> Auto-Generated Invoice
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
+                <Receipt className="h-4 w-4 flex-shrink-0" /> Auto-Generated Invoice
                 {invoiceWasEdited && (
                   <Badge variant="outline" className="text-[10px] ml-1 text-amber-600 border-amber-300">
                     Manually Edited
@@ -1458,6 +1496,7 @@ export default function JobDetailPage() {
                 <Button
                   variant="ghost"
                   size="sm"
+                  className="h-10 sm:h-9 self-start sm:self-auto"
                   onClick={() => {
                     setEditingInvoice(true)
                     setEditingReport(false) // Close report editor if open
@@ -1484,10 +1523,10 @@ export default function JobDetailPage() {
                 const lineItems = (inv.line_items as Array<Record<string, unknown>>) || []
                 return (
                   <>
-                    <div className="flex items-center justify-between text-sm">
-                      <div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-0 text-sm">
+                      <div className="break-words">
                         <span className="text-muted-foreground">Invoice #:</span>{' '}
-                        <span className="font-mono font-medium">{inv.invoice_number as string}</span>
+                        <span className="font-mono font-medium break-all">{inv.invoice_number as string}</span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Due:</span>{' '}
@@ -1497,8 +1536,8 @@ export default function JobDetailPage() {
                       </div>
                     </div>
 
-                    {/* Line items table */}
-                    <div className="border rounded-lg overflow-hidden">
+                    {/* Line items — desktop table */}
+                    <div className="hidden md:block border rounded-lg overflow-hidden">
                       <table className="w-full text-sm">
                         <thead className="bg-zinc-50">
                           <tr>
@@ -1516,7 +1555,7 @@ export default function JobDetailPage() {
                             return (
                               <tr key={i} className={`border-t ${isAdjustment ? 'bg-purple-50/50' : ''}`}>
                                 <td className="p-2">
-                                  <div className={`font-medium ${isDiscount ? 'text-purple-700' : ''}`}>
+                                  <div className={`font-medium break-words ${isDiscount ? 'text-purple-700' : ''}`}>
                                     {item.service as string}
                                   </div>
                                   {!isAdjustment && (
@@ -1533,6 +1572,40 @@ export default function JobDetailPage() {
                           })}
                         </tbody>
                       </table>
+                    </div>
+
+                    {/* Line items — mobile cards */}
+                    <div className="md:hidden space-y-2">
+                      {lineItems.map((item, i) => {
+                        const total = Number(item.total)
+                        const isAdjustment = total < 0 || ['DISC', 'SRCH', 'WAIV'].includes(String(item.code))
+                        const isDiscount = total < 0
+                        return (
+                          <div
+                            key={i}
+                            className={`border rounded-lg p-3 ${isAdjustment ? 'bg-purple-50/50 border-purple-200' : 'bg-white'}`}
+                          >
+                            <div className={`font-medium text-sm break-words ${isDiscount ? 'text-purple-700' : ''}`}>
+                              {item.service as string}
+                            </div>
+                            {!isAdjustment && (
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                {item.code as string}
+                              </div>
+                            )}
+                            <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                              <span>
+                                {isAdjustment
+                                  ? ''
+                                  : `${item.quantity as number} × $${Number(item.unit_price).toFixed(2)}`}
+                              </span>
+                              <span className={`text-sm font-semibold ${isDiscount ? 'text-red-600' : 'text-foreground'}`}>
+                                {isDiscount ? `-$${Math.abs(total).toFixed(2)}` : `$${total.toFixed(2)}`}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
 
                     {/* Totals */}
@@ -1745,9 +1818,10 @@ export default function JobDetailPage() {
             <CardTitle className="text-sm">Approval Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
               {canApprove && (
                 <Button
+                  className="h-10 w-full sm:w-auto"
                   onClick={() => handleStatusUpdate('approved')}
                   disabled={actionLoading}
                 >
@@ -1759,6 +1833,7 @@ export default function JobDetailPage() {
                 <>
                   <Button
                     variant="outline"
+                    className="h-10 w-full sm:w-auto"
                     onClick={() => setShowRevisionForm(!showRevisionForm)}
                     disabled={actionLoading}
                   >
@@ -1767,6 +1842,7 @@ export default function JobDetailPage() {
                   </Button>
                   <Button
                     variant="destructive"
+                    className="h-10 w-full sm:w-auto"
                     onClick={() => setShowRejectForm(!showRejectForm)}
                     disabled={actionLoading}
                   >

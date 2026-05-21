@@ -137,18 +137,28 @@ export default function QrBatchesPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => router.push('/equipment')}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold tracking-tight">QR Sticker Batches</h1>
-          <p className="text-sm text-muted-foreground">
-            Generate sheets of QR codes to apply to equipment in the field.
-          </p>
+    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 shrink-0"
+            onClick={() => router.push('/equipment')}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">QR Sticker Batches</h1>
+            <p className="text-sm text-muted-foreground">
+              Generate sheets of QR codes to apply to equipment in the field.
+            </p>
+          </div>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
+        <Button
+          className="w-full sm:w-auto h-10"
+          onClick={() => setDialogOpen(true)}
+        >
           <Plus className="mr-2 h-4 w-4" />
           Create Batch
         </Button>
@@ -177,57 +187,102 @@ export default function QrBatchesPage() {
       )}
 
       {!loading && batches.length > 0 && (
-        <Card>
-          <CardContent className="p-0 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-zinc-50 border-b">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Batch #</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Prefix</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Codes</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Claimed</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Generated</th>
-                  <th className="text-right px-4 py-3 font-medium text-muted-foreground">PDF</th>
-                </tr>
-              </thead>
-              <tbody>
-                {batches.map((b) => (
-                  <tr key={b.id} className="border-t hover:bg-zinc-50">
-                    <td className="px-4 py-3 font-mono">{b.batch_number}</td>
-                    <td className="px-4 py-3 font-mono">{b.prefix || '—'}</td>
-                    <td className="px-4 py-3">{b.total_codes}</td>
-                    <td className="px-4 py-3">
-                      {b.claimed_count}/{b.total_codes}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
+        <>
+          {/* Mobile: card list */}
+          <div className="grid grid-cols-1 gap-3 sm:hidden">
+            {batches.map((b) => (
+              <Card key={b.id}>
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground">Batch</p>
+                      <p className="font-mono font-medium truncate">
+                        #{b.batch_number}
+                        {b.prefix ? ` · ${b.prefix}` : ''}
+                      </p>
+                    </div>
+                    <span className="text-xs text-muted-foreground shrink-0">
                       {new Date(b.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <a
-                        href={`/api/equipment/qr-batches/${b.id}/pdf`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-blue-600 hover:underline"
-                      >
-                        <Download className="h-3.5 w-3.5" /> Download
-                      </a>
-                    </td>
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Codes</p>
+                      <p className="font-medium">{b.total_codes}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Claimed</p>
+                      <p className="font-medium">
+                        {b.claimed_count}/{b.total_codes}
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href={`/api/equipment/qr-batches/${b.id}/pdf`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 w-full h-10 rounded-md border bg-background text-sm font-medium text-blue-600 hover:bg-zinc-50"
+                  >
+                    <Download className="h-4 w-4" /> Download PDF
+                  </a>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Desktop: table */}
+          <Card className="hidden sm:block">
+            <CardContent className="p-0 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-zinc-50 border-b">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Batch #</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Prefix</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Codes</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Claimed</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Generated</th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">PDF</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
+                </thead>
+                <tbody>
+                  {batches.map((b) => (
+                    <tr key={b.id} className="border-t hover:bg-zinc-50">
+                      <td className="px-4 py-3 font-mono">{b.batch_number}</td>
+                      <td className="px-4 py-3 font-mono">{b.prefix || '—'}</td>
+                      <td className="px-4 py-3">{b.total_codes}</td>
+                      <td className="px-4 py-3">
+                        {b.claimed_count}/{b.total_codes}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {new Date(b.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <a
+                          href={`/api/equipment/qr-batches/${b.id}/pdf`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+                        >
+                          <Download className="h-3.5 w-3.5" /> Download
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </>
       )}
 
       {/* Create dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Generate QR Batch</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
+            <div className="space-y-1.5">
               <Label className="text-sm">How many codes? (1–500)</Label>
               <Input
                 type="number"
@@ -235,17 +290,19 @@ export default function QrBatchesPage() {
                 max={500}
                 value={count}
                 onChange={(e) => setCount(parseInt(e.target.value) || 0)}
+                className="h-10"
               />
             </div>
-            <div>
+            <div className="space-y-1.5">
               <Label className="text-sm">Prefix (4 chars max)</Label>
               <Input
                 value={prefix}
                 onChange={(e) => setPrefix(e.target.value.toUpperCase().slice(0, 4))}
                 placeholder="e.g. NYSD"
+                className="h-10"
               />
             </div>
-            <div>
+            <div className="space-y-1.5">
               <Label className="text-sm">Notes (optional)</Label>
               <Textarea
                 value={notes}
@@ -254,11 +311,20 @@ export default function QrBatchesPage() {
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={creating}>
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto h-10"
+              onClick={() => setDialogOpen(false)}
+              disabled={creating}
+            >
               Cancel
             </Button>
-            <Button onClick={handleCreate} disabled={creating}>
+            <Button
+              className="w-full sm:w-auto h-10"
+              onClick={handleCreate}
+              disabled={creating}
+            >
               {creating ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (

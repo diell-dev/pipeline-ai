@@ -71,13 +71,16 @@ export type Permission =
   | 'documents:view_all'
   | 'documents:request_revision' // client portal
   // Equipment Cataloging (Migration 008)
-  | 'equipment:view'              // all roles except client (clients use filtered view)
-  | 'equipment:register'          // field_tech+ — first-scan claim flow
-  | 'equipment:edit'              // office_manager+
-  | 'equipment:delete'            // owner+
-  | 'equipment:manage_qr_batches' // owner+ — pre-print sticker sheets
-  | 'service_requests:view'       // office_manager+
-  | 'service_requests:manage'     // office_manager+
+  // TEMP: gated to super_admin only (Diell internal preview) until ready
+  // to roll out to tenant orgs. To open up to owners + techs, add the
+  // equipment:* permissions back to those role arrays below.
+  | 'equipment:view'
+  | 'equipment:register'
+  | 'equipment:edit'
+  | 'equipment:delete'
+  | 'equipment:manage_qr_batches'
+  | 'service_requests:view'
+  | 'service_requests:manage'
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   super_admin: [
@@ -116,9 +119,10 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'users:view', 'users:manage', 'users:invite',
     'settings:view', 'settings:manage',
     'documents:view_own', 'documents:view_all',
-    'equipment:view', 'equipment:register', 'equipment:edit', 'equipment:delete',
-    'equipment:manage_qr_batches',
-    'service_requests:view', 'service_requests:manage',
+    // Equipment module hidden from owners until ready for tenant rollout.
+    // To re-enable, add: 'equipment:view', 'equipment:register', 'equipment:edit',
+    // 'equipment:delete', 'equipment:manage_qr_batches', 'service_requests:view',
+    // 'service_requests:manage'
   ],
 
   office_manager: [
@@ -136,8 +140,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'users:view',
     'settings:view',
     'documents:view_own', 'documents:view_all',
-    'equipment:view', 'equipment:register', 'equipment:edit',
-    'service_requests:view', 'service_requests:manage',
+    // Equipment module hidden until tenant rollout.
   ],
 
   field_tech: [
@@ -147,7 +150,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'sites:view', 'sites:create', // can add new sites in the field
     'services:view',
     'documents:view_own',
-    'equipment:view', 'equipment:register',
+    // Equipment module hidden until tenant rollout.
   ],
 
   client: [

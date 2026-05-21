@@ -4,10 +4,16 @@
  * Equipment Scan + Register Flow
  *
  * Mobile-first. Two stages:
- *   1. Scan a QR code (camera via BarcodeDetector API, paste-code fallback).
+ *   1. Scan a QR code (camera via jsQR — works in iOS Safari + iOS Chrome
+ *      + every desktop browser). Paste-code fallback always available.
  *   2. If unclaimed, render the registration form.
  *      Photos go straight to Supabase Storage (bucket: `equipment-photos`).
  *      Data-plate photo is sent to /api/equipment/ocr-data-plate for make/model/serial.
+ *
+ * jsQR is used instead of BarcodeDetector because WebKit (iOS Safari +
+ * iOS Chrome) doesn't ship the BarcodeDetector API reliably yet, even
+ * though both Apple and the spec call for it. jsQR works everywhere
+ * with no native API dependency.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -20,6 +26,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ClientCombobox } from '@/components/clients/client-combobox'
 import { toast } from 'sonner'
+import jsQR from 'jsqr'
 import {
   Camera,
   Loader2,
@@ -46,16 +53,6 @@ interface ParentEquipmentOption {
   model: string | null
 }
 
-// BarcodeDetector typings aren't in stock TS lib; declare minimal shape.
-type BarcodeDetectorCtor = new (init?: { formats?: string[] }) => {
-  detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue: string }>>
-}
-declare global {
-  interface Window {
-    BarcodeDetector?: BarcodeDetectorCtor
-  }
-}
-
 export default function EquipmentScanPage() {
   const router = useRouter()
   const { user, organization } = useAuthStore()
@@ -72,9 +69,12 @@ export default function EquipmentScanPage() {
   const [scannedCode, setScannedCode] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const detectorSupported =
-    typeof window !== 'undefined' && typeof window.BarcodeDetector !== 'undefined'
+  const rafRef = useRef<number | null>(null)
+  // jsQR works in every browser — no native-API gating.
+  const cameraSupported =
+    typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia
 
   // ===== Stage 2: Register =====
   const [needsRegister, setNeedsRegister] = useState(false)
@@ -173,52 +173,92 @@ export default function EquipmentScanPage() {
   }, [])
 
   function stopCamera() {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop())
       streamRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
     }
     setScanning(false)
   }
 
   async function startCamera() {
     setScanError(null)
-    if (!detectorSupported) {
-      setScanError('Your browser does not support QR detection. Paste the code manually below.')
+    if (!cameraSupported) {
+      setScanError(
+        'Your browser does not support camera access. Paste the code below.'
+      )
       return
     }
     try {
+      // Prefer the rear camera on mobile; on desktop this constraint is ignored
+      // and the default camera is used.
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
+        video: { facingMode: { ideal: 'environment' } },
         audio: false,
       })
       streamRef.current = stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream
-        await videoRef.current.play().catch(() => {})
+        videoRef.current.setAttribute('playsinline', 'true') // critical for iOS
+        videoRef.current.muted = true
+        await videoRef.current.play().catch((err) => {
+          console.error('video.play() failed', err)
+        })
       }
       setScanning(true)
-      // Begin detection loop
-      const detector = new window.BarcodeDetector!({ formats: ['qr_code'] })
-      const tick = async () => {
-        if (!streamRef.current || !videoRef.current) return
-        try {
-          const results = await detector.detect(videoRef.current)
-          if (results.length > 0 && results[0].rawValue) {
-            const raw = results[0].rawValue
-            const code = extractCodeFromValue(raw)
-            stopCamera()
-            await handleCodeSubmit(code)
-            return
-          }
-        } catch {
-          // detection errors are non-fatal — keep ticking
-        }
-        if (streamRef.current) requestAnimationFrame(tick)
+
+      // Lazy-allocate the offscreen canvas used to extract pixel data for jsQR.
+      if (!canvasRef.current) {
+        canvasRef.current = document.createElement('canvas')
       }
-      requestAnimationFrame(tick)
+      const canvas = canvasRef.current
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })
+      if (!ctx) {
+        setScanError('Could not initialise canvas for scanning.')
+        stopCamera()
+        return
+      }
+
+      const tick = () => {
+        if (!streamRef.current || !videoRef.current) return
+        const video = videoRef.current
+        if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
+          canvas.width = video.videoWidth
+          canvas.height = video.videoHeight
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+          try {
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: 'dontInvert',
+            })
+            if (code?.data) {
+              const extracted = extractCodeFromValue(code.data)
+              stopCamera()
+              void handleCodeSubmit(extracted)
+              return
+            }
+          } catch {
+            // ignore per-frame decode errors
+          }
+        }
+        rafRef.current = requestAnimationFrame(tick)
+      }
+      rafRef.current = requestAnimationFrame(tick)
     } catch (err) {
       console.error('Camera start failed', err)
-      setScanError('Could not access camera. Check permissions or paste the code below.')
+      const msg =
+        err instanceof Error && err.name === 'NotAllowedError'
+          ? 'Camera permission was denied. Allow camera access in your browser settings, or paste the code below.'
+          : err instanceof Error && err.name === 'NotFoundError'
+          ? 'No camera found on this device. Paste the code below.'
+          : 'Could not access camera. Paste the code below.'
+      setScanError(msg)
       setScanning(false)
     }
   }

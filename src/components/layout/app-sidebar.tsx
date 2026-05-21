@@ -21,6 +21,7 @@ import {
   ChevronRight,
   FlaskConical,
   Calendar,
+  QrCode,
 } from 'lucide-react'
 
 interface NavItem {
@@ -42,6 +43,9 @@ const navItems: NavItem[] = [
   // Managers see the full Schedule (calendar); techs see "My Schedule"
   { label: 'Schedule', href: '/schedule', icon: Calendar, permission: 'jobs:schedule', managersOnly: true },
   { label: 'My Schedule', href: '/schedule/my-schedule', icon: Calendar, techOnly: true },
+  // Equipment cataloging — gated by the new 'equipment:view' permission added by the backend agent.
+  // Casting because the Permission union may not yet include the new keys when this file is type-checked.
+  { label: 'Equipment', href: '/equipment', icon: QrCode, permission: 'equipment:view' as Parameters<typeof hasPermission>[1] },
   { label: 'Clients', href: '/clients', icon: Building2, permission: 'clients:view' },
   { label: 'Services', href: '/services', icon: Wrench, permission: 'services:view' },
   { label: 'Invoices', href: '/invoices', icon: FileText, anyPermission: ['invoices:view_all', 'invoices:view_own'] },

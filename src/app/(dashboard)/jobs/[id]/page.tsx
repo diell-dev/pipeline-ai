@@ -50,7 +50,24 @@ import {
 } from 'lucide-react'
 import { downloadInvoicePdf, downloadReportPdf, downloadBothAsZip } from '@/lib/pdf/download'
 import { JobActivityTimeline } from '@/components/jobs/activity-timeline'
+import { InspectionChecklist, type Inspection } from '@/components/equipment/inspection-checklist'
 import type { Job, JobStatus, JobPriority } from '@/types/database'
+
+// Equipment shape we render in the linked-equipment section. Loose because
+// the backend agent is still finalising the types in database.ts.
+interface LinkedEquipment {
+  id: string
+  unit_number: string | null
+  common_area_name: string | null
+  make: string | null
+  model: string | null
+  category?: {
+    id: string
+    name: string
+    icon?: string | null
+    inspection_checklist?: unknown
+  } | null
+}
 
 const STATUS_CONFIG: Record<JobStatus, { label: string; className: string }> = {
   scheduled: { label: 'Scheduled', className: 'bg-cyan-100 text-cyan-700' },
@@ -539,6 +556,21 @@ export default function JobDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  // Linked equipment for inspection workflow (loaded once we have job.id)
+  const [linkedEquipment, setLinkedEquipment] = useState<LinkedEquipment[]>([])
+  const [jobInspections, setJobInspections] = useState<Inspection[]>([])
+  const refreshInspections = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/jobs/${jobId}/inspections`, { cache: 'no-store' })
+      if (res.ok) {
+        const data = await res.json()
+        setJobInspections((data.inspections || []) as Inspection[])
+      }
+    } catch (err) {
+      console.error('Failed to load inspections', err)
+    }
+  }, [jobId])
+
   const refreshJob = useCallback(async () => {
     const supabase = createClient()
     const { data } = await supabase
@@ -582,6 +614,34 @@ export default function JobDetailPage() {
 
     if (jobId) loadJob()
   }, [jobId, organization])
+
+  // Load equipment linked to this job + any inspections already recorded.
+  // The equipment list comes from the equipment table via a job_equipment join;
+  // we filter via the equipment API. The backend agent owns the precise shape —
+  // we expect either { equipment: [...] } or an array.
+  useEffect(() => {
+    if (!jobId) return
+    let cancelled = false
+    async function loadLinkedEquipment() {
+      try {
+        const res = await fetch(`/api/equipment?job_id=${jobId}`, { cache: 'no-store' })
+        if (!res.ok) {
+          if (!cancelled) setLinkedEquipment([])
+          return
+        }
+        const data = await res.json()
+        const list: LinkedEquipment[] = data.equipment || data || []
+        if (!cancelled) setLinkedEquipment(list)
+      } catch {
+        if (!cancelled) setLinkedEquipment([])
+      }
+    }
+    loadLinkedEquipment()
+    refreshInspections()
+    return () => {
+      cancelled = true
+    }
+  }, [jobId, refreshInspections])
 
   // ===== SAVE REPORT EDIT =====
   async function handleSaveReport(updatedReport: Record<string, unknown>) {
@@ -1170,6 +1230,29 @@ export default function JobDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Linked Equipment — inspection checklists per equipment unit */}
+      {linkedEquipment.length > 0 && (
+        <div className="space-y-4">
+          {linkedEquipment.map((eq) => {
+            // Per-equipment inspections (most recent first)
+            const inspectionsForEq = jobInspections
+              .filter((insp) => {
+                const maybe = insp as unknown as { equipment_id?: string }
+                return maybe.equipment_id ? maybe.equipment_id === eq.id : true
+              })
+            return (
+              <InspectionChecklist
+                key={eq.id}
+                jobId={job.id}
+                equipment={eq}
+                existingInspections={inspectionsForEq}
+                onSaved={refreshInspections}
+              />
+            )
+          })}
+        </div>
+      )}
 
       {/* AI Processing Status */}
       {job.status === 'ai_generating' && (

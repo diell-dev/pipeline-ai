@@ -16,8 +16,9 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
-import { hasPermission } from '@/lib/permissions'
+import { hasPermission, type Permission } from '@/lib/permissions'
 import { getRoleLabel } from '@/lib/permissions'
+import { EquipmentLifecycleWidget } from '@/components/equipment/lifecycle-widget'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -134,6 +135,10 @@ export default function DashboardPage() {
   const canViewAll = user?.role ? hasPermission(user.role, 'jobs:view_all') : false
   const canCreate = user?.role ? hasPermission(user.role, 'jobs:create') : false
   const canCreateProposal = user?.role ? hasPermission(user.role, 'proposals:create') : false
+  // Cast: 'equipment:view' is added to the Permission union by the backend agent.
+  const canViewEquipment = user?.role
+    ? hasPermission(user.role, 'equipment:view' as Permission)
+    : false
   // Analytics layer is only useful to people who can see all jobs (owners/managers).
   const showAnalytics = canViewAll
 
@@ -533,6 +538,9 @@ export default function DashboardPage() {
           </Card>
         </div>
       )}
+
+      {/* Equipment lifecycle widget — visible only to users who can see equipment */}
+      {canViewEquipment && <EquipmentLifecycleWidget />}
 
       {/* Quick Actions */}
       {(canCreate || canCreateProposal) && (

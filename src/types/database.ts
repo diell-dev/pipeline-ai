@@ -507,6 +507,11 @@ export type ActivityAction =
   | 'proposal_signed_by_client'
   | 'proposal_rejected_by_client'
   | 'proposal_converted_to_job'
+  // Equipment Cataloging (Migration 008)
+  | 'equipment_registered'
+  | 'equipment_qr_batch_generated'
+  | 'equipment_service_requested'
+  | 'equipment_inspected'
 
 export interface ActivityLogEntry {
   id: string
@@ -522,7 +527,165 @@ export interface ActivityLogEntry {
     | 'proposal'
     | 'crew'
     | 'recurring_schedule'
+    | 'equipment'
   entity_id: string
   metadata: Record<string, unknown> | null
   created_at: string
+}
+
+// ============================================================
+// Equipment Cataloging (Migration 008)
+// HVAC-first asset tracking via pre-printed QR codes.
+// ============================================================
+
+export type EquipmentStatus = 'active' | 'inactive' | 'replaced' | 'removed'
+
+export type EquipmentScanAction = 'view' | 'register' | 'service_request' | 'inspection'
+
+export type InspectionResult = 'pass' | 'fail' | 'na'
+
+export type ServiceRequestUrgency = 'low' | 'normal' | 'high' | 'emergency'
+
+export type ServiceRequestStatus = 'new' | 'acknowledged' | 'scheduled' | 'closed' | 'dismissed'
+
+/**
+ * Inspection checklist item — JSON shape stored in
+ * equipment_categories.inspection_checklist.
+ */
+export interface InspectionChecklistItem {
+  code: string
+  label: string
+  description?: string
+}
+
+/**
+ * AI-derived equipment metadata persisted in equipment.ai_metadata.
+ * All fields optional — the AI lookup may return partial data.
+ */
+export interface EquipmentAiMetadata {
+  manufacture_date?: string | null
+  recommended_service_interval_months?: number | null
+  common_failure_modes?: string[]
+  replacement_part_skus?: string[]
+  is_discontinued?: boolean
+  recall_notice?: string | null
+  useful_life_years_estimate?: number | null
+  generated_at?: string
+  model_version?: string
+}
+
+export interface EquipmentCategory {
+  id: string
+  code: string
+  name: string
+  parent_category: string | null
+  icon: string
+  sort_order: number
+  typical_lifespan_years: number
+  default_service_interval_months: number
+  estimated_replacement_cost: number
+  inspection_checklist: InspectionChecklistItem[]
+  description: string | null
+  is_active: boolean
+  is_org_specific: boolean
+  organization_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Equipment {
+  id: string
+  organization_id: string
+  site_id: string
+  unit_number: string | null
+  common_area_name: string | null
+  category_id: string
+  qr_code: string | null
+  parent_equipment_id: string | null
+  make: string | null
+  model: string | null
+  serial_number: string | null
+  manufacture_date: string | null
+  installed_date: string | null
+  last_serviced_date: string | null
+  next_service_due_date: string | null
+  service_interval_months: number | null
+  data_plate_photo_url: string | null
+  unit_photo_url: string | null
+  ai_metadata: EquipmentAiMetadata
+  status: EquipmentStatus
+  replaced_by_equipment_id: string | null
+  replaced_at: string | null
+  notes: string | null
+  created_by: string
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+}
+
+export interface EquipmentQrBatch {
+  id: string
+  organization_id: string
+  batch_number: number
+  prefix: string
+  total_codes: number
+  printed_pdf_url: string | null
+  notes: string | null
+  created_by: string
+  created_at: string
+}
+
+export interface EquipmentQrCode {
+  id: string
+  code: string
+  organization_id: string
+  batch_id: string
+  claimed_at: string | null
+  equipment_id: string | null
+  created_at: string
+}
+
+export interface EquipmentScan {
+  id: string
+  equipment_id: string | null
+  qr_code: string
+  scanned_by: string | null
+  scanned_at: string
+  action: EquipmentScanAction
+  ip_address: string | null
+  user_agent: string | null
+}
+
+export interface EquipmentJob {
+  equipment_id: string
+  job_id: string
+  added_at: string
+}
+
+export interface EquipmentInspection {
+  id: string
+  job_id: string
+  equipment_id: string
+  checklist_item_code: string
+  checklist_item_label: string
+  result: InspectionResult
+  notes: string | null
+  recorded_by: string
+  recorded_at: string
+}
+
+export interface EquipmentServiceRequest {
+  id: string
+  equipment_id: string
+  requester_name: string
+  requester_email: string | null
+  requester_phone: string | null
+  description: string
+  urgency: ServiceRequestUrgency
+  status: ServiceRequestStatus
+  resulting_job_id: string | null
+  ip_address: string | null
+  user_agent: string | null
+  created_at: string
+  updated_at: string
 }

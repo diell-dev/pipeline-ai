@@ -1,0 +1,18 @@
+-- ============================================================
+-- Pipeline AI — Equipment Cataloging Module (Phase 4)
+-- HVAC-first asset tracking via pre-printed QR codes.
+-- Spec from Bogdan 2026-05-19, refinements approved 2026-05-20.
+-- See migration in Supabase project zabfuqxjjunsppotfrel for full body.
+--
+-- Tables:
+--   equipment_categories — seeded with 15 common US HVAC types
+--   equipment_qr_batches — admin pre-printed sticker batches
+--   equipment_qr_codes — one row per sticker (claimed-on-scan)
+--   equipment — physical units (with parent_equipment_id for systems)
+--   equipment_scans — audit log of every scan
+--   equipment_jobs — many-to-many with jobs
+--   equipment_inspections — checklist results captured during a job
+--   equipment_service_requests — tenant scan → submits
+-- ============================================================
+
+-- (Body applied directly via Supabase MCP; this file is the source-of-truth record.)

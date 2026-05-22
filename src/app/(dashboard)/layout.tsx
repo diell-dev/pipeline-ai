@@ -3,6 +3,7 @@
 import { useAuthStore } from '@/stores/auth-store'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { AppHeader } from '@/components/layout/app-header'
+import { BottomNav } from '@/components/layout/bottom-nav'
 import { BrandProvider } from '@/components/providers/brand-provider'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -28,14 +29,19 @@ export default function DashboardLayout({
   return (
     <BrandProvider>
       <div className="flex h-screen overflow-hidden">
-        <AppSidebar />
+        {/* Sidebar: hidden on mobile (bottom nav replaces it) */}
+        <div className="hidden md:flex md:flex-shrink-0">
+          <AppSidebar />
+        </div>
         <div className="flex flex-1 flex-col overflow-hidden">
           <AppHeader />
-          <main className="flex-1 overflow-y-auto bg-zinc-50">
+          <main className="flex-1 overflow-y-auto bg-zinc-50 pb-20 md:pb-0">
             {children}
           </main>
         </div>
       </div>
+      {/* Mobile bottom nav */}
+      <BottomNav />
     </BrandProvider>
   )
 }

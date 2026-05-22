@@ -190,3 +190,69 @@
     background-color: var(--brand-primary-600);
   }
 }
+/* ────────────────────────────────────────────────────────────────
+ * Design system additions (Phase 2 of design overhaul)
+ *
+ * Typography scale — 8 named sizes mapped to specific uses, instead
+ * of ad-hoc `text-xl font-bold` choices on each page.
+ *
+ * Spacing rhythm (use Tailwind values directly):
+ *   gap-2 (8px)  → in-card tight (chip rows, icon+label)
+ *   gap-3 (12px) → in-card normal (info pairs)
+ *   gap-4 (16px) → section internal (label + control)
+ *   space-y-4    → siblings inside a card
+ *   space-y-6    → cards in a column
+ *   gap-6 / gap-8 → top-level page sections
+ *
+ * Status colors — 5 semantic roles instead of 11 random hues, so the
+ * UI doesn't look like a rainbow dashboard.
+ * ──────────────────────────────────────────────────────────────── */
+@layer components {
+  /* Typography tokens */
+  .text-eyebrow {
+    @apply text-xs font-medium uppercase tracking-wider text-zinc-500;
+  }
+  .text-body {
+    @apply text-sm leading-relaxed text-zinc-700;
+  }
+  .text-card-title {
+    @apply text-sm font-semibold text-zinc-900;
+  }
+  .text-section-header {
+    @apply text-base font-semibold text-zinc-900;
+  }
+  .text-page-title {
+    @apply text-xl sm:text-2xl font-bold tracking-tight text-zinc-900;
+  }
+  .text-hero {
+    @apply text-3xl sm:text-4xl font-bold tracking-tight text-zinc-900;
+  }
+  .text-kpi-value {
+    @apply text-2xl sm:text-3xl font-bold tabular-nums tracking-tight;
+  }
+  .text-meta {
+    @apply text-xs text-zinc-500;
+  }
+  .nums {
+    @apply tabular-nums;
+  }
+
+  /* Status palettes — keep these 5 semantic roles and map every domain
+   * status to the right role. Stops the app from looking like a Skittles
+   * bag and makes the meaning obvious at a glance. */
+  .status-neutral {
+    @apply bg-zinc-100 text-zinc-700 border border-zinc-200;
+  }
+  .status-info {
+    @apply bg-blue-50 text-blue-700 border border-blue-200;
+  }
+  .status-success {
+    @apply bg-emerald-50 text-emerald-700 border border-emerald-200;
+  }
+  .status-warning {
+    @apply bg-amber-50 text-amber-800 border border-amber-200;
+  }
+  .status-danger {
+    @apply bg-red-50 text-red-700 border border-red-200;
+  }
+}

@@ -67,6 +67,7 @@ export default function InvoicesPage() {
   const searchParams = useSearchParams()
   const canDeleteInvoice = user?.role ? hasPermission(user.role, 'invoices:delete') : false
   const canMarkPaid = user?.role ? hasPermission(user.role, 'invoices:mark_paid') : false
+  const isSuperAdmin = user?.role === 'super_admin'
 
   const [invoices, setInvoices] = useState<InvoiceRow[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -91,12 +92,13 @@ export default function InvoicesPage() {
 
     async function loadClients() {
       const supabase = createClient()
-      const { data } = await supabase
+      let q = supabase
         .from('clients')
         .select('*')
-        .eq('organization_id', organization!.id)
         .is('deleted_at', null)
         .order('company_name')
+      if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
+      const { data } = await q
 
       setClients(data || [])
 
@@ -110,7 +112,7 @@ export default function InvoicesPage() {
     }
 
     loadClients()
-  }, [organization, clientIdFromParam])
+  }, [organization, clientIdFromParam, isSuperAdmin])
 
   // Load invoices
   const loadInvoices = useCallback(async () => {
@@ -121,8 +123,11 @@ export default function InvoicesPage() {
     let query = supabase
       .from('invoices')
       .select('*, clients(company_name)', { count: 'exact' })
-      .eq('organization_id', organization.id)
       .order('created_at', { ascending: false })
+
+    if (!isSuperAdmin) {
+      query = query.eq('organization_id', organization.id)
+    }
 
     if (selectedClientId) {
       query = query.eq('client_id', selectedClientId)
@@ -148,7 +153,7 @@ export default function InvoicesPage() {
       setTotalCount(count || 0)
     }
     setLoading(false)
-  }, [organization, page, selectedClientId, statusFilter])
+  }, [organization, page, selectedClientId, statusFilter, isSuperAdmin])
 
   useEffect(() => {
     loadInvoices()

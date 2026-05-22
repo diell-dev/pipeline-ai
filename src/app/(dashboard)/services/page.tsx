@@ -47,6 +47,7 @@ const UNIT_LABELS: Record<ServiceUnit, string> = {
 export default function ServicesPage() {
   const { user, organization } = useAuthStore()
   const canManage = user?.role ? hasPermission(user.role, 'services:manage') : false
+  const isSuperAdmin = user?.role === 'super_admin'
 
   const [services, setServices] = useState<ServiceCatalogItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -70,11 +71,12 @@ export default function ServicesPage() {
       setLoading(true)
       const supabase = createClient()
 
-      const { data, error } = await supabase
+      let q = supabase
         .from('service_catalog')
         .select('*')
-        .eq('organization_id', organization!.id)
         .order('name')
+      if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
+      const { data, error } = await q
 
       if (error) {
         console.error('Failed to load services:', error.message)
@@ -86,7 +88,7 @@ export default function ServicesPage() {
     }
 
     loadServices()
-  }, [organization])
+  }, [organization, isSuperAdmin])
 
   // Filter by search
   const filtered = services.filter(
@@ -119,11 +121,12 @@ export default function ServicesPage() {
       setShowAddDialog(false)
       setFormData({ code: '', name: '', description: '', default_price: '', unit: 'flat_rate' })
       // Reload services
-      const { data } = await supabase
+      let q = supabase
         .from('service_catalog')
         .select('*')
-        .eq('organization_id', organization.id)
         .order('name')
+      if (!isSuperAdmin) q = q.eq('organization_id', organization.id)
+      const { data } = await q
       setServices(data || [])
     }
     setSaving(false)

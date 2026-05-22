@@ -65,6 +65,7 @@ export default function JobsPage() {
   const { user, organization } = useAuthStore()
   const canCreate = user?.role ? hasPermission(user.role, 'jobs:create') : false
   const canViewAll = user?.role ? hasPermission(user.role, 'jobs:view_all') : false
+  const isSuperAdmin = user?.role === 'super_admin'
 
   const [jobs, setJobs] = useState<JobWithRelations[]>([])
   const [loading, setLoading] = useState(true)
@@ -96,16 +97,17 @@ export default function JobsPage() {
     if (!organization) return
     async function loadClients() {
       const supabase = createClient()
-      const { data } = await supabase
+      let q = supabase
         .from('clients')
         .select('id, company_name')
-        .eq('organization_id', organization!.id)
         .is('deleted_at', null)
         .order('company_name')
+      if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
+      const { data } = await q
       setClients(data || [])
     }
     loadClients()
-  }, [organization])
+  }, [organization, isSuperAdmin])
 
   useEffect(() => {
     if (!organization || !user) return
@@ -122,10 +124,12 @@ export default function JobsPage() {
           sites:site_id ( name, address ),
           submitter:submitted_by ( full_name )
         `)
-        .eq('organization_id', organization!.id)
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
 
+      if (!isSuperAdmin) {
+        query = query.eq('organization_id', organization!.id)
+      }
       // Field techs only see their own jobs
       if (!canViewAll) {
         query = query.eq('submitted_by', user!.id)
@@ -152,7 +156,7 @@ export default function JobsPage() {
     }
 
     loadJobs()
-  }, [organization, user, canViewAll, filter, clientFilter])
+  }, [organization, user, canViewAll, isSuperAdmin, filter, clientFilter])
 
   // Load per-status counts (separate query, ignores the status filter so all pills get counts)
   useEffect(() => {
@@ -162,8 +166,8 @@ export default function JobsPage() {
       let q = supabase
         .from('jobs')
         .select('status')
-        .eq('organization_id', organization!.id)
         .is('deleted_at', null)
+      if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
       if (!canViewAll) q = q.eq('submitted_by', user!.id)
       if (clientFilter) q = q.eq('client_id', clientFilter)
       const { data } = await q
@@ -182,7 +186,7 @@ export default function JobsPage() {
     // is active and a job's status changes such that it no longer matches the
     // filter, the row drops out of `jobs` — that's still a new reference, so
     // counts re-fetch as expected.
-  }, [organization, user, canViewAll, clientFilter, jobs])
+  }, [organization, user, canViewAll, isSuperAdmin, clientFilter, jobs])
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">

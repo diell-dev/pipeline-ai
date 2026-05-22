@@ -54,6 +54,7 @@ export default function NewJobPage() {
   // Permission check
   const canCreate = user?.role ? hasPermission(user.role, 'jobs:create') : false
   const canSchedule = user?.role ? hasPermission(user.role, 'jobs:schedule') : false
+  const isSuperAdmin = user?.role === 'super_admin'
 
   // Pre-fill from query params (e.g. when coming from the calendar empty-slot click)
   const prefilledDate = searchParams.get('scheduled_date') || ''
@@ -98,39 +99,43 @@ export default function NewJobPage() {
     if (!organization) return
 
     async function loadData() {
-      const { data } = await supabase
+      let q = supabase
         .from('service_catalog')
         .select('*')
-        .eq('organization_id', organization!.id)
         .eq('is_active', true)
         .order('name')
+      if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
+      const { data } = await q
 
       setServices(data || [])
     }
 
     loadData()
-  }, [organization])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [organization, isSuperAdmin])
 
   // Load users + crews if the current user can schedule
   useEffect(() => {
     if (!organization || !canSchedule) return
 
     async function loadSchedulingOptions() {
+      let usersQ = supabase
+        .from('users')
+        .select('*')
+        .eq('is_active', true)
+        .neq('role', 'client')
+        .order('full_name')
+      if (!isSuperAdmin) usersQ = usersQ.eq('organization_id', organization!.id)
       const [usersRes, crewsRes] = await Promise.all([
-        supabase
-          .from('users')
-          .select('*')
-          .eq('organization_id', organization!.id)
-          .eq('is_active', true)
-          .neq('role', 'client')
-          .order('full_name'),
+        usersQ,
         fetch('/api/crews').then((r) => r.json()).catch(() => ({ crews: [] })),
       ])
       setUsers(usersRes.data || [])
       setCrews((crewsRes.crews || []).filter((c: CrewLite) => c.is_active !== false))
     }
     loadSchedulingOptions()
-  }, [organization, canSchedule])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [organization, canSchedule, isSuperAdmin])
 
   // Load sites when client changes
   useEffect(() => {

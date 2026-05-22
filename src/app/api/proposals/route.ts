@@ -220,6 +220,7 @@ export async function GET(request: NextRequest) {
     const toDate = url.searchParams.get('to')
 
     const supabase = await createClient()
+    const isSuperAdmin = auth.role === 'super_admin'
     let query = supabase
       .from('proposals')
       .select(`
@@ -228,10 +229,12 @@ export async function GET(request: NextRequest) {
         sites:site_id ( name, address ),
         creator:created_by ( full_name )
       `)
-      .eq('organization_id', auth.organizationId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
+    if (!isSuperAdmin) {
+      query = query.eq('organization_id', auth.organizationId)
+    }
     // Tech-only sees own
     if (!hasPermission(auth.role, 'proposals:view_all')) {
       query = query.eq('created_by', auth.userId)

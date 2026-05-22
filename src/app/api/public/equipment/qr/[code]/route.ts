@@ -11,6 +11,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ServiceClient = SupabaseClient<any, 'public', any>
@@ -29,6 +30,11 @@ export async function GET(
   const safeCode = (code || '').trim()
   if (!safeCode || safeCode.length > 64) {
     return NextResponse.json({ error: 'Invalid code' }, { status: 400 })
+  }
+
+  const ip = getClientIp(request)
+  if (!checkRateLimit(`pub-qr-get:${ip}`, { limit: 60, windowMs: 60_000 })) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
 
   const supabase = getServiceClient()
@@ -74,7 +80,7 @@ export async function GET(
   }
 
   // Audit the public scan (best-effort)
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null
+  const auditIp = ip === 'unknown' ? null : ip
   const ua = request.headers.get('user-agent')?.slice(0, 500) || null
   void supabase
     .from('equipment_scans')
@@ -83,7 +89,7 @@ export async function GET(
       qr_code: safeCode,
       scanned_by: null, // tenant scan
       action: 'view',
-      ip_address: ip,
+      ip_address: auditIp,
       user_agent: ua,
     })
     .then(({ error }) => {

@@ -52,7 +52,7 @@ const navItems: NavItem[] = [
   { label: 'Finances', href: '/finances', icon: DollarSign, anyPermission: ['financials:view', 'financials:view_limited'] },
   { label: 'Team', href: '/team', icon: Users, permission: 'users:view' },
   { label: 'Settings', href: '/settings', icon: Settings, permission: 'settings:view' },
-  { label: 'AI Sandbox', href: '/test-ai', icon: FlaskConical, permission: 'settings:view' },
+  { label: 'AI Sandbox', href: '/test-ai', icon: FlaskConical, permission: 'settings:system' },
 ]
 
 export function AppSidebar() {

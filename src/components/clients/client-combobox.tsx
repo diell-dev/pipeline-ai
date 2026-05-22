@@ -62,7 +62,8 @@ export function ClientCombobox({
   required,
   className,
 }: ClientComboboxProps) {
-  const { organization } = useAuthStore()
+  const { user, organization } = useAuthStore()
+  const isSuperAdmin = user?.role === 'super_admin'
   const generatedId = useId()
   const inputId = id ?? `client-combobox-${generatedId}`
   const listboxId = `${inputId}-listbox`
@@ -91,12 +92,13 @@ export function ClientCombobox({
       setLoading(true)
       setError(null)
       const supabase = createSupabaseClient()
-      const { data, error: err } = await supabase
+      let q = supabase
         .from('clients')
         .select('*')
-        .eq('organization_id', organization!.id)
         .is('deleted_at', null)
         .order('company_name')
+      if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
+      const { data, error: err } = await q
 
       if (cancelled) return
       if (err) {
@@ -113,7 +115,7 @@ export function ClientCombobox({
     return () => {
       cancelled = true
     }
-  }, [organization])
+  }, [organization, isSuperAdmin])
 
   const selected = useMemo(
     () => clients.find((c) => c.id === value) ?? null,

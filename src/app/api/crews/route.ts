@@ -19,7 +19,8 @@ export async function GET() {
 
     const supabase = await createClient()
 
-    const { data: crews, error: crewsError } = await supabase
+    const isSuperAdmin = auth.role === 'super_admin'
+    let crewsQ = supabase
       .from('crews')
       .select(`
         *,
@@ -31,8 +32,9 @@ export async function GET() {
           users:user_id ( id, full_name, email, avatar_url, role )
         )
       `)
-      .eq('organization_id', auth.organizationId)
       .order('name')
+    if (!isSuperAdmin) crewsQ = crewsQ.eq('organization_id', auth.organizationId)
+    const { data: crews, error: crewsError } = await crewsQ
 
     if (crewsError) {
       return NextResponse.json({ error: crewsError.message }, { status: 500 })

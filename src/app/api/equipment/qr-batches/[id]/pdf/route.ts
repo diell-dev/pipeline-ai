@@ -97,7 +97,7 @@ export async function GET(
     const qrX = x + (LABEL_WIDTH_IN - qrSizeIn) / 2
     const qrY = y + 0.05
 
-    const scanUrl = appUrl ? `${appUrl}/equipment/scan/${code}` : code
+    const scanUrl = appUrl ? `${appUrl}/equipment/qr/${code}` : code
     // eslint-disable-next-line no-await-in-loop
     const dataUrl = await qrToDataUrl(scanUrl, qrPx)
     doc.addImage(dataUrl, 'PNG', qrX, qrY, qrSizeIn, qrSizeIn)

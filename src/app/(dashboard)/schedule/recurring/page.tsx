@@ -70,6 +70,7 @@ const DAY_NAMES_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 export default function RecurringPage() {
   const { user, organization } = useAuthStore()
   const canManage = user?.role ? hasPermission(user.role, 'recurring:manage') : false
+  const isSuperAdmin = user?.role === 'super_admin'
 
   const [schedules, setSchedules] = useState<RecurringWithRelations[]>([])
   const [sites, setSites] = useState<Site[]>([])
@@ -119,20 +120,24 @@ export default function RecurringPage() {
 
     async function loadStaticData() {
       const supabase = createClient()
+      let servicesQ = supabase
+        .from('service_catalog')
+        .select('*')
+        .eq('is_active', true)
+        .order('name')
+      let usersQ = supabase
+        .from('users')
+        .select('*')
+        .eq('is_active', true)
+        .neq('role', 'client')
+        .order('full_name')
+      if (!isSuperAdmin) {
+        servicesQ = servicesQ.eq('organization_id', organization!.id)
+        usersQ = usersQ.eq('organization_id', organization!.id)
+      }
       const [servicesRes, usersRes, crewsRes] = await Promise.all([
-        supabase
-          .from('service_catalog')
-          .select('*')
-          .eq('organization_id', organization!.id)
-          .eq('is_active', true)
-          .order('name'),
-        supabase
-          .from('users')
-          .select('*')
-          .eq('organization_id', organization!.id)
-          .eq('is_active', true)
-          .neq('role', 'client')
-          .order('full_name'),
+        servicesQ,
+        usersQ,
         fetch('/api/crews').then((r) => r.json()),
       ])
       setServices(servicesRes.data || [])
@@ -140,7 +145,7 @@ export default function RecurringPage() {
       setCrews((crewsRes.crews || []).filter((c: CrewLite & { is_active?: boolean }) => c.is_active !== false))
     }
     loadStaticData()
-  }, [organization, loadSchedules])
+  }, [organization, isSuperAdmin, loadSchedules])
 
   // Load sites when form.client_id changes
   useEffect(() => {

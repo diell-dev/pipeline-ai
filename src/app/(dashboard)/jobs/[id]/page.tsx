@@ -543,6 +543,7 @@ export default function JobDetailPage() {
   const canReject = user?.role ? hasPermission(user.role, 'jobs:reject') : false
   const canEdit = user?.role ? hasPermission(user.role, 'jobs:edit_all') : false
   const canDelete = user?.role ? hasPermission(user.role, 'jobs:delete') : false
+  const isSuperAdmin = user?.role === 'super_admin'
 
   const [job, setJob] = useState<JobDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -607,12 +608,13 @@ export default function JobDetailPage() {
 
         // Load service catalog if we have org
         if (organization?.id) {
-          const { data: servicesData } = await supabase
+          let servicesQ = supabase
             .from('service_catalog')
             .select('id, name, code, default_price')
-            .eq('organization_id', organization.id)
             .eq('is_active', true)
             .order('name')
+          if (!isSuperAdmin) servicesQ = servicesQ.eq('organization_id', organization.id)
+          const { data: servicesData } = await servicesQ
 
           setServices((servicesData || []) as ServiceCatalogItem[])
         }
@@ -621,7 +623,7 @@ export default function JobDetailPage() {
     }
 
     if (jobId) loadJob()
-  }, [jobId, organization])
+  }, [jobId, organization, isSuperAdmin])
 
   // Load equipment linked to this job + any inspections already recorded.
   // The equipment list comes from the equipment table via a job_equipment join;

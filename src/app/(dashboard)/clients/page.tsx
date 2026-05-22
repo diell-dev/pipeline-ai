@@ -42,6 +42,7 @@ export default function ClientsPage() {
   const router = useRouter()
   const { user, organization } = useAuthStore()
   const canCreate = user?.role ? hasPermission(user.role, 'clients:create') : false
+  const isSuperAdmin = user?.role === 'super_admin'
 
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -69,12 +70,13 @@ export default function ClientsPage() {
       setLoading(true)
       const supabase = createClient()
 
-      const { data, error } = await supabase
+      let q = supabase
         .from('clients')
         .select('*')
-        .eq('organization_id', organization!.id)
         .is('deleted_at', null)
         .order('company_name')
+      if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
+      const { data, error } = await q
 
       if (error) {
         console.error('Failed to load clients:', error.message)
@@ -86,7 +88,7 @@ export default function ClientsPage() {
     }
 
     loadClients()
-  }, [organization])
+  }, [organization, isSuperAdmin])
 
   // Filter by search
   const filtered = clients.filter(

@@ -57,6 +57,7 @@ const COLOR_PALETTE = [
 export default function CrewsPage() {
   const { user, organization } = useAuthStore()
   const canManage = user?.role ? hasPermission(user.role, 'crews:manage') : false
+  const isSuperAdmin = user?.role === 'super_admin'
 
   const [crews, setCrews] = useState<CrewWithMembers[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -94,17 +95,18 @@ export default function CrewsPage() {
 
     async function loadUsers() {
       const supabase = createClient()
-      const { data } = await supabase
+      let q = supabase
         .from('users')
         .select('*')
-        .eq('organization_id', organization!.id)
         .eq('is_active', true)
         .neq('role', 'client')
         .order('full_name')
+      if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
+      const { data } = await q
       setUsers(data || [])
     }
     loadUsers()
-  }, [organization, loadCrews])
+  }, [organization, isSuperAdmin, loadCrews])
 
   function openCreate() {
     setEditing(null)

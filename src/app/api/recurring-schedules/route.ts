@@ -17,7 +17,8 @@ export async function GET() {
     }
 
     const supabase = await createClient()
-    const { data: schedules, error } = await supabase
+    const isSuperAdmin = auth.role === 'super_admin'
+    let schedulesQ = supabase
       .from('recurring_job_schedules')
       .select(`
         *,
@@ -26,8 +27,9 @@ export async function GET() {
         assigned_user:assigned_to ( id, full_name ),
         crew:crew_id ( id, name, color )
       `)
-      .eq('organization_id', auth.organizationId)
       .order('next_occurrence_date', { ascending: true })
+    if (!isSuperAdmin) schedulesQ = schedulesQ.eq('organization_id', auth.organizationId)
+    const { data: schedules, error } = await schedulesQ
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })

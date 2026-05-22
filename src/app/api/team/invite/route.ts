@@ -142,9 +142,16 @@ export async function POST(req: NextRequest) {
         // Don't fail the invite if email sending fails — log it
         console.error('Invite email failed to send:', emailErr)
       }
-    } else {
-      // Dev fallback — log to console only
+    } else if (process.env.NODE_ENV !== 'production') {
+      // Dev fallback — log to console only (NEVER in production)
       console.log('[DEV] Temp password for', email, ':', tempPassword)
+    } else {
+      // Production with no email provider configured — refuse to silently
+      // create users whose passwords we can't deliver.
+      return NextResponse.json(
+        { error: 'Email provider not configured — cannot invite users' },
+        { status: 500 }
+      )
     }
 
     // Never return the temp password in the API response

@@ -104,7 +104,8 @@ export function ProposalForm({
   onSubmit,
   lockLocation,
 }: Props) {
-  const { organization } = useAuthStore()
+  const { user, organization } = useAuthStore()
+  const isSuperAdmin = user?.role === 'super_admin'
   const supabase = useMemo(() => createClient(), [])
 
   const [values, setValues] = useState<ProposalFormValues>(initial || emptyProposalForm)
@@ -120,16 +121,16 @@ export function ProposalForm({
   // Load services (clients are loaded inside ClientCombobox)
   useEffect(() => {
     if (!organization) return
-    supabase
+    let q = supabase
       .from('service_catalog')
       .select('*')
-      .eq('organization_id', organization.id)
       .eq('is_active', true)
       .order('name')
-      .then(({ data }) => {
-        setServices(data || [])
-      })
-  }, [organization, supabase])
+    if (!isSuperAdmin) q = q.eq('organization_id', organization.id)
+    q.then(({ data }) => {
+      setServices(data || [])
+    })
+  }, [organization, supabase, isSuperAdmin])
 
   // Load sites when client changes
   useEffect(() => {

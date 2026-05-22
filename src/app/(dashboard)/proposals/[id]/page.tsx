@@ -132,7 +132,7 @@ export default function ProposalDetailPage() {
   }
   async function handleSendToClient() {
     const data = await callAction(`/api/proposals/${id}/send-to-client`, 'send', 'Sent to client')
-    if (data?.signUrl) {
+    if (data?.signUrl && process.env.NODE_ENV !== 'production') {
       // helpful in dev
       console.log('Sign URL:', data.signUrl)
     }

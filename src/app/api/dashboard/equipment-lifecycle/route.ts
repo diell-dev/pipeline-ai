@@ -3,10 +3,10 @@
  *
  * Returns equipment-lifecycle metrics for the owner dashboard.
  *
- *   dueSoon         = next_service_due_date within next 90 days
- *   overdue         = next_service_due_date < today
- *   beyondLifespan  = manufacture_date + category.typical_lifespan_years < today
- *   byCategory[]    = per-category count and estimated replacement cost
+ *   dueSoon          = next_service_due_date within next 90 days
+ *   overdue          = next_service_due_date < today
+ *   pastLifespan     = manufacture_date + category.typical_lifespan_years < today
+ *   byCategory[]     = per-category count and estimated replacement cost (`cost`)
  *
  * Costs are derived from category.estimated_replacement_cost — a rough
  * planning figure, not a quote.
@@ -26,16 +26,18 @@ export async function GET() {
 
   const supabase = await createClient()
 
-  const { data: equipment, error } = await supabase
+  const isSuperAdmin = auth.role === 'super_admin'
+  let eqQ = supabase
     .from('equipment')
     .select(`
       id, manufacture_date, next_service_due_date,
       category:category_id ( id, name, typical_lifespan_years, estimated_replacement_cost )
     `)
-    .eq('organization_id', auth.organizationId)
     .is('deleted_at', null)
     .neq('status', 'removed')
     .limit(QUERY_LIMIT)
+  if (!isSuperAdmin) eqQ = eqQ.eq('organization_id', auth.organizationId)
+  const { data: equipment, error } = await eqQ
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -47,13 +49,13 @@ export async function GET() {
   let dueSoonCost = 0
   let overdue = 0
   let overdueCost = 0
-  let beyondLifespan = 0
-  let beyondLifespanCost = 0
+  let pastLifespan = 0
+  let pastLifespanCost = 0
 
   // Per-category accumulator
   const byCategoryMap = new Map<
     string,
-    { category_name: string; count: number; est_replacement_cost: number }
+    { category_name: string; count: number; cost: number }
   >()
 
   for (const row of equipment || []) {
@@ -75,10 +77,10 @@ export async function GET() {
       const bucket = byCategoryMap.get(cat.id) || {
         category_name: cat.name,
         count: 0,
-        est_replacement_cost: 0,
+        cost: 0,
       }
       bucket.count += 1
-      bucket.est_replacement_cost += cost
+      bucket.cost += cost
       byCategoryMap.set(cat.id, bucket)
     }
 
@@ -102,8 +104,8 @@ export async function GET() {
       if (Number.isFinite(mfgMs)) {
         const endMs = mfgMs + cat.typical_lifespan_years * 365.25 * 24 * 60 * 60 * 1000
         if (endMs < todayMs) {
-          beyondLifespan += 1
-          beyondLifespanCost += cost
+          pastLifespan += 1
+          pastLifespanCost += cost
         }
       }
     }
@@ -116,8 +118,8 @@ export async function GET() {
     dueSoonCost: Math.round(dueSoonCost * 100) / 100,
     overdue,
     overdueCost: Math.round(overdueCost * 100) / 100,
-    beyondLifespan,
-    beyondLifespanCost: Math.round(beyondLifespanCost * 100) / 100,
+    pastLifespan,
+    pastLifespanCost: Math.round(pastLifespanCost * 100) / 100,
     byCategory,
   })
 }

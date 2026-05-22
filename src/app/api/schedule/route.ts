@@ -58,7 +58,8 @@ export async function GET(request: NextRequest) {
     // but on Monday in calendar views derived from scheduled_time. Real fix:
     // add a service_date_local column derived from org timezone, or always derive
     // service_date from scheduled_time using the org's stored TZ.
-    const { data: jobs, error } = await supabase
+    const isSuperAdmin = auth.role === 'super_admin'
+    let jobsQ = supabase
       .from('jobs')
       .select(`
         id, organization_id, client_id, site_id, status, priority,
@@ -69,13 +70,14 @@ export async function GET(request: NextRequest) {
         assigned_user:assigned_to ( id, full_name, avatar_url ),
         crew:crew_id ( id, name, color )
       `)
-      .eq('organization_id', auth.organizationId)
       .is('deleted_at', null)
       .neq('status', 'cancelled')
       .gte('service_date', from)
       .lte('service_date', to)
       .order('scheduled_time', { ascending: true, nullsFirst: false })
       .limit(2000)
+    if (!isSuperAdmin) jobsQ = jobsQ.eq('organization_id', auth.organizationId)
+    const { data: jobs, error } = await jobsQ
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })

@@ -21,7 +21,14 @@ function getSupabaseConfig() {
 }
 
 /** Pages (NOT api routes) that don't require authentication */
-const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password', '/proposals/sign'] as const
+const PUBLIC_ROUTES = [
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/proposals/sign',
+  '/equipment/qr',
+] as const
 
 /**
  * API path prefixes that are public by design — they authenticate themselves
@@ -82,11 +89,14 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Redirect authenticated users away from auth pages (login/register etc.)
-  // but NOT away from the public /proposals/sign/* or public APIs.
+  // but NOT away from the public /proposals/sign/*, /equipment/qr/*,
+  // /reset-password, or public APIs.
   if (
     user &&
     isPublicRoute &&
     !pathname.startsWith('/proposals/sign') &&
+    !pathname.startsWith('/equipment/qr') &&
+    !pathname.startsWith('/reset-password') &&
     !isPublicApi
   ) {
     const url = request.nextUrl.clone()

@@ -54,6 +54,7 @@ export default function ProposalsPage() {
   const { user, organization } = useAuthStore()
   const canCreate = user?.role ? hasPermission(user.role, 'proposals:create') : false
   const canViewAll = user?.role ? hasPermission(user.role, 'proposals:view_all') : false
+  const isSuperAdmin = user?.role === 'super_admin'
 
   const [proposals, setProposals] = useState<ProposalWithRelations[]>([])
   const [loading, setLoading] = useState(true)
@@ -68,14 +69,14 @@ export default function ProposalsPage() {
   useEffect(() => {
     if (!organization) return
     const supabase = createClient()
-    supabase
+    let q = supabase
       .from('clients')
       .select('id, company_name')
-      .eq('organization_id', organization.id)
       .is('deleted_at', null)
       .order('company_name')
-      .then(({ data }) => setClients(data || []))
-  }, [organization])
+    if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
+    q.then(({ data }) => setClients(data || []))
+  }, [organization, isSuperAdmin])
 
   // Load proposals
   useEffect(() => {
@@ -91,10 +92,12 @@ export default function ProposalsPage() {
           sites:site_id ( name, address ),
           creator:created_by ( full_name )
         `)
-        .eq('organization_id', organization!.id)
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
 
+      if (!isSuperAdmin) {
+        query = query.eq('organization_id', organization!.id)
+      }
       if (!canViewAll) {
         query = query.eq('created_by', user!.id)
       }
@@ -116,7 +119,7 @@ export default function ProposalsPage() {
       setLoading(false)
     }
     loadProposals()
-  }, [organization, user, canViewAll, statusFilter, clientFilter, fromDate, toDate])
+  }, [organization, user, canViewAll, isSuperAdmin, statusFilter, clientFilter, fromDate, toDate])
 
   const selectedClientName = useMemo(
     () => clients.find((c) => c.id === clientFilter)?.company_name,

@@ -139,6 +139,7 @@ export default function EquipmentListPage() {
   const canManageBatches = user?.role
     ? hasPermission(user.role, 'equipment:manage_qr_batches' as Permission)
     : false
+  const isSuperAdmin = user?.role === 'super_admin'
 
   // ---- Filters ----
   const [siteFilter, setSiteFilter] = useState<string>('')
@@ -177,12 +178,13 @@ export default function EquipmentListPage() {
     if (!organization) return
 
     async function loadSites() {
-      const { data } = await supabase
+      let q = supabase
         .from('sites')
         .select('id, name')
-        .eq('organization_id', organization!.id)
         .is('deleted_at', null)
         .order('name')
+      if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
+      const { data } = await q
       setSites((data || []) as SiteOption[])
     }
 
@@ -200,7 +202,7 @@ export default function EquipmentListPage() {
 
     loadSites()
     loadCategories()
-  }, [organization, supabase])
+  }, [organization, supabase, isSuperAdmin])
 
   // ---- Load equipment when filters change ----
   useEffect(() => {

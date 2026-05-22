@@ -56,7 +56,7 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
 interface InvoiceRow {
   id: string
   invoice_number: string
-  job_id: string
+  job_id: string | null
   client_id: string
   status: string
   amount: number
@@ -92,6 +92,7 @@ export default function FinancesPage() {
   const router = useRouter()
   const { organization, user } = useAuthStore()
   const canMarkPaid = user?.role ? hasPermission(user.role, 'invoices:mark_paid') : false
+  const isSuperAdmin = user?.role === 'super_admin'
 
   // Data
   const [invoices, setInvoices] = useState<InvoiceRow[]>([])
@@ -135,27 +136,29 @@ export default function FinancesPage() {
     if (!organization) return
     async function loadClients() {
       const supabase = createClient()
-      const { data } = await supabase
+      let q = supabase
         .from('clients')
         .select('id, company_name')
-        .eq('organization_id', organization!.id)
         .is('deleted_at', null)
         .order('company_name')
+      if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
+      const { data } = await q
       setClients(data || [])
     }
     loadClients()
-  }, [organization])
+  }, [organization, isSuperAdmin])
 
   // Load stats (all active invoices — exclude void and cancelled)
   useEffect(() => {
     if (!organization) return
     async function loadStats() {
       const supabase = createClient()
-      const { data: allInvoices } = await supabase
+      let statsQ = supabase
         .from('invoices')
         .select('status, total_amount, paid_amount, due_date, created_at')
-        .eq('organization_id', organization!.id)
         .not('status', 'eq', 'void')
+      if (!isSuperAdmin) statsQ = statsQ.eq('organization_id', organization!.id)
+      const { data: allInvoices } = await statsQ
 
       if (!allInvoices) return
 
@@ -213,7 +216,7 @@ export default function FinancesPage() {
       })
     }
     loadStats()
-  }, [organization])
+  }, [organization, isSuperAdmin])
 
   // Load filtered invoices
   const loadInvoices = useCallback(async () => {
@@ -224,7 +227,9 @@ export default function FinancesPage() {
     let query = supabase
       .from('invoices')
       .select('*, clients(company_name)', { count: 'exact' })
-      .eq('organization_id', organization.id)
+    if (!isSuperAdmin) {
+      query = query.eq('organization_id', organization.id)
+    }
 
     // Status filter
     if (statusFilter === 'unpaid') {
@@ -269,7 +274,7 @@ export default function FinancesPage() {
       setTotalCount(count || 0)
     }
     setLoading(false)
-  }, [organization, statusFilter, clientFilter, dateFrom, dateTo, searchQuery, sortField, sortDir, page])
+  }, [organization, isSuperAdmin, statusFilter, clientFilter, dateFrom, dateTo, searchQuery, sortField, sortDir, page])
 
   useEffect(() => {
     loadInvoices()
@@ -608,7 +613,11 @@ export default function FinancesPage() {
                           size="sm"
                           variant="outline"
                           className="flex-1 h-10"
-                          onClick={() => router.push(`/jobs/${inv.job_id}`)}
+                          disabled={!inv.job_id}
+                          onClick={() => {
+                            if (!inv.job_id) return
+                            router.push(`/jobs/${inv.job_id}`)
+                          }}
                         >
                           <Eye className="h-3.5 w-3.5 mr-1" />
                           View
@@ -724,7 +733,11 @@ export default function FinancesPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-7 px-2"
-                                onClick={() => router.push(`/jobs/${inv.job_id}`)}
+                                disabled={!inv.job_id}
+                                onClick={() => {
+                                  if (!inv.job_id) return
+                                  router.push(`/jobs/${inv.job_id}`)
+                                }}
                               >
                                 <Eye className="h-3.5 w-3.5" />
                               </Button>

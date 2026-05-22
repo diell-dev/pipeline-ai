@@ -175,12 +175,14 @@ export async function GET() {
   }
 
   const supabase = await createClient()
-  const { data: batches, error } = await supabase
+  const isSuperAdmin = auth.role === 'super_admin'
+  let batchesQ = supabase
     .from('equipment_qr_batches')
     .select('*')
-    .eq('organization_id', auth.organizationId)
     .order('created_at', { ascending: false })
     .limit(200)
+  if (!isSuperAdmin) batchesQ = batchesQ.eq('organization_id', auth.organizationId)
+  const { data: batches, error } = await batchesQ
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })

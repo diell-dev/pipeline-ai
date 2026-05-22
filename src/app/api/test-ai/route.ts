@@ -6,7 +6,8 @@
  * For testing/debugging the AI pipeline only.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { getApiUser } from '@/lib/api-auth'
+import { getApiUser, hasPermission } from '@/lib/api-auth'
+import { checkRateLimit } from '@/lib/rate-limit'
 import Anthropic from '@anthropic-ai/sdk'
 
 export async function POST(request: NextRequest) {
@@ -15,6 +16,16 @@ export async function POST(request: NextRequest) {
     const auth = await getApiUser()
     if (!auth.authenticated) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
+    }
+
+    // Sandbox is super_admin only — non-admins should never hit the AI.
+    if (!hasPermission(auth.role, 'settings:system')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    // Cheap throttle per user to keep the AI bill under control.
+    if (!checkRateLimit(`test-ai:${auth.userId}`, { limit: 10, windowMs: 60_000 })) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 
     const body = await request.json()

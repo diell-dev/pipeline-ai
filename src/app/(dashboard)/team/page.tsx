@@ -50,6 +50,7 @@ export default function TeamPage() {
   const { user, organization } = useAuthStore()
   const canInvite = user?.role ? hasPermission(user.role, 'users:invite') : false
   const canManage = user?.role ? hasPermission(user.role, 'users:manage') : false
+  const isSuperAdmin = user?.role === 'super_admin'
 
   const [members, setMembers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -73,13 +74,14 @@ export default function TeamPage() {
       setLoading(true)
       const supabase = createClient()
 
-      const { data, error } = await supabase
+      let q = supabase
         .from('users')
         .select('*')
-        .eq('organization_id', organization!.id)
         .eq('is_active', true)
         .order('role')
         .order('full_name')
+      if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
+      const { data, error } = await q
 
       if (error) {
         console.error('Failed to load team:', error.message)
@@ -91,7 +93,7 @@ export default function TeamPage() {
     }
 
     loadMembers()
-  }, [organization])
+  }, [organization, isSuperAdmin])
 
   // Invite member via API
   async function handleInvite(e: React.FormEvent) {

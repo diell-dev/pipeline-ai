@@ -68,6 +68,7 @@ function formatDateHeading(dateStr: string): string {
 export default function MyScheduleePage() {
   const router = useRouter()
   const { user, organization } = useAuthStore()
+  const isSuperAdmin = user?.role === 'super_admin'
 
   const [jobs, setJobs] = useState<MyJob[]>([])
   const [loading, setLoading] = useState(true)
@@ -97,12 +98,12 @@ export default function MyScheduleePage() {
             clients:client_id ( company_name ),
             sites:site_id ( name, address )
           `)
-          .eq('organization_id', organization!.id)
           .is('deleted_at', null)
           .in('status', ['scheduled', 'submitted'])
           .gte('service_date', todayStr)
           .order('service_date', { ascending: true })
           .order('scheduled_time', { ascending: true })
+        if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
 
         // Either assigned_to me OR crew_id IN myCrewIds
         if (crewIds.length > 0) {
@@ -124,7 +125,7 @@ export default function MyScheduleePage() {
     }
 
     loadJobs()
-  }, [user, organization])
+  }, [user, organization, isSuperAdmin])
 
   // Group by date
   const grouped: { date: string; jobs: MyJob[] }[] = []

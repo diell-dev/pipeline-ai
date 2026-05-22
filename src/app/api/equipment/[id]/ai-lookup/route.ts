@@ -88,7 +88,7 @@ export async function POST(
         recall_notice: info.recall_notice,
         useful_life_years_estimate: info.useful_life_years_estimate,
         generated_at: new Date().toISOString(),
-        model_version: 'claude-sonnet-4-20250514',
+        model_version: 'claude-sonnet-4-6',
       },
     })
     .eq('id', equipmentId)

@@ -11,8 +11,8 @@
  */
 import Anthropic from '@anthropic-ai/sdk'
 
-const MODEL_VISION = 'claude-sonnet-4-20250514'
-const MODEL_TEXT = 'claude-sonnet-4-20250514'
+const MODEL_VISION = 'claude-sonnet-4-6'
+const MODEL_TEXT = 'claude-sonnet-4-6'
 
 const MAX_PHOTO_BYTES = 4 * 1024 * 1024 // 4 MB — cap photo size for OCR
 const MAX_STRING_LENGTH = 200            // cap returned strings to mitigate junk

@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     }).join('\n')
 
     const pricingResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 500,
       messages: [
         {
@@ -144,7 +144,7 @@ If there are NO pricing adjustments mentioned in the notes, return:
     const servicesPerformed = lineItems.map((li: { name: string; quantity: number }) => `- ${li.name} (qty: ${li.quantity})`).join('\n')
 
     const reportResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1500,
       messages: [
         {

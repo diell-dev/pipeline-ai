@@ -394,31 +394,104 @@ export default function EquipmentScanPage() {
   async function runOcr(file: File) {
     setOcrLoading(true)
     try {
+      // Read file as DataURL so we can split out the mime type the API needs.
       const reader = new FileReader()
       const dataUrl = await new Promise<string>((resolve, reject) => {
         reader.onload = () => resolve(reader.result as string)
         reader.onerror = reject
         reader.readAsDataURL(file)
       })
+
+      // Split "data:image/jpeg;base64,XXXX" into the mime type + base64 body.
+      const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl)
+      const mimeType = match?.[1] || file.type || 'image/jpeg'
+      const photoBase64 = match?.[2] || dataUrl.replace(/^data:[^;]+;base64,/, '')
+
+      // iOS Safari often hands back HEIC photos. Anthropic's vision API only
+      // accepts jpeg/png/webp/gif — silently rejecting HEIC was the cause of
+      // 'could not read data plate' for every iPhone scan. Normalise to JPEG
+      // here by drawing to a canvas. JPEG quality 0.85 keeps the file small
+      // while preserving label text.
+      const normalised = await normaliseImageForOcr({ dataUrl, mimeType, photoBase64 })
+
       const res = await fetch('/api/equipment/ocr-data-plate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_base64: dataUrl }),
+        body: JSON.stringify({
+          photo_base64: normalised.photoBase64,
+          mime_type: normalised.mimeType,
+        }),
       })
       if (res.ok) {
         const json = await res.json()
-        if (json.make && !make) setMake(json.make)
-        if (json.model && !model) setModel(json.model)
-        if (json.serial && !serial) setSerial(json.serial)
-        toast.success('Data plate read — review the prefilled fields')
+        const gotSomething = json.make || json.model || json.serial
+        // Always update if we got a value — re-uploading a photo should
+        // replace previous OCR results, even if the field is currently filled.
+        if (json.make) setMake(json.make)
+        if (json.model) setModel(json.model)
+        if (json.serial) setSerial(json.serial)
+        if (gotSomething) {
+          toast.success('Data plate read — review the prefilled fields')
+        } else {
+          toast.info('No text recognised on the plate. Try a closer, sharper photo or fill in the fields manually.')
+        }
       } else {
-        toast.error('Could not read data plate — please fill in fields manually')
+        const errJson = await res.json().catch(() => ({}))
+        const detail = errJson.error || `HTTP ${res.status}`
+        console.error('OCR endpoint returned non-200:', detail)
+        toast.error(
+          'Could not read data plate. Tap the photo to retake it or fill the fields manually.'
+        )
       }
     } catch (err) {
       console.error('OCR failed', err)
       toast.error('Could not read data plate')
     } finally {
       setOcrLoading(false)
+    }
+  }
+
+  /**
+   * Convert any image to JPEG via a canvas. Cheap insurance against iOS HEIC,
+   * stray TIFFs, oversized PNGs, etc. — Anthropic's vision API only accepts
+   * jpeg/png/webp/gif, and HEIC was the silent failure mode before this.
+   */
+  async function normaliseImageForOcr(input: {
+    dataUrl: string
+    mimeType: string
+    photoBase64: string
+  }): Promise<{ photoBase64: string; mimeType: string }> {
+    // If already a supported type AND under 1.5MB, pass through as-is.
+    const isSupported = /^image\/(jpeg|png|webp|gif)$/.test(input.mimeType)
+    const approxBytes = Math.ceil(input.photoBase64.length * 0.75)
+    if (isSupported && approxBytes < 1_500_000) return input
+
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const i = new Image()
+        i.onload = () => resolve(i)
+        i.onerror = reject
+        i.src = input.dataUrl
+      })
+      // Cap longest side at 1600px — plenty for OCR, much smaller upload.
+      const MAX_DIM = 1600
+      const scale = Math.min(1, MAX_DIM / Math.max(img.naturalWidth, img.naturalHeight))
+      const w = Math.round(img.naturalWidth * scale)
+      const h = Math.round(img.naturalHeight * scale)
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return input
+      ctx.drawImage(img, 0, 0, w, h)
+      const jpeg = canvas.toDataURL('image/jpeg', 0.85)
+      return {
+        photoBase64: jpeg.replace(/^data:image\/jpeg;base64,/, ''),
+        mimeType: 'image/jpeg',
+      }
+    } catch {
+      // If canvas conversion fails, fall back to original
+      return input
     }
   }
 
@@ -683,8 +756,25 @@ export default function EquipmentScanPage() {
                 <Label className="text-sm">Photo of unit</Label>
                 <div className="mt-1">
                   {unitPhotoUrl ? (
-                    <div className="relative aspect-square w-32 overflow-hidden rounded-lg border">
-                      <img src={unitPhotoUrl} alt="Unit" className="h-full w-full object-cover" />
+                    <div className="flex items-start gap-3">
+                      <div className="relative aspect-square w-32 overflow-hidden rounded-lg border">
+                        <img src={unitPhotoUrl} alt="Unit" className="h-full w-full object-cover" />
+                      </div>
+                      <label className="flex h-10 cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+                        {uploadingUnit ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <ImagePlus className="h-4 w-4" />
+                        )}
+                        Replace
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={handleUnitPhotoChange}
+                          className="hidden"
+                        />
+                      </label>
                     </div>
                   ) : (
                     <label className="flex items-center justify-center gap-2 h-24 rounded-lg border border-dashed cursor-pointer hover:bg-zinc-50">
@@ -713,8 +803,30 @@ export default function EquipmentScanPage() {
                 <Label className="text-sm">Photo of data plate</Label>
                 <div className="mt-1">
                   {dataPlatePhotoUrl ? (
-                    <div className="relative aspect-square w-32 overflow-hidden rounded-lg border">
-                      <img src={dataPlatePhotoUrl} alt="Data plate" className="h-full w-full object-cover" />
+                    <div className="flex items-start gap-3">
+                      <div className="relative aspect-square w-32 overflow-hidden rounded-lg border">
+                        <img src={dataPlatePhotoUrl} alt="Data plate" className="h-full w-full object-cover" />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="flex h-10 cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+                          {uploadingPlate || ocrLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <ImagePlus className="h-4 w-4" />
+                          )}
+                          Retake
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handleDataPlatePhotoChange}
+                            className="hidden"
+                          />
+                        </label>
+                        <p className="text-[11px] text-muted-foreground max-w-[10rem]">
+                          Get close, fill the frame, avoid glare.
+                        </p>
+                      </div>
                     </div>
                   ) : (
                     <label className="flex items-center justify-center gap-2 h-24 rounded-lg border border-dashed cursor-pointer hover:bg-zinc-50">

@@ -172,6 +172,81 @@ export default function EquipmentScanPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // ===== Attach stream + start jsQR scan loop AFTER the <video> element is mounted =====
+  // We can't do this inside startCamera() because the <video> is conditionally
+  // rendered on `scanning`. setScanning(true) doesn't synchronously mount it.
+  useEffect(() => {
+    if (!scanning) return
+    const stream = streamRef.current
+    const video = videoRef.current
+    if (!stream || !video) return
+
+    let cancelled = false
+
+    async function attach() {
+      if (!video || !stream) return
+      video.srcObject = stream
+      video.setAttribute('playsinline', 'true') // legacy iOS
+      video.setAttribute('webkit-playsinline', 'true') // older iOS
+      video.muted = true
+      try {
+        await video.play()
+      } catch (err) {
+        console.error('video.play() failed', err)
+        setScanError(
+          'Could not start camera preview. Try closing other apps that may be using the camera.'
+        )
+        return
+      }
+
+      if (cancelled) return
+
+      // Lazy-allocate the offscreen canvas used to extract pixel data for jsQR.
+      if (!canvasRef.current) {
+        canvasRef.current = document.createElement('canvas')
+      }
+      const canvas = canvasRef.current
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })
+      if (!ctx) {
+        setScanError('Could not initialise canvas for scanning.')
+        return
+      }
+
+      const tick = () => {
+        if (cancelled || !streamRef.current || !videoRef.current) return
+        const v = videoRef.current
+        if (v.readyState === v.HAVE_ENOUGH_DATA && v.videoWidth > 0) {
+          canvas.width = v.videoWidth
+          canvas.height = v.videoHeight
+          ctx.drawImage(v, 0, 0, canvas.width, canvas.height)
+          try {
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: 'dontInvert',
+            })
+            if (code?.data) {
+              const extracted = extractCodeFromValue(code.data)
+              stopCamera()
+              void handleCodeSubmit(extracted)
+              return
+            }
+          } catch {
+            // ignore per-frame decode errors
+          }
+        }
+        rafRef.current = requestAnimationFrame(tick)
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+
+    void attach()
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanning])
+
   function stopCamera() {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current)
@@ -203,53 +278,11 @@ export default function EquipmentScanPage() {
         audio: false,
       })
       streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        videoRef.current.setAttribute('playsinline', 'true') // critical for iOS
-        videoRef.current.muted = true
-        await videoRef.current.play().catch((err) => {
-          console.error('video.play() failed', err)
-        })
-      }
+      // Flip to scanning mode — the video element will mount in the next render,
+      // and the useEffect below picks up the stream once `videoRef.current` exists.
+      // We must NOT touch videoRef here because conditional rendering means the
+      // element doesn't exist yet at this moment.
       setScanning(true)
-
-      // Lazy-allocate the offscreen canvas used to extract pixel data for jsQR.
-      if (!canvasRef.current) {
-        canvasRef.current = document.createElement('canvas')
-      }
-      const canvas = canvasRef.current
-      const ctx = canvas.getContext('2d', { willReadFrequently: true })
-      if (!ctx) {
-        setScanError('Could not initialise canvas for scanning.')
-        stopCamera()
-        return
-      }
-
-      const tick = () => {
-        if (!streamRef.current || !videoRef.current) return
-        const video = videoRef.current
-        if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
-          canvas.width = video.videoWidth
-          canvas.height = video.videoHeight
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-          try {
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-              inversionAttempts: 'dontInvert',
-            })
-            if (code?.data) {
-              const extracted = extractCodeFromValue(code.data)
-              stopCamera()
-              void handleCodeSubmit(extracted)
-              return
-            }
-          } catch {
-            // ignore per-frame decode errors
-          }
-        }
-        rafRef.current = requestAnimationFrame(tick)
-      }
-      rafRef.current = requestAnimationFrame(tick)
     } catch (err) {
       console.error('Camera start failed', err)
       const msg =

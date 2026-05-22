@@ -79,15 +79,20 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient()
     const QUERY_LIMIT = 10000
+    const isSuperAdmin = auth.role === 'super_admin'
 
     // ── Jobs in the window ──
+    // Note: for non-super_admin we add the org scope below. super_admin sees
+    // all orgs (RLS allows it) so we omit the filter for them, matching the
+    // dashboard page behavior — otherwise super_admin sees "0 of everything"
+    // when their nominal org is empty.
     let jobsQuery = supabase
       .from('jobs')
       .select(
         'id, client_id, proposal_id, service_date, arrival_time, completion_time'
       )
-      .eq('organization_id', auth.organizationId)
       .is('deleted_at', null)
+    if (!isSuperAdmin) jobsQuery = jobsQuery.eq('organization_id', auth.organizationId)
 
     if (from) jobsQuery = jobsQuery.gte('service_date', from)
     if (to) jobsQuery = jobsQuery.lte('service_date', to)
@@ -104,7 +109,7 @@ export async function GET(request: NextRequest) {
     let invoicesQuery = supabase
       .from('invoices')
       .select('id, client_id, total_amount, paid_amount, status, created_at')
-      .eq('organization_id', auth.organizationId)
+    if (!isSuperAdmin) invoicesQuery = invoicesQuery.eq('organization_id', auth.organizationId)
 
     if (from) invoicesQuery = invoicesQuery.gte('created_at', `${from}T00:00:00Z`)
     if (to) invoicesQuery = invoicesQuery.lte('created_at', `${to}T23:59:59Z`)
@@ -134,9 +139,9 @@ export async function GET(request: NextRequest) {
     let proposalsQuery = supabase
       .from('proposals')
       .select('id, client_id, sent_to_client_at, client_approved_at')
-      .eq('organization_id', auth.organizationId)
       .not('sent_to_client_at', 'is', null)
       .not('client_approved_at', 'is', null)
+    if (!isSuperAdmin) proposalsQuery = proposalsQuery.eq('organization_id', auth.organizationId)
 
     if (from) proposalsQuery = proposalsQuery.gte('client_approved_at', `${from}T00:00:00Z`)
     if (to) proposalsQuery = proposalsQuery.lte('client_approved_at', `${to}T23:59:59Z`)
@@ -159,12 +164,13 @@ export async function GET(request: NextRequest) {
 
     let approvedByProposal: Map<string, string> = new Map()
     if (proposalIdsOnJobs.length > 0) {
-      const { data: linkedProposals, error: linkErr } = await supabase
+      let linkedQuery = supabase
         .from('proposals')
         .select('id, client_approved_at')
-        .eq('organization_id', auth.organizationId)
         .in('id', proposalIdsOnJobs)
         .not('client_approved_at', 'is', null)
+      if (!isSuperAdmin) linkedQuery = linkedQuery.eq('organization_id', auth.organizationId)
+      const { data: linkedProposals, error: linkErr } = await linkedQuery
       if (linkErr) throw new Error(`proposals(linked): ${linkErr.message}`)
       approvedByProposal = new Map(
         (linkedProposals || [])

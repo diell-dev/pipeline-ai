@@ -125,9 +125,15 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loadingStats, setLoadingStats] = useState(true)
 
-  // Analytics filters
-  const [timeframe, setTimeframe] = useState<Timeframe>('month')
+  // Analytics filters. Default to 'year' so users see their historical data
+  // immediately instead of an empty "0 this month" dashboard when they have
+  // data from prior months. They can narrow to 'month' or 'week' via the picker.
+  const [timeframe, setTimeframe] = useState<Timeframe>('year')
   const [clientId, setClientId] = useState<string>('all')
+  // Track whether *any* jobs exist (without the timeframe filter) so we can
+  // show a helpful "your data is outside this timeframe" hint when the
+  // current filter returns 0 but the org has jobs.
+  const [lifetimeJobs, setLifetimeJobs] = useState<number | null>(null)
   const [clients, setClients] = useState<ClientOption[]>([])
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null)
   const [loadingAnalytics, setLoadingAnalytics] = useState(true)
@@ -141,8 +147,31 @@ export default function DashboardPage() {
     : false
   // Analytics layer is only useful to people who can see all jobs (owners/managers).
   const showAnalytics = canViewAll
+  // Super_admin can read across all orgs (RLS allows it). The dashboard scopes
+  // queries to the user's own org by default, but for super_admin we drop that
+  // filter so they see platform-wide aggregates — otherwise super_admins land
+  // on a "0 of everything" dashboard when their nominal org has no real data.
+  const isSuperAdmin = user?.role === 'super_admin'
 
   const dateRange = useMemo(() => getDateRange(timeframe), [timeframe])
+
+  // One-time fetch: do we have ANY jobs at all? Used to detect the
+  // "your filter is too narrow" empty state.
+  useEffect(() => {
+    if (!organization || !user) return
+    async function loadLifetime() {
+      const supabase = createClient()
+      let q = supabase
+        .from('jobs')
+        .select('id', { count: 'exact', head: true })
+        .is('deleted_at', null)
+      if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
+      if (!canViewAll) q = q.eq('submitted_by', user!.id)
+      const { count } = await q
+      setLifetimeJobs(count ?? 0)
+    }
+    loadLifetime()
+  }, [organization, user, canViewAll, isSuperAdmin])
 
   // Re-applies stats query whenever the timeframe / client filter changes
   // so the existing "Total Jobs" / "Submitted" / "Pending Review" / "Approved"
@@ -157,8 +186,12 @@ export default function DashboardPage() {
       let query = supabase
         .from('jobs')
         .select('status', { count: 'exact' })
-        .eq('organization_id', organization!.id)
         .is('deleted_at', null)
+
+      // Super_admin sees all orgs; everyone else scoped to their own org
+      if (!isSuperAdmin) {
+        query = query.eq('organization_id', organization!.id)
+      }
 
       // Field techs only see their own
       if (!canViewAll) {
@@ -197,7 +230,7 @@ export default function DashboardPage() {
     }
 
     loadStats()
-  }, [organization, user, canViewAll, dateRange, clientId])
+  }, [organization, user, canViewAll, dateRange, clientId, isSuperAdmin])
 
   // Load client list for the filter dropdown (owner/manager only)
   useEffect(() => {
@@ -205,16 +238,19 @@ export default function DashboardPage() {
 
     async function loadClients() {
       const supabase = createClient()
-      const { data } = await supabase
+      let q = supabase
         .from('clients')
         .select('id, company_name')
-        .eq('organization_id', organization!.id)
         .order('company_name', { ascending: true })
+      if (!isSuperAdmin) {
+        q = q.eq('organization_id', organization!.id)
+      }
+      const { data } = await q
       setClients((data || []) as ClientOption[])
     }
 
     loadClients()
-  }, [organization, showAnalytics])
+  }, [organization, showAnalytics, isSuperAdmin])
 
   // Fetch analytics from the API whenever the filters change
   const loadAnalytics = useCallback(async () => {
@@ -344,6 +380,29 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Hint: filter is too narrow */}
+      {showAnalytics &&
+        !loadingStats &&
+        timeframe !== 'all' &&
+        stats?.totalJobs === 0 &&
+        (lifetimeJobs ?? 0) > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
+            <p className="text-amber-900">
+              <strong>No jobs in this timeframe.</strong> You have{' '}
+              <strong>{lifetimeJobs}</strong> {lifetimeJobs === 1 ? 'job' : 'jobs'} in total.
+              Try widening the timeframe.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 border-amber-300 text-amber-900 hover:bg-amber-100"
+              onClick={() => setTimeframe('all')}
+            >
+              View all time
+            </Button>
+          </div>
+        )}
 
       {/* KPI Cards — Pipeline summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

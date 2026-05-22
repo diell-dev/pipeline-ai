@@ -203,7 +203,7 @@ export default function JobsPage() {
           </p>
         </div>
         {canCreate && (
-          <Button onClick={() => router.push('/jobs/new')} className="w-full sm:w-auto">
+          <Button variant="brand" onClick={() => router.push('/jobs/new')} className="w-full sm:w-auto">
             <Plus className="mr-2 h-4 w-4" />
             New Job
           </Button>

@@ -138,7 +138,7 @@ export default function ProposalsPage() {
           </p>
         </div>
         {canCreate && (
-          <Button onClick={() => router.push('/proposals/new')}>
+          <Button variant="brand" onClick={() => router.push('/proposals/new')}>
             <Plus className="mr-2 h-4 w-4" />
             New Proposal
           </Button>

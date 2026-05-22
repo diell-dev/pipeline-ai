@@ -3,6 +3,7 @@
 import { useAuthStore } from '@/stores/auth-store'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { AppHeader } from '@/components/layout/app-header'
+import { BrandProvider } from '@/components/providers/brand-provider'
 import { Skeleton } from '@/components/ui/skeleton'
 
 export default function DashboardLayout({
@@ -25,14 +26,16 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <AppSidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <AppHeader />
-        <main className="flex-1 overflow-y-auto bg-zinc-50">
-          {children}
-        </main>
+    <BrandProvider>
+      <div className="flex h-screen overflow-hidden">
+        <AppSidebar />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <AppHeader />
+          <main className="flex-1 overflow-y-auto bg-zinc-50">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </BrandProvider>
   )
 }

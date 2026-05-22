@@ -49,6 +49,32 @@
 }
 
 :root {
+  /* ────────────────────────────────────────────────────────────────
+   * Per-tenant brand identity.
+   *
+   * BrandProvider (src/components/providers/brand-provider.tsx)
+   * overrides these on document.documentElement once the user's
+   * organization loads. The defaults below ensure server-rendered
+   * surfaces (login, public proposal pages) still look intentional
+   * before any JS runs.
+   * ──────────────────────────────────────────────────────────────── */
+  --brand-primary: #05093d;
+  --brand-primary-rgb: 5 9 61;
+  --brand-primary-fg: #ffffff;
+  --brand-primary-50:  #e8e9f1;
+  --brand-primary-100: #c5c7da;
+  --brand-primary-200: #9ea2bf;
+  --brand-primary-300: #777ca4;
+  --brand-primary-400: #4f5689;
+  --brand-primary-500: #05093d;
+  --brand-primary-600: #04072f;
+  --brand-primary-700: #030624;
+  --brand-primary-800: #020418;
+  --brand-primary-900: #01020c;
+  --brand-accent: #00ff85;
+  --brand-accent-rgb: 0 255 133;
+  --brand-accent-fg: #0a0a0a;
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -126,5 +152,41 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────
+ * Brand utility classes
+ *
+ * Opt-in helpers that pull from the per-tenant CSS variables defined
+ * above and overridden by BrandProvider. Prefer these over hard-coded
+ * hex values anywhere the surface should reflect the active org.
+ * ──────────────────────────────────────────────────────────────── */
+@layer utilities {
+  .bg-brand-primary {
+    background-color: var(--brand-primary);
+    color: var(--brand-primary-fg);
+  }
+  .text-brand-primary {
+    color: var(--brand-primary);
+  }
+  .border-brand-primary {
+    border-color: var(--brand-primary);
+  }
+  .ring-brand-primary {
+    --tw-ring-color: var(--brand-primary);
+  }
+  .bg-brand-accent {
+    background-color: var(--brand-accent);
+    color: var(--brand-accent-fg);
+  }
+  .text-brand-accent {
+    color: var(--brand-accent);
+  }
+  .border-brand-accent {
+    border-color: var(--brand-accent);
+  }
+  .hover\:bg-brand-primary-600:hover {
+    background-color: var(--brand-primary-600);
   }
 }

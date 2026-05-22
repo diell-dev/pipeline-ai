@@ -9,6 +9,12 @@
  * - Primary: #05093d (Dark Navy)
  * - Accent: #00ff85 (Neon Green)
  * - Secondary: #0d06ff (Electric Blue)
+ *
+ * Public helpers (used by BrandProvider + branding settings page):
+ *   - tintsFor(hex)         → 10-step tint/shade ramp keyed by 50..900
+ *   - getContrastingText(hex) → '#fff' | '#0a0a0a' for legible foreground
+ *   - isValidHex(s)         → validate hex strings (3 or 6 digit, with/without #)
+ *   - toRgbVar(hex)         → 'r g b' triplet for use with rgb(var(--x) / <a>)
  */
 
 export interface BrandTheme {
@@ -28,18 +34,63 @@ export const DEFAULT_THEME: BrandTheme = {
   organizationName: 'Pipeline AI',
 }
 
-/**
- * Convert a hex color to HSL values for CSS custom properties.
- * shadcn/ui uses oklch but we need a simpler approach for dynamic theming.
- * We'll use HSL which is well-supported and easy to compute at runtime.
- */
-function hexToHSL(hex: string): { h: number; s: number; l: number } {
-  // Remove # if present
-  hex = hex.replace(/^#/, '')
+// ------------------------------------------------------------------
+// Hex utilities
+// ------------------------------------------------------------------
 
-  const r = parseInt(hex.substring(0, 2), 16) / 255
-  const g = parseInt(hex.substring(2, 4), 16) / 255
-  const b = parseInt(hex.substring(4, 6), 16) / 255
+/**
+ * Validate a hex color string. Accepts #RGB, #RRGGBB, RGB, RRGGBB.
+ */
+export function isValidHex(s: string): boolean {
+  if (typeof s !== 'string') return false
+  return /^#?(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(s.trim())
+}
+
+/**
+ * Normalize a hex string to a 6-character #RRGGBB form (lowercase).
+ * Returns null if the input is not valid.
+ */
+function normalizeHex(hex: string): string | null {
+  if (!isValidHex(hex)) return null
+  let h = hex.trim().replace(/^#/, '').toLowerCase()
+  if (h.length === 3) {
+    h = h.split('').map((c) => c + c).join('')
+  }
+  return `#${h}`
+}
+
+/**
+ * Parse a hex string to [r, g, b] in 0..255. Throws on invalid input.
+ */
+function hexToRgb(hex: string): [number, number, number] {
+  const norm = normalizeHex(hex)
+  if (!norm) throw new Error(`Invalid hex color: ${hex}`)
+  const v = norm.slice(1)
+  return [
+    parseInt(v.slice(0, 2), 16),
+    parseInt(v.slice(2, 4), 16),
+    parseInt(v.slice(4, 6), 16),
+  ]
+}
+
+/**
+ * Return a space-separated 'r g b' triplet for use in
+ *   color: rgb(var(--brand-primary-rgb) / <alpha-value>)
+ */
+export function toRgbVar(hex: string): string {
+  const [r, g, b] = hexToRgb(hex)
+  return `${r} ${g} ${b}`
+}
+
+// ------------------------------------------------------------------
+// HSL / contrast utilities
+// ------------------------------------------------------------------
+
+function hexToHSL(hex: string): { h: number; s: number; l: number } {
+  const [r255, g255, b255] = hexToRgb(hex)
+  const r = r255 / 255
+  const g = g255 / 255
+  const b = b255 / 255
 
   const max = Math.max(r, g, b)
   const min = Math.min(r, g, b)
@@ -51,7 +102,6 @@ function hexToHSL(hex: string): { h: number; s: number; l: number } {
   if (max !== min) {
     const d = max - min
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-
     switch (max) {
       case r:
         h = ((g - b) / d + (g < b ? 6 : 0)) / 6
@@ -72,33 +122,122 @@ function hexToHSL(hex: string): { h: number; s: number; l: number } {
   }
 }
 
-/**
- * Determine if a color is "light" (needs dark text) or "dark" (needs light text)
- */
-function isLightColor(hex: string): boolean {
-  const { l } = hexToHSL(hex)
-  return l > 55
+function hslToHex(h: number, s: number, l: number): string {
+  const sFrac = s / 100
+  const lFrac = l / 100
+
+  const c = (1 - Math.abs(2 * lFrac - 1)) * sFrac
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
+  const m = lFrac - c / 2
+
+  let r1 = 0
+  let g1 = 0
+  let b1 = 0
+
+  if (h >= 0 && h < 60) { r1 = c; g1 = x; b1 = 0 }
+  else if (h < 120)     { r1 = x; g1 = c; b1 = 0 }
+  else if (h < 180)     { r1 = 0; g1 = c; b1 = x }
+  else if (h < 240)     { r1 = 0; g1 = x; b1 = c }
+  else if (h < 300)     { r1 = x; g1 = 0; b1 = c }
+  else                  { r1 = c; g1 = 0; b1 = x }
+
+  const r = Math.round((r1 + m) * 255)
+  const g = Math.round((g1 + m) * 255)
+  const b = Math.round((b1 + m) * 255)
+
+  const toHex = (v: number) => v.toString(16).padStart(2, '0')
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
 }
 
 /**
- * Generate CSS custom properties from a brand theme.
- * These override the shadcn defaults to brand the dashboard.
+ * Relative luminance per WCAG 2.x.
  */
+function relativeLuminance(hex: string): number {
+  const [r, g, b] = hexToRgb(hex).map((v) => {
+    const c = v / 255
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+  }) as [number, number, number]
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+/**
+ * Return either '#fff' or '#0a0a0a' (near-black) for legible foreground
+ * text against the given background hex.
+ */
+export function getContrastingText(bg: string): string {
+  if (!isValidHex(bg)) return '#ffffff'
+  // Threshold 0.5 — luminance above ⇒ light bg ⇒ use dark text.
+  return relativeLuminance(bg) > 0.5 ? '#0a0a0a' : '#ffffff'
+}
+
+// Back-compat helper used elsewhere in the codebase.
+function isLightColor(hex: string): boolean {
+  return getContrastingText(hex) === '#0a0a0a'
+}
+
+// ------------------------------------------------------------------
+// Tint ramp
+// ------------------------------------------------------------------
+
+/**
+ * Generate a Tailwind-style 50..900 ramp from a single brand hex.
+ * Step 500 is always exactly the input color.
+ *
+ * Lighter steps (50..400) keep hue/sat constant and raise lightness;
+ * darker steps (600..900) keep hue/sat constant and lower lightness.
+ * The spacing is chosen so each step is visually distinct without losing
+ * the brand's character.
+ */
+export function tintsFor(hex: string): Record<TintKey, string> {
+  const norm = normalizeHex(hex) ?? DEFAULT_THEME.primaryColor
+  const { h, s, l } = hexToHSL(norm)
+
+  // Target lightness values for each step. We bias toward whichever side
+  // (light or dark) has more room so the ramp stays balanced regardless
+  // of how light/dark the input color is.
+  const lightHeadroom = 96 - l // distance to near-white
+  const darkHeadroom = l - 8   // distance to near-black
+
+  const lightSteps = [50, 100, 200, 300, 400]
+  const darkSteps  = [600, 700, 800, 900]
+
+  const result: Record<string, string> = { '500': norm }
+
+  lightSteps.forEach((step, i) => {
+    // 50 should be lightest, 400 closest to 500
+    const t = (lightSteps.length - i) / lightSteps.length
+    const newL = Math.min(96, Math.round(l + lightHeadroom * t))
+    result[String(step)] = hslToHex(h, s, newL)
+  })
+
+  darkSteps.forEach((step, i) => {
+    // 600 should be darkest-but-near 500, 900 the darkest overall
+    const t = (i + 1) / darkSteps.length
+    const newL = Math.max(4, Math.round(l - darkHeadroom * t))
+    result[String(step)] = hslToHex(h, s, newL)
+  })
+
+  return result as Record<TintKey, string>
+}
+
+export type TintKey = '50' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900'
+
+// ------------------------------------------------------------------
+// Legacy theme CSS generator (kept for compatibility with old hook)
+// ------------------------------------------------------------------
+
 export function generateThemeCSS(theme: BrandTheme): Record<string, string> {
   const primary = hexToHSL(theme.primaryColor)
   const accent = hexToHSL(theme.accentColor)
 
-  // Determine foreground colors based on brightness
   const primaryFg = isLightColor(theme.primaryColor) ? '0 0% 10%' : '0 0% 98%'
   const accentFg = isLightColor(theme.accentColor) ? '0 0% 10%' : '0 0% 98%'
 
   return {
-    // Override shadcn's primary with the org's brand color
     '--brand-primary': theme.primaryColor,
     '--brand-accent': theme.accentColor,
     '--brand-secondary': theme.secondaryColor || theme.primaryColor,
 
-    // Sidebar uses the primary brand color
     '--sidebar': `${primary.h} ${primary.s}% ${primary.l}%`,
     '--sidebar-foreground': primaryFg,
     '--sidebar-primary': `${accent.h} ${accent.s}% ${accent.l}%`,
@@ -107,15 +246,11 @@ export function generateThemeCSS(theme: BrandTheme): Record<string, string> {
     '--sidebar-accent-foreground': primaryFg,
     '--sidebar-border': `${primary.h} ${primary.s}% ${Math.min(primary.l + 12, 100)}%`,
 
-    // Accent/CTA buttons use the accent color
     '--brand-btn-bg': theme.accentColor,
     '--brand-btn-fg': isLightColor(theme.accentColor) ? '#0a0a0a' : '#fafafa',
   }
 }
 
-/**
- * Apply theme CSS properties to a DOM element (usually document.documentElement)
- */
 export function applyTheme(element: HTMLElement, theme: BrandTheme): void {
   const cssVars = generateThemeCSS(theme)
   Object.entries(cssVars).forEach(([key, value]) => {
@@ -134,9 +269,12 @@ export function themeFromOrganization(org: {
   name: string
 }): BrandTheme {
   return {
-    primaryColor: org.primary_color || DEFAULT_THEME.primaryColor,
-    accentColor: org.accent_color || DEFAULT_THEME.accentColor,
-    secondaryColor: org.secondary_color || DEFAULT_THEME.secondaryColor,
+    primaryColor: isValidHex(org.primary_color) ? org.primary_color : DEFAULT_THEME.primaryColor,
+    accentColor: isValidHex(org.accent_color) ? org.accent_color : DEFAULT_THEME.accentColor,
+    secondaryColor:
+      org.secondary_color && isValidHex(org.secondary_color)
+        ? org.secondary_color
+        : DEFAULT_THEME.secondaryColor,
     logoUrl: org.logo_url,
     organizationName: org.name,
   }

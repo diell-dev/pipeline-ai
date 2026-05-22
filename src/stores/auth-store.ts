@@ -11,6 +11,7 @@ import type { User, Organization } from '@/types/database'
 import type { BrandTheme } from '@/lib/theme'
 import { themeFromOrganization, DEFAULT_THEME } from '@/lib/theme'
 import { getTierConfig, type TierConfig } from '@/lib/tier-limits'
+import { createClient } from '@/lib/supabase/client'
 
 interface AuthState {
   // State
@@ -25,6 +26,7 @@ interface AuthState {
   clearSession: () => void
   setLoading: (loading: boolean) => void
   updateOrganization: (org: Partial<Organization>) => void
+  refreshOrganization: () => Promise<void>
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -59,5 +61,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const theme = themeFromOrganization(updated)
     const tierConfig = getTierConfig(updated.tier)
     set({ organization: updated, theme, tierConfig })
+  },
+
+  /**
+   * Re-fetch the current organization row and merge it into the store.
+   * Call this after persisting org-level changes (branding, company info)
+   * so BrandProvider and the rest of the UI pick up the new values
+   * without a full page reload.
+   */
+  refreshOrganization: async () => {
+    const current = get().organization
+    if (!current) return
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('organizations')
+      .select('*')
+      .eq('id', current.id)
+      .single()
+    if (error || !data) {
+      console.error('refreshOrganization failed:', error?.message)
+      return
+    }
+    const org = data as Organization
+    const theme = themeFromOrganization(org)
+    const tierConfig = getTierConfig(org.tier)
+    set({ organization: org, theme, tierConfig })
   },
 }))

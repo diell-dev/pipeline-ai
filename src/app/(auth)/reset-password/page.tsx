@@ -52,11 +52,11 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--brand-primary,#05093d)] p-4">
+    <div className="bg-brand-primary flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-md mx-4 sm:mx-auto">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--brand-primary,#05093d)]">
-            <span className="text-lg font-bold text-[var(--brand-accent,#00ff85)]">P</span>
+          <div className="bg-brand-primary mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg">
+            <span className="text-brand-accent text-lg font-bold">P</span>
           </div>
           <CardTitle className="text-2xl font-bold">Set a new password</CardTitle>
           <CardDescription>

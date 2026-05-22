@@ -75,13 +75,9 @@ export function AppSidebar() {
   return (
     <aside
       className={cn(
-        'relative flex flex-col border-r transition-all duration-200',
+        'bg-brand-primary border-brand-primary relative flex flex-col border-r transition-all duration-200',
         collapsed ? 'w-16' : 'w-64'
       )}
-      style={{
-        backgroundColor: 'var(--brand-primary, #05093d)',
-        borderColor: 'var(--brand-primary, #05093d)',
-      }}
     >
       {/* Logo / Org Name */}
       <div className="flex h-16 items-center px-4 border-b border-white/10">
@@ -96,11 +92,7 @@ export function AppSidebar() {
         ) : (
           <>
             <div
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-bold text-sm"
-              style={{
-                backgroundColor: 'var(--brand-accent, #00ff85)',
-                color: 'var(--brand-btn-fg, #0a0a0a)',
-              }}
+              className="bg-brand-accent flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-bold text-sm"
             >
               {organization?.name?.charAt(0) || 'P'}
             </div>
@@ -127,14 +119,9 @@ export function AppSidebar() {
                 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
                 collapsed && 'justify-center px-2',
                 isActive
-                  ? 'text-[var(--brand-btn-fg,#0a0a0a)] font-medium'
+                  ? 'bg-brand-accent font-medium'
                   : 'text-white/70 hover:text-white hover:bg-white/10'
               )}
-              style={
-                isActive
-                  ? { backgroundColor: 'var(--brand-accent, #00ff85)' }
-                  : undefined
-              }
               title={collapsed ? item.label : undefined}
             >
               <Icon className="h-5 w-5 shrink-0" />

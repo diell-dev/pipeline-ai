@@ -321,6 +321,7 @@ export default function DashboardPage() {
           )}
           {canCreate && (
             <Button
+              variant="brand"
               className="w-full sm:w-auto h-10"
               onClick={() => router.push('/jobs/new')}
             >
@@ -616,7 +617,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
             {canCreateProposal && (
-              <Button className="h-10" onClick={() => router.push('/proposals/new')}>
+              <Button variant="brand" className="h-10" onClick={() => router.push('/proposals/new')}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Proposal
               </Button>
@@ -624,7 +625,7 @@ export default function DashboardPage() {
             {canCreate && (
               <Button
                 className="h-10"
-                variant={canCreateProposal ? 'outline' : 'default'}
+                variant={canCreateProposal ? 'outline' : 'brand'}
                 onClick={() => router.push('/jobs/new')}
               >
                 <Plus className="mr-2 h-4 w-4" />

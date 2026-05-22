@@ -276,6 +276,7 @@ export default function SchedulePage() {
               Crews
             </Button>
             <Button
+              variant="brand"
               size="sm"
               className="h-10 flex-1 sm:flex-initial"
               onClick={() => router.push('/jobs/new')}

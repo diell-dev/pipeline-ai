@@ -47,7 +47,8 @@ export async function GET(request: NextRequest) {
     .select(`
       *,
       category:category_id ( id, code, name, icon ),
-      site:site_id ( id, name, address, borough )
+      site:site_id ( id, name, address, borough ),
+      parent:parent_equipment_id ( id, unit_number, make, model )
     `, { count: 'exact' })
     .is('deleted_at', null)
 

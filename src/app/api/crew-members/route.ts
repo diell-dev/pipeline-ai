@@ -39,12 +39,20 @@ export async function POST(request: NextRequest) {
     // Verify user belongs to same org
     const { data: targetUser } = await supabase
       .from('users')
-      .select('id, organization_id')
+      .select('id, organization_id, role')
       .eq('id', user_id)
       .single()
 
     if (!targetUser || !canAccessOrg(auth, targetUser.organization_id)) {
       return NextResponse.json({ error: 'User not in your organization' }, { status: 403 })
+    }
+
+    // Clients are external — never crew members.
+    if (targetUser.role === 'client') {
+      return NextResponse.json(
+        { error: 'Clients cannot be crew members' },
+        { status: 400 }
+      )
     }
 
     const { data: member, error } = await supabase

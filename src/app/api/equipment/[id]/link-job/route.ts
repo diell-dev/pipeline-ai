@@ -7,7 +7,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getApiUser, canAccessOrg } from '@/lib/api-auth'
+import { getApiUser, hasPermission, canAccessOrg } from '@/lib/api-auth'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -20,6 +20,14 @@ export async function POST(
   const auth = await getApiUser()
   if (!auth.authenticated) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
+  }
+  // Either permission allows it — techs assigning their own equipment to a
+  // job they're working on, or admins managing relationships.
+  if (
+    !hasPermission(auth.role, 'jobs:edit_all') &&
+    !hasPermission(auth.role, 'equipment:edit')
+  ) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   let body: { job_id?: unknown }

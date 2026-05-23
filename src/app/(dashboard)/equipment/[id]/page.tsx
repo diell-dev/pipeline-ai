@@ -23,6 +23,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
+import { ScheduleWorkOrderDialog } from '@/components/equipment/schedule-work-order-dialog'
+import { EditEquipmentDialog } from '@/components/equipment/edit-equipment-dialog'
 import {
   ArrowLeft,
   Loader2,
@@ -70,6 +72,7 @@ interface EquipmentDetail {
   installed_date: string | null
   last_serviced_date: string | null
   next_service_due_date: string | null
+  service_interval_months?: number | null
   parent_equipment_id: string | null
   qr_code?: string | null
   unit_photo_url?: string | null
@@ -177,6 +180,7 @@ export default function EquipmentDetailPage() {
 
   const canEdit = user?.role ? hasPermission(user.role, 'equipment:edit' as Permission) : false
   const canDelete = user?.role ? hasPermission(user.role, 'equipment:delete' as Permission) : false
+  const canSchedule = user?.role ? hasPermission(user.role, 'jobs:create' as Permission) : false
 
   const [data, setData] = useState<EquipmentDetailResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -187,6 +191,8 @@ export default function EquipmentDetailPage() {
   const [aiOpen, setAiOpen] = useState(true)
   const [scansOpen, setScansOpen] = useState(false)
   const [expandedInspections, setExpandedInspections] = useState<Set<string>>(new Set())
+  const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
 
   const refresh = useCallback(async () => {
     try {
@@ -209,37 +215,6 @@ export default function EquipmentDetailPage() {
   }, [refresh])
 
   // ---- Actions ----
-  async function handleStartWorkOrder() {
-    if (!data) return
-    setActionLoading(true)
-    try {
-      // The backend route accepts the equipment id and provisions the job server-side.
-      const res = await fetch(`/api/jobs/new/start-from-equipment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ equipment_id: data.equipment.id }),
-      })
-      if (!res.ok) {
-        // Fallback to per-id path style if the backend chose that shape.
-        const alt = await fetch(`/api/jobs/${data.equipment.id}/start-from-equipment`, {
-          method: 'POST',
-        })
-        const altJson = await alt.json().catch(() => ({}))
-        if (alt.ok && altJson.job_id) {
-          router.push(`/jobs/${altJson.job_id}`)
-          return
-        }
-        throw new Error('Could not start work order')
-      }
-      const json = await res.json()
-      if (json.job_id) router.push(`/jobs/${json.job_id}`)
-    } catch (err) {
-      console.error('Start work order failed', err)
-      toast.error('Could not start work order')
-    } finally {
-      setActionLoading(false)
-    }
-  }
 
   async function handleDelete() {
     if (!data) return
@@ -345,6 +320,16 @@ export default function EquipmentDetailPage() {
             {equipment.status === 'replaced' && (
               <Badge variant="outline" className="bg-zinc-100 text-zinc-600">Replaced</Badge>
             )}
+            {equipment.status === 'inactive' && (
+              <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200">
+                Inactive
+              </Badge>
+            )}
+            {equipment.status === 'removed' && (
+              <Badge variant="outline" className="bg-red-100 text-red-700 border-red-200">
+                Removed
+              </Badge>
+            )}
             {chip && (
               <Badge variant="outline" className={chip.className}>
                 <Calendar className="h-3 w-3 mr-1" />
@@ -369,19 +354,21 @@ export default function EquipmentDetailPage() {
 
       {/* Action bar */}
       <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
-        <Button
-          className="h-10 col-span-2 sm:col-auto"
-          onClick={handleStartWorkOrder}
-          disabled={actionLoading}
-        >
-          <PlayCircle className="mr-2 h-4 w-4" />
-          Start Work Order
-        </Button>
+        {canSchedule && (
+          <Button
+            className="h-10 col-span-2 sm:col-auto"
+            onClick={() => setScheduleOpen(true)}
+            disabled={actionLoading}
+          >
+            <PlayCircle className="mr-2 h-4 w-4" />
+            Start Work Order
+          </Button>
+        )}
         {canEdit && (
           <Button
             variant="outline"
             className="h-10"
-            onClick={() => router.push(`/equipment/${equipment.id}?edit=1`)}
+            onClick={() => setEditOpen(true)}
           >
             <Pencil className="mr-2 h-4 w-4" />
             Edit
@@ -803,6 +790,45 @@ export default function EquipmentDetailPage() {
             className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg"
           />
         </div>
+      )}
+
+      {/* Schedule work order */}
+      {canSchedule && (
+        <ScheduleWorkOrderDialog
+          open={scheduleOpen}
+          onOpenChange={setScheduleOpen}
+          equipmentId={equipment.id}
+          equipmentLabel={
+            `${category?.name || 'Equipment'} — ${unitLabel}` +
+            (site?.name ? ` @ ${site.name}` : '')
+          }
+        />
+      )}
+
+      {/* Edit equipment */}
+      {canEdit && (
+        <EditEquipmentDialog
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          equipment={{
+            id: equipment.id,
+            unit_number: equipment.unit_number,
+            common_area_name: equipment.common_area_name,
+            make: equipment.make,
+            model: equipment.model,
+            serial_number: equipment.serial_number,
+            manufacture_date: equipment.manufacture_date,
+            installed_date: equipment.installed_date,
+            next_service_due_date: equipment.next_service_due_date,
+            service_interval_months: equipment.service_interval_months ?? null,
+            notes: equipment.notes ?? null,
+            status: equipment.status ?? 'active',
+            category_id: equipment.category_id,
+          }}
+          onSaved={() => {
+            refresh()
+          }}
+        />
       )}
     </div>
   )

@@ -29,6 +29,18 @@ interface ChecklistItemSpec {
   notes_required_on_fail?: boolean
 }
 
+/**
+ * Slugify a label into a stable item code suitable for `checklist_item_code`.
+ * Lowercase, non-alphanumerics → underscores, trimmed, capped to 60 chars.
+ */
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 60)
+}
+
 interface EquipmentLite {
   id: string
   category?: {
@@ -154,12 +166,27 @@ export function InspectionChecklist({
     }
     setSaving(true)
     try {
+      // The API needs {checklist_item_code, checklist_item_label, result, notes}
+      // per item. The local state carries `label` and `result` only.
+      const payloadItems = results
+        .filter((r) => r.result !== null)
+        .map((r) => ({
+          checklist_item_code: slugify(r.label),
+          checklist_item_label: r.label,
+          result: r.result,
+          notes: r.notes ?? null,
+        }))
+      if (payloadItems.length === 0) {
+        toast.error('Mark at least one item before saving')
+        setSaving(false)
+        return
+      }
       const res = await fetch(`/api/jobs/${jobId}/inspections`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           equipment_id: equipment.id,
-          items: results,
+          items: payloadItems,
         }),
       })
       if (!res.ok) {

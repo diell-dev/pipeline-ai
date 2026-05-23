@@ -6,18 +6,19 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getApiUser, hasPermission } from '@/lib/api-auth'
+import { getApiUser, hasPermission, canAccessOrg, type ApiAuth } from '@/lib/api-auth'
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 
-async function loadCrew(supabase: SupabaseServerClient, id: string, orgId: string) {
+async function loadCrew(supabase: SupabaseServerClient, id: string, auth: ApiAuth) {
+  if (!auth.authenticated) return null
   const { data: crew, error } = await supabase
     .from('crews')
     .select('id, organization_id')
     .eq('id', id)
     .single()
   if (error || !crew) return null
-  if (crew.organization_id !== orgId) return null
+  if (!canAccessOrg(auth, crew.organization_id)) return null
   return crew
 }
 
@@ -36,7 +37,7 @@ export async function PATCH(
     }
 
     const supabase = await createClient()
-    const crew = await loadCrew(supabase, id, auth.organizationId)
+    const crew = await loadCrew(supabase, id, auth)
     if (!crew) return NextResponse.json({ error: 'Crew not found' }, { status: 404 })
 
     const body = await request.json()
@@ -92,7 +93,7 @@ export async function DELETE(
     }
 
     const supabase = await createClient()
-    const crew = await loadCrew(supabase, id, auth.organizationId)
+    const crew = await loadCrew(supabase, id, auth)
     if (!crew) return NextResponse.json({ error: 'Crew not found' }, { status: 404 })
 
     const { error } = await supabase

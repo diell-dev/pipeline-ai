@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getApiUser, hasPermission, canAccessOrg } from '@/lib/api-auth'
 
+const PAST_TOLERANCE_MS = 5 * 60 * 1000
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -34,6 +36,36 @@ export async function POST(
 
     if (!new_scheduled_time) {
       return NextResponse.json({ error: 'new_scheduled_time is required' }, { status: 400 })
+    }
+
+    // Time validation (#17)
+    const startMs = Date.parse(new_scheduled_time)
+    if (isNaN(startMs)) {
+      return NextResponse.json(
+        { error: 'new_scheduled_time is not a valid date' },
+        { status: 400 }
+      )
+    }
+    if (startMs < Date.now() - PAST_TOLERANCE_MS) {
+      return NextResponse.json(
+        { error: 'new_scheduled_time may not be more than 5 minutes in the past' },
+        { status: 400 }
+      )
+    }
+    if (new_end_time !== undefined && new_end_time !== null) {
+      const endMs = Date.parse(new_end_time)
+      if (isNaN(endMs)) {
+        return NextResponse.json(
+          { error: 'new_end_time is not a valid date' },
+          { status: 400 }
+        )
+      }
+      if (endMs <= startMs) {
+        return NextResponse.json(
+          { error: 'new_end_time must be after new_scheduled_time' },
+          { status: 400 }
+        )
+      }
     }
 
     const supabase = await createClient()

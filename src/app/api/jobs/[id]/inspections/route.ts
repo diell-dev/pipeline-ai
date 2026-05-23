@@ -179,19 +179,74 @@ export async function GET(
 
   const { data, error } = await supabase
     .from('equipment_inspections')
-    .select('*')
+    .select('id, equipment_id, checklist_item_label, result, notes, recorded_at, recorded_by')
     .eq('job_id', jobId)
     .order('recorded_at', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Group by equipment_id for easier UI consumption
-  const grouped: Record<string, typeof data> = {}
-  for (const row of data || []) {
-    const key = row.equipment_id as string
-    if (!grouped[key]) grouped[key] = [] as typeof data
-    ;(grouped[key] as NonNullable<typeof data>).push(row)
+  // Resolve recorder names so the UI can show "by X".
+  const userIds = new Set<string>()
+  for (const r of (data || [])) {
+    if (r.recorded_by) userIds.add(r.recorded_by as string)
+  }
+  const userNameById = new Map<string, string>()
+  if (userIds.size > 0) {
+    const { data: users } = await supabase
+      .from('users')
+      .select('id, full_name')
+      .in('id', Array.from(userIds))
+    for (const u of (users || []) as Array<{ id: string; full_name: string | null }>) {
+      userNameById.set(u.id, u.full_name || '')
+    }
   }
 
-  return NextResponse.json({ by_equipment: grouped })
+  // Group by (equipment_id, recorded_at-rounded-to-5s) so rows inserted in
+  // the same checklist session collapse into a single inspection with items[].
+  // Shape matches what the equipment detail and job detail pages expect via
+  // InspectionChecklist's `Inspection` interface.
+  type Row = {
+    id: string
+    equipment_id: string
+    checklist_item_label: string
+    result: string
+    notes: string | null
+    recorded_at: string
+    recorded_by: string | null
+  }
+  const groups = new Map<
+    string,
+    {
+      id: string
+      equipment_id: string
+      inspected_at: string
+      inspected_by_name: string | null
+      items: Array<{ label: string; result: string; notes: string | null }>
+    }
+  >()
+  for (const row of (data || []) as Row[]) {
+    const bucket = Math.floor(new Date(row.recorded_at).getTime() / 5000)
+    const key = `${row.equipment_id}|${bucket}`
+    let g = groups.get(key)
+    if (!g) {
+      g = {
+        id: row.id,
+        equipment_id: row.equipment_id,
+        inspected_at: row.recorded_at,
+        inspected_by_name: row.recorded_by ? userNameById.get(row.recorded_by) || null : null,
+        items: [],
+      }
+      groups.set(key, g)
+    }
+    g.items.push({
+      label: row.checklist_item_label,
+      result: row.result,
+      notes: row.notes,
+    })
+  }
+  const inspections = Array.from(groups.values()).sort((a, b) =>
+    a.inspected_at < b.inspected_at ? 1 : -1
+  )
+
+  return NextResponse.json({ inspections })
 }

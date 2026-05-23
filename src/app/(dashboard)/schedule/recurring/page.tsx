@@ -81,6 +81,12 @@ export default function RecurringPage() {
   const [showWizard, setShowWizard] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
+  // Pause-until dialog state — replaces a native prompt() call so the picker
+  // is consistent with the rest of the app (and gives us a real date input).
+  const [pauseTarget, setPauseTarget] = useState<RecurringWithRelations | null>(null)
+  const [pauseUntilDate, setPauseUntilDate] = useState('')
+  const [pauseSubmitting, setPauseSubmitting] = useState(false)
+
   // Form state
   const [form, setForm] = useState({
     client_id: '',
@@ -235,24 +241,39 @@ export default function RecurringPage() {
     }
   }
 
-  async function pauseSchedule(s: RecurringWithRelations) {
-    const until = prompt('Pause until (YYYY-MM-DD)?', '')
-    if (!until) return
+  function openPauseDialog(s: RecurringWithRelations) {
+    setPauseTarget(s)
+    // Pre-seed with a sensible default — one week from today, in YYYY-MM-DD.
+    const d = new Date()
+    d.setDate(d.getDate() + 7)
+    setPauseUntilDate(d.toISOString().slice(0, 10))
+  }
+
+  async function confirmPause() {
+    if (!pauseTarget || !pauseUntilDate) {
+      toast.error('Pick a date first')
+      return
+    }
+    setPauseSubmitting(true)
     try {
-      const res = await fetch(`/api/recurring-schedules/${s.id}`, {
+      const res = await fetch(`/api/recurring-schedules/${pauseTarget.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paused_until: until }),
+        body: JSON.stringify({ paused_until: pauseUntilDate }),
       })
       if (!res.ok) {
         const r = await res.json()
         throw new Error(r.error)
       }
       toast.success('Paused')
+      setPauseTarget(null)
+      setPauseUntilDate('')
       await loadSchedules()
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
       toast.error(msg)
+    } finally {
+      setPauseSubmitting(false)
     }
   }
 
@@ -423,7 +444,7 @@ export default function RecurringPage() {
                             size="icon"
                             className="h-10 w-10 sm:h-8 sm:w-8"
                             title="Pause"
-                            onClick={() => pauseSchedule(s)}
+                            onClick={() => openPauseDialog(s)}
                           >
                             <Pause className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                           </Button>
@@ -672,6 +693,58 @@ export default function RecurringPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pause-until dialog */}
+      <Dialog
+        open={!!pauseTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPauseTarget(null)
+            setPauseUntilDate('')
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Pause this recurring schedule</DialogTitle>
+            <DialogDescription>
+              Pick the date the pattern should resume on. No new jobs will be
+              auto-created before that date.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="pause-until">Pause until</Label>
+            <Input
+              id="pause-until"
+              type="date"
+              value={pauseUntilDate}
+              min={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setPauseUntilDate(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setPauseTarget(null)
+                setPauseUntilDate('')
+              }}
+              disabled={pauseSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={confirmPause}
+              disabled={pauseSubmitting || !pauseUntilDate}
+            >
+              {pauseSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Pause
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

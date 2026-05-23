@@ -65,7 +65,7 @@ function formatDateHeading(dateStr: string): string {
   })
 }
 
-export default function MyScheduleePage() {
+export default function MySchedulePage() {
   const router = useRouter()
   const { user, organization } = useAuthStore()
   const isSuperAdmin = user?.role === 'super_admin'

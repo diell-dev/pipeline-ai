@@ -8,7 +8,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getApiUser, canAccessOrg } from '@/lib/api-auth'
+import { getApiUser, canAccessOrg, hasPermission } from '@/lib/api-auth'
 import { lookupManufacturerInfo, computeNextServiceDueDate } from '@/lib/equipment-ai'
 
 export async function POST(
@@ -20,6 +20,9 @@ export async function POST(
   const auth = await getApiUser()
   if (!auth.authenticated) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
+  }
+  if (!hasPermission(auth.role, 'equipment:edit')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const supabase = await createClient()

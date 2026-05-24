@@ -26,6 +26,7 @@ const EDITABLE_FIELDS = new Set([
   'service_interval_months',
   'notes',
   'parent_equipment_id',
+  'category_id',
   'status',
 ])
 
@@ -390,6 +391,23 @@ export async function PATCH(
         }
         if (value === id) {
           return NextResponse.json({ error: 'parent_equipment_id cannot equal id' }, { status: 400 })
+        }
+        update[key] = value
+        break
+      }
+      case 'category_id': {
+        if (typeof value !== 'string' || !UUID_RE.test(value)) {
+          return NextResponse.json({ error: 'category_id must be a UUID' }, { status: 400 })
+        }
+        // Confirm the category actually exists so the FK error doesn't
+        // surface as an ugly 500.
+        const { data: cat } = await supabase
+          .from('equipment_categories')
+          .select('id')
+          .eq('id', value)
+          .maybeSingle()
+        if (!cat) {
+          return NextResponse.json({ error: 'category_id not found' }, { status: 400 })
         }
         update[key] = value
         break

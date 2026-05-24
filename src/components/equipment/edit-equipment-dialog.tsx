@@ -126,6 +126,7 @@ export function EditEquipmentDialog({
     notes: equipment.notes || '',
     status: equipment.status || 'active',
     parent_equipment_id: equipment.parent_equipment_id || '',
+    category_id: equipment.category_id || '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -155,29 +156,52 @@ export function EditEquipmentDialog({
       notes: equipment.notes || '',
       status: equipment.status || 'active',
       parent_equipment_id: equipment.parent_equipment_id || '',
+      category_id: equipment.category_id || '',
     })
     // Use equipment.id (not the whole object) so an unrelated parent re-render
     // with the same row doesn't clobber unsaved edits mid-flight.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [equipment.id, open])
 
+  // Load categories — runs whenever the dialog opens, regardless of whether
+  // the equipment has a site. Used for both the category picker and the
+  // parent-candidate label rendering below.
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/equipment/categories', { cache: 'no-store' })
+        if (!res.ok) return
+        const json = await res.json()
+        if (cancelled) return
+        const cats = (json.categories || []) as CategoryLite[]
+        const map = new Map<string, CategoryLite>()
+        for (const c of cats) map.set(c.id, c)
+        setCategoriesById(map)
+      } catch (err) {
+        console.error('Categories load failed', err)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open])
+
   // Load parent candidates: all equipment at the same site EXCEPT this one
-  // and its descendants. Also load categories for label rendering.
+  // and its descendants.
   useEffect(() => {
     if (!open || !equipment.site_id) return
     let cancelled = false
     setParentLoading(true)
     ;(async () => {
       try {
-        const [eqRes, catRes] = await Promise.all([
-          fetch(`/api/equipment?site_id=${equipment.site_id}&limit=200`, {
-            cache: 'no-store',
-          }),
-          fetch('/api/equipment/categories', { cache: 'no-store' }),
-        ])
+        const eqRes = await fetch(
+          `/api/equipment?site_id=${equipment.site_id}&limit=200`,
+          { cache: 'no-store' }
+        )
         if (!eqRes.ok) throw new Error('Failed to load equipment list')
         const eqJson = await eqRes.json()
-        const catJson = catRes.ok ? await catRes.json() : { categories: [] }
         if (cancelled) return
 
         const list = (eqJson.equipment || []) as Array<{
@@ -231,11 +255,6 @@ export function EditEquipmentDialog({
             category_id: e.category_id,
           }))
         setParentCandidates(candidates)
-
-        const cats = (catJson.categories || []) as CategoryLite[]
-        const map = new Map<string, CategoryLite>()
-        for (const c of cats) map.set(c.id, c)
-        setCategoriesById(map)
       } catch (err) {
         console.error('Parent picker load failed', err)
       } finally {
@@ -246,6 +265,17 @@ export function EditEquipmentDialog({
       cancelled = true
     }
   }, [open, equipment.site_id, equipment.id])
+
+  // Sorted category options for the Category Select picker.
+  const categoryOptions = useMemo(() => {
+    return Array.from(categoriesById.values())
+      .map((c) => ({
+        id: c.id,
+        label: `${c.icon ? `${c.icon} ` : ''}${c.name}`,
+        name: c.name,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [categoriesById])
 
   const parentOptions = useMemo(() => {
     return parentCandidates.map((c) => {
@@ -303,6 +333,7 @@ export function EditEquipmentDialog({
         notes: equipment.notes || '',
         status: equipment.status || 'active',
         parent_equipment_id: equipment.parent_equipment_id || '',
+        category_id: equipment.category_id || '',
       }
 
       for (const [k, v] of Object.entries(form)) {
@@ -383,6 +414,34 @@ export function EditEquipmentDialog({
                 </p>
               )}
             </div>
+          </div>
+
+          {/* Category picker — always available. */}
+          <div>
+            <Label htmlFor="category_id">Equipment type</Label>
+            <Select
+              value={form.category_id || ''}
+              onValueChange={(v) =>
+                setForm({ ...form, category_id: v || '' })
+              }
+            >
+              <SelectTrigger id="category_id">
+                <SelectValue
+                  placeholder={
+                    categoryOptions.length === 0
+                      ? 'Loading types…'
+                      : 'Pick a type'
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {categoryOptions.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Parent equipment picker — only when we know the site. */}

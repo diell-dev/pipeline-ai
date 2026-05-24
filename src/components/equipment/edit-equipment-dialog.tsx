@@ -287,13 +287,6 @@ export function EditEquipmentDialog({
     return `${c.icon ? `${c.icon} ` : ''}${c.name}`
   }, [form.category_id, categoriesById])
 
-  // Same trick for the parent picker — show the label instead of the raw value.
-  const selectedParentLabel = useMemo(() => {
-    if (!form.parent_equipment_id) return 'None (top-level unit)'
-    const opt = parentOptions.find((o) => o.id === form.parent_equipment_id)
-    return opt?.label ?? null
-  }, [form.parent_equipment_id, parentOptions])
-
   const parentOptions = useMemo(() => {
     return parentCandidates.map((c) => {
       const cat = c.category_id ? categoriesById.get(c.category_id) : null
@@ -310,6 +303,13 @@ export function EditEquipmentDialog({
       }
     })
   }, [parentCandidates, categoriesById])
+
+  // Same SelectValue-children trick for the parent picker.
+  const selectedParentLabel = useMemo(() => {
+    if (!form.parent_equipment_id) return 'None (top-level unit)'
+    const opt = parentOptions.find((o) => o.id === form.parent_equipment_id)
+    return opt?.label ?? null
+  }, [form.parent_equipment_id, parentOptions])
 
   // Track over-limit state per field — used to show inline errors and to
   // gate the Save button.

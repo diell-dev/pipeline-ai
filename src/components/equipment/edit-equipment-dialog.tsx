@@ -277,6 +277,23 @@ export function EditEquipmentDialog({
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [categoriesById])
 
+  // Display label for the currently-selected category. We pass this explicitly
+  // as SelectValue children because the Select trigger doesn't always resolve
+  // the value to the matched SelectItem's text when options load asynchronously.
+  const selectedCategoryLabel = useMemo(() => {
+    if (!form.category_id) return null
+    const c = categoriesById.get(form.category_id)
+    if (!c) return null
+    return `${c.icon ? `${c.icon} ` : ''}${c.name}`
+  }, [form.category_id, categoriesById])
+
+  // Same trick for the parent picker — show the label instead of the raw value.
+  const selectedParentLabel = useMemo(() => {
+    if (!form.parent_equipment_id) return 'None (top-level unit)'
+    const opt = parentOptions.find((o) => o.id === form.parent_equipment_id)
+    return opt?.label ?? null
+  }, [form.parent_equipment_id, parentOptions])
+
   const parentOptions = useMemo(() => {
     return parentCandidates.map((c) => {
       const cat = c.category_id ? categoriesById.get(c.category_id) : null
@@ -432,7 +449,9 @@ export function EditEquipmentDialog({
                       ? 'Loading types…'
                       : 'Pick a type'
                   }
-                />
+                >
+                  {selectedCategoryLabel}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {categoryOptions.map((o) => (
@@ -460,7 +479,9 @@ export function EditEquipmentDialog({
                 <SelectTrigger id="parent_equipment_id">
                   <SelectValue
                     placeholder={parentLoading ? 'Loading…' : 'None (top-level unit)'}
-                  />
+                  >
+                    {selectedParentLabel}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NO_PARENT}>None (top-level unit)</SelectItem>

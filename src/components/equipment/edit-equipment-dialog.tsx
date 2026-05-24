@@ -9,7 +9,7 @@
  * Pre-fills from the current equipment row. The list of fields here MUST
  * match the EDITABLE_FIELDS whitelist on the API route.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -34,6 +34,7 @@ import { toast } from 'sonner'
 
 export interface EditableEquipment {
   id: string
+  site_id?: string | null
   unit_number: string | null
   common_area_name: string | null
   make: string | null
@@ -46,7 +47,26 @@ export interface EditableEquipment {
   notes?: string | null
   status?: string | null
   category_id?: string | null
+  parent_equipment_id?: string | null
 }
+
+interface ParentCandidate {
+  id: string
+  unit_number: string | null
+  common_area_name: string | null
+  make: string | null
+  model: string | null
+  parent_equipment_id: string | null
+  category_id: string | null
+}
+
+interface CategoryLite {
+  id: string
+  name: string
+  icon?: string | null
+}
+
+const NO_PARENT = '__none__'
 
 interface EditEquipmentDialogProps {
   open: boolean
@@ -105,8 +125,16 @@ export function EditEquipmentDialog({
         : '',
     notes: equipment.notes || '',
     status: equipment.status || 'active',
+    parent_equipment_id: equipment.parent_equipment_id || '',
   })
   const [saving, setSaving] = useState(false)
+
+  // Parent picker state
+  const [parentCandidates, setParentCandidates] = useState<ParentCandidate[]>([])
+  const [categoriesById, setCategoriesById] = useState<Map<string, CategoryLite>>(
+    new Map()
+  )
+  const [parentLoading, setParentLoading] = useState(false)
 
   // Reset form when the equipment changes (e.g. dialog re-opens after edit)
   useEffect(() => {
@@ -126,11 +154,115 @@ export function EditEquipmentDialog({
           : '',
       notes: equipment.notes || '',
       status: equipment.status || 'active',
+      parent_equipment_id: equipment.parent_equipment_id || '',
     })
     // Use equipment.id (not the whole object) so an unrelated parent re-render
     // with the same row doesn't clobber unsaved edits mid-flight.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [equipment.id, open])
+
+  // Load parent candidates: all equipment at the same site EXCEPT this one
+  // and its descendants. Also load categories for label rendering.
+  useEffect(() => {
+    if (!open || !equipment.site_id) return
+    let cancelled = false
+    setParentLoading(true)
+    ;(async () => {
+      try {
+        const [eqRes, catRes] = await Promise.all([
+          fetch(`/api/equipment?site_id=${equipment.site_id}&limit=200`, {
+            cache: 'no-store',
+          }),
+          fetch('/api/equipment/categories', { cache: 'no-store' }),
+        ])
+        if (!eqRes.ok) throw new Error('Failed to load equipment list')
+        const eqJson = await eqRes.json()
+        const catJson = catRes.ok ? await catRes.json() : { categories: [] }
+        if (cancelled) return
+
+        const list = (eqJson.equipment || []) as Array<{
+          id: string
+          unit_number: string | null
+          common_area_name: string | null
+          make: string | null
+          model: string | null
+          parent_equipment_id: string | null
+          category_id: string | null
+          status?: string | null
+          deleted_at?: string | null
+        }>
+
+        // Filter: only active rows. (API already excludes soft-deleted.)
+        const active = list.filter(
+          (e) => !e.status || e.status === 'active'
+        )
+
+        // Build a children-by-parent map so we can walk descendants of the
+        // current equipment and exclude them (would create a cycle).
+        const childrenOf = new Map<string, string[]>()
+        for (const row of active) {
+          if (!row.parent_equipment_id) continue
+          const arr = childrenOf.get(row.parent_equipment_id) || []
+          arr.push(row.id)
+          childrenOf.set(row.parent_equipment_id, arr)
+        }
+        const excluded = new Set<string>([equipment.id])
+        const queue: string[] = [equipment.id]
+        while (queue.length > 0) {
+          const cur = queue.shift() as string
+          const kids = childrenOf.get(cur) || []
+          for (const k of kids) {
+            if (!excluded.has(k)) {
+              excluded.add(k)
+              queue.push(k)
+            }
+          }
+        }
+
+        const candidates: ParentCandidate[] = active
+          .filter((e) => !excluded.has(e.id))
+          .map((e) => ({
+            id: e.id,
+            unit_number: e.unit_number,
+            common_area_name: e.common_area_name,
+            make: e.make,
+            model: e.model,
+            parent_equipment_id: e.parent_equipment_id,
+            category_id: e.category_id,
+          }))
+        setParentCandidates(candidates)
+
+        const cats = (catJson.categories || []) as CategoryLite[]
+        const map = new Map<string, CategoryLite>()
+        for (const c of cats) map.set(c.id, c)
+        setCategoriesById(map)
+      } catch (err) {
+        console.error('Parent picker load failed', err)
+      } finally {
+        if (!cancelled) setParentLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open, equipment.site_id, equipment.id])
+
+  const parentOptions = useMemo(() => {
+    return parentCandidates.map((c) => {
+      const cat = c.category_id ? categoriesById.get(c.category_id) : null
+      const trailer =
+        c.unit_number ||
+        c.common_area_name ||
+        c.id.slice(0, 8)
+      const makeModel = [c.make, c.model].filter(Boolean).join(' ')
+      const lead = cat ? `${cat.icon ? `${cat.icon} ` : ''}${cat.name}` : 'Equipment'
+      const middle = makeModel ? ` — ${makeModel}` : ''
+      return {
+        id: c.id,
+        label: `${lead}${middle} (${trailer})`,
+      }
+    })
+  }, [parentCandidates, categoriesById])
 
   // Track over-limit state per field — used to show inline errors and to
   // gate the Save button.
@@ -170,6 +302,7 @@ export function EditEquipmentDialog({
             : '',
         notes: equipment.notes || '',
         status: equipment.status || 'active',
+        parent_equipment_id: equipment.parent_equipment_id || '',
       }
 
       for (const [k, v] of Object.entries(form)) {
@@ -251,6 +384,40 @@ export function EditEquipmentDialog({
               )}
             </div>
           </div>
+
+          {/* Parent equipment picker — only when we know the site. */}
+          {equipment.site_id && (
+            <div>
+              <Label htmlFor="parent_equipment_id">Part of (parent unit)</Label>
+              <Select
+                value={form.parent_equipment_id || NO_PARENT}
+                onValueChange={(v) =>
+                  setForm({
+                    ...form,
+                    parent_equipment_id: !v || v === NO_PARENT ? '' : v,
+                  })
+                }
+              >
+                <SelectTrigger id="parent_equipment_id">
+                  <SelectValue
+                    placeholder={parentLoading ? 'Loading…' : 'None (top-level unit)'}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_PARENT}>None (top-level unit)</SelectItem>
+                  {parentOptions.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Only equipment at the same site is shown. Descendants of this
+                unit are excluded to prevent cycles.
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>

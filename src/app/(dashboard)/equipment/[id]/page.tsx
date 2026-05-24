@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { ScheduleWorkOrderDialog } from '@/components/equipment/schedule-work-order-dialog'
 import { EditEquipmentDialog } from '@/components/equipment/edit-equipment-dialog'
+import { AddChildEquipmentDialog } from '@/components/equipment/add-child-equipment-dialog'
 import {
   ArrowLeft,
   Loader2,
@@ -36,6 +37,7 @@ import {
   Trash2,
   Pencil,
   PlayCircle,
+  Plus,
   ChevronDown,
   ChevronRight,
   Image as ImageIcon,
@@ -181,6 +183,7 @@ export default function EquipmentDetailPage() {
   const canEdit = user?.role ? hasPermission(user.role, 'equipment:edit' as Permission) : false
   const canDelete = user?.role ? hasPermission(user.role, 'equipment:delete' as Permission) : false
   const canSchedule = user?.role ? hasPermission(user.role, 'jobs:create' as Permission) : false
+  const canRegister = user?.role ? hasPermission(user.role, 'equipment:register' as Permission) : false
 
   const [data, setData] = useState<EquipmentDetailResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -193,6 +196,7 @@ export default function EquipmentDetailPage() {
   const [expandedInspections, setExpandedInspections] = useState<Set<string>>(new Set())
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [addChildOpen, setAddChildOpen] = useState(false)
 
   const refresh = useCallback(async () => {
     try {
@@ -589,14 +593,14 @@ export default function EquipmentDetailPage() {
       )}
 
       {/* System hierarchy */}
-      {(parent || children.length > 0) && (
+      {(parent || children.length > 0 || (canRegister && equipment.site_id)) && (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <Layers className="h-4 w-4" /> System Hierarchy
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-sm space-y-2">
+          <CardContent className="text-sm space-y-3">
             {parent && (
               <p>
                 <span className="text-muted-foreground">Part of: </span>
@@ -609,7 +613,7 @@ export default function EquipmentDetailPage() {
                 </Link>
               </p>
             )}
-            {children.length > 0 && (
+            {children.length > 0 ? (
               <div>
                 <p className="text-muted-foreground mb-1">Sub-units:</p>
                 <ul className="space-y-1">
@@ -622,6 +626,24 @@ export default function EquipmentDetailPage() {
                     </li>
                   ))}
                 </ul>
+              </div>
+            ) : (
+              !parent && (
+                <p className="text-muted-foreground italic">
+                  No sub-units yet. Add a child unit to model multi-component systems.
+                </p>
+              )
+            )}
+            {canRegister && equipment.site_id && (
+              <div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setAddChildOpen(true)}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add sub-unit
+                </Button>
               </div>
             )}
           </CardContent>
@@ -812,6 +834,7 @@ export default function EquipmentDetailPage() {
           onOpenChange={setEditOpen}
           equipment={{
             id: equipment.id,
+            site_id: equipment.site_id,
             unit_number: equipment.unit_number,
             common_area_name: equipment.common_area_name,
             make: equipment.make,
@@ -824,8 +847,24 @@ export default function EquipmentDetailPage() {
             notes: equipment.notes ?? null,
             status: equipment.status ?? 'active',
             category_id: equipment.category_id,
+            parent_equipment_id: equipment.parent_equipment_id,
           }}
           onSaved={() => {
+            refresh()
+          }}
+        />
+      )}
+
+      {/* Add child equipment */}
+      {canRegister && equipment.site_id && (
+        <AddChildEquipmentDialog
+          open={addChildOpen}
+          onOpenChange={setAddChildOpen}
+          parentId={equipment.id}
+          parentLabel={`${category?.name || 'Equipment'} — ${unitLabel}`}
+          siteId={equipment.site_id}
+          siteName={site?.name}
+          onCreated={() => {
             refresh()
           }}
         />

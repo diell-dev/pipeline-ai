@@ -86,7 +86,7 @@ Coordinate with B: schedule dialog uses `/api/schedule?from=X&to=X&assigned_to=Y
 - [x] Confirm migration 010 RPC is now called (Agent B's #4) — verified `supabase.rpc('create_job_from_equipment', …)` in start-from-equipment route
 - [x] Confirm migration 011 line no longer manually set in route (Agent A's small cleanup) — verified `EDITABLE_FIELDS` whitelist excludes `updated_at` and no manual assignment present
 - [x] Update this checklist with [x] + one-line note per item
-- [ ] User reviews + decides on commit/push
+- [x] Committed + pushed as `497c0fb` on 2026-05-23. Live on origin/main.
 
 ---
 

@@ -37,10 +37,18 @@ export function AppHeader() {
   return (
     <header className="flex h-14 items-center justify-between border-b bg-white px-6">
       {/* Left: breadcrumb area (will be dynamic per page) */}
+      {/* UX-SWEEP-#10: was an unlabeled tier pill ("Full Operations") that read as mystery
+          meat. Prefixed with "Plan:" so users understand it's their subscription tier. */}
       <div className="flex items-center gap-2">
-        <Badge variant="outline" className="text-xs">
-          {organization?.tier ? getTierConfig(organization.tier).label : ''}
-        </Badge>
+        {organization?.tier && (
+          <Badge
+            variant="outline"
+            className="text-xs"
+            title="Your organization's subscription plan"
+          >
+            Plan: {getTierConfig(organization.tier).label}
+          </Badge>
+        )}
       </div>
 
       {/* Right: notifications + user menu */}

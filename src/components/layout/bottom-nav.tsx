@@ -4,10 +4,10 @@
  * Mobile Bottom Nav
  *
  * Replaces the sidebar drawer on phones (<md). Five thumb-reachable slots:
- *   - Field Tech:   Dashboard, My Schedule, Jobs, More
- *   - Manager+:     Dashboard, Jobs, Schedule, Equipment, More
+ *   - Field Tech:   Dashboard, My Schedule, Jobs, Menu
+ *   - Manager+:     Dashboard, Jobs, Schedule, Equipment, Menu
  *
- * "More" opens a bottom sheet listing the rest of the nav items so nothing
+ * "Menu" opens a bottom sheet listing the rest of the nav items so nothing
  * is hidden — just deprioritized. Active item gets a brand-primary top
  * border + brand-primary icon/text.
  *
@@ -100,7 +100,7 @@ export function BottomNav() {
     .map((href) => visibleItems.find((it) => it.href === href))
     .filter((it): it is NavItem => Boolean(it))
 
-  // Everything that wasn't promoted to a primary slot goes into the More sheet
+  // Everything that wasn't promoted to a primary slot goes into the Menu sheet
   const overflowItems = visibleItems.filter(
     (it) => !primaryItems.some((p) => p.href === it.href)
   )
@@ -136,7 +136,7 @@ export function BottomNav() {
           )
         })}
 
-        {/* More — sheet trigger */}
+        {/* Menu — sheet trigger (formerly "More"; see UX-SWEEP-#22) */}
         <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
           <SheetTrigger
             className={cn(
@@ -150,7 +150,9 @@ export function BottomNav() {
               <span className="bg-brand-primary absolute inset-x-3 top-0 h-0.5 rounded-b" />
             )}
             <MoreHorizontal className="h-5 w-5" />
-            <span>More</span>
+            {/* UX-SWEEP-#22: was "More" — too vague. "Menu" matches the sheet title
+                and tells users they'll see the rest of the app's navigation. */}
+            <span>Menu</span>
           </SheetTrigger>
           <SheetContent
             side="bottom"

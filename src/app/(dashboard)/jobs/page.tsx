@@ -292,34 +292,47 @@ export default function JobsPage() {
 
       {/* Status filter pills with counts. AI Processing tab removed — jobs no longer linger
           in that status (report generation is a near-instant pass-through since v2). Pending
-          Review is visually distinct so it draws the eye. */}
+          Review is visually distinct so it draws the eye.
+          UX-SWEEP-#6: previously the chip set omitted ai_generating, revised, rejected, and
+          cancelled — so jobs in those statuses were untraceable from the filter row and the
+          chip counts didn't add up to All. We now list every status and hide chips when their
+          count is 0 (so the row stays compact when those statuses are unused).
+          UX-SWEEP-#9: chip selection style — solid dark zinc when active, white outlined when
+          inactive. Tone-tinted hover only; no leftover amber outline confusion. */}
       <div className="flex flex-wrap gap-2">
         {[
           { value: 'all',                label: 'All',              tone: 'neutral' as const },
           { value: 'pending_review',     label: 'Pending Review',   tone: 'attention' as const },
           { value: 'revision_requested', label: 'Revision Requested', tone: 'attention' as const },
+          { value: 'rejected',           label: 'Rejected',         tone: 'attention' as const },
           { value: 'submitted',          label: 'Submitted',        tone: 'neutral' as const },
+          { value: 'ai_generating',      label: 'AI Processing',    tone: 'neutral' as const },
           { value: 'scheduled',          label: 'Scheduled',        tone: 'neutral' as const },
+          { value: 'revised',            label: 'Revised',          tone: 'neutral' as const },
           { value: 'approved',           label: 'Approved',         tone: 'success' as const },
           { value: 'sent',               label: 'Sent',             tone: 'success' as const },
           { value: 'completed',          label: 'Completed',        tone: 'success' as const },
+          { value: 'cancelled',          label: 'Cancelled',        tone: 'neutral' as const },
         ].map((tab) => {
           const count = counts[tab.value] || 0
           const active = filter === tab.value
           // Hide tabs with 0 entries except 'all', 'pending_review', and the currently active tab
           if (count === 0 && tab.value !== 'all' && tab.value !== 'pending_review' && !active) return null
 
-          // Visual tone — pending_review/revision_requested with items get amber; approved/sent/completed get green tint; rest stay neutral
+          // UX-SWEEP-#9: single selection style — solid dark for active, white outlined for inactive
           const baseClass = 'inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium border transition-colors'
           let toneClass = ''
           if (active) {
             toneClass = 'bg-zinc-900 text-white border-zinc-900 hover:bg-zinc-800'
-          } else if (tab.tone === 'attention' && count > 0) {
-            toneClass = 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
-          } else if (tab.tone === 'success') {
-            toneClass = 'bg-white text-zinc-700 border-zinc-200 hover:bg-emerald-50 hover:border-emerald-200'
           } else {
-            toneClass = 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50'
+            // All inactive chips share the same outlined look — only hover tints by tone
+            const hoverByTone =
+              tab.tone === 'attention' && count > 0
+                ? 'hover:bg-amber-50 hover:border-amber-300'
+                : tab.tone === 'success'
+                  ? 'hover:bg-emerald-50 hover:border-emerald-200'
+                  : 'hover:bg-zinc-50'
+            toneClass = `bg-white text-zinc-700 border-zinc-200 ${hoverByTone}`
           }
 
           // Count badge styling
@@ -328,7 +341,7 @@ export default function JobsPage() {
           if (active) {
             badgeClass = 'bg-white/20 text-white'
           } else if (tab.tone === 'attention' && count > 0) {
-            badgeClass = 'bg-amber-200 text-amber-900'
+            badgeClass = 'bg-amber-100 text-amber-900'
           } else {
             badgeClass = 'bg-zinc-100 text-zinc-600'
           }
@@ -343,7 +356,7 @@ export default function JobsPage() {
               {tab.value === 'pending_review' && count > 0 && !active && (
                 <AlertTriangle className="h-3.5 w-3.5" />
               )}
-              {(tab.value === 'approved' || tab.value === 'sent' || tab.value === 'completed') && (
+              {(tab.value === 'approved' || tab.value === 'sent' || tab.value === 'completed') && !active && (
                 <CheckCircle2 className="h-3.5 w-3.5 opacity-60" />
               )}
               <span>{tab.label}</span>
@@ -383,40 +396,64 @@ export default function JobsPage() {
         </Card>
       )}
 
-      {/* Job list */}
+      {/* Job list
+          UX-SWEEP-#19: when consecutive rows share the same client_id, only show the client
+          name + address on the FIRST row of the group. Subsequent rows are indented and show
+          status / date / submitter only. Visual grouping without changing data structure. */}
       {!loading && jobs.length > 0 && (
         <div className="space-y-3">
-          {jobs.map((job) => {
+          {jobs.map((job, idx) => {
             const statusConf = STATUS_CONFIG[job.status]
             const priorityConf = PRIORITY_CONFIG[job.priority]
+            const prev = idx > 0 ? jobs[idx - 1] : null
+            const sameAsPrev = !!prev && prev.client_id === job.client_id
             return (
               <Card
                 key={job.id}
-                className="hover:shadow-md transition-shadow cursor-pointer"
+                className={`hover:shadow-md transition-shadow cursor-pointer ${
+                  sameAsPrev ? 'ml-4 border-l-2 border-l-zinc-200' : ''
+                }`}
                 onClick={() => router.push(`/jobs/${job.id}`)}
               >
                 <CardContent className="flex items-center justify-between py-4">
                   <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm">
-                        {job.clients?.company_name || 'Unknown Client'}
-                      </span>
-                      <Badge className={statusConf.className} variant="outline">
-                        {statusConf.label}
-                      </Badge>
-                      {job.priority !== 'normal' && (
-                        <Badge className={priorityConf.className} variant="outline">
-                          <AlertTriangle className="h-3 w-3 mr-1" />
-                          {priorityConf.label}
+                    {!sameAsPrev && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm">
+                          {job.clients?.company_name || 'Unknown Client'}
+                        </span>
+                        <Badge className={statusConf.className} variant="outline">
+                          {statusConf.label}
                         </Badge>
-                      )}
-                    </div>
+                        {job.priority !== 'normal' && (
+                          <Badge className={priorityConf.className} variant="outline">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            {priorityConf.label}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                    {sameAsPrev && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge className={statusConf.className} variant="outline">
+                          {statusConf.label}
+                        </Badge>
+                        {job.priority !== 'normal' && (
+                          <Badge className={priorityConf.className} variant="outline">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            {priorityConf.label}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        {job.sites?.name || 'Unknown Site'}
-                        {job.sites?.address ? ` — ${job.sites.address}` : ''}
-                      </span>
+                      {!sameAsPrev && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {job.sites?.name || 'Unknown Site'}
+                          {job.sites?.address ? ` — ${job.sites.address}` : ''}
+                        </span>
+                      )}
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
                         {new Date(job.service_date).toLocaleDateString()}

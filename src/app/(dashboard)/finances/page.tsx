@@ -14,12 +14,10 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
-import { hasPermission } from '@/lib/permissions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { MarkPaidDialog } from '@/components/invoices/mark-paid-dialog'
 import { toast } from 'sonner'
 import {
   DollarSign,
@@ -41,7 +39,6 @@ import {
   X,
 } from 'lucide-react'
 
-const MARK_PAID_STATUSES = ['draft', 'sent', 'overdue', 'partially_paid']
 
 // Status config for badges
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -91,7 +88,6 @@ const PAGE_SIZE = 15
 export default function FinancesPage() {
   const router = useRouter()
   const { organization, user } = useAuthStore()
-  const canMarkPaid = user?.role ? hasPermission(user.role, 'invoices:mark_paid') : false
   const isSuperAdmin = user?.role === 'super_admin'
 
   // Data
@@ -312,10 +308,25 @@ export default function FinancesPage() {
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
   const selectedClientName = clients.find((c) => c.id === clientFilter)?.company_name
 
-  // Revenue change percentage
-  const revenueChange = stats?.revenueLastMonth
-    ? Math.round(((stats.revenueThisMonth - stats.revenueLastMonth) / stats.revenueLastMonth) * 100)
+  // Revenue change percentage — only show when comparison is meaningful.
+  // Skip when the current month just started (< 7 days in) because a near-zero
+  // partial month always looks catastrophic vs a full prior month, and skip
+  // when last month's baseline was negligible (< $100) so the percent isn't
+  // a wild swing off near-zero.
+  const dayOfMonth = new Date().getDate()
+  const lastMonthBaseline = stats?.revenueLastMonth ?? 0
+  const showRevenueChange =
+    dayOfMonth >= 7 && lastMonthBaseline >= 100
+  const revenueChange = showRevenueChange
+    ? Math.round(((stats!.revenueThisMonth - lastMonthBaseline) / lastMonthBaseline) * 100)
     : null
+  // Neutral grey unless the change is meaningful (> 20% in either direction).
+  const revenueChangeColor =
+    revenueChange == null
+      ? 'text-muted-foreground'
+      : Math.abs(revenueChange) > 20
+        ? revenueChange >= 0 ? 'text-green-600' : 'text-red-600'
+        : 'text-muted-foreground'
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
@@ -339,7 +350,7 @@ export default function FinancesPage() {
               ${(stats?.revenueThisMonth || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </p>
             {revenueChange !== null && (
-              <p className={`text-xs mt-1 ${revenueChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <p className={`text-xs mt-1 ${revenueChangeColor}`}>
                 {revenueChange >= 0 ? '+' : ''}{revenueChange}% vs last month
               </p>
             )}
@@ -409,7 +420,9 @@ export default function FinancesPage() {
             <select
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setPage(0) }}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+              className={`h-9 rounded-md border border-input bg-background px-3 text-sm ${
+                statusFilter === '' ? 'text-muted-foreground' : ''
+              }`}
             >
               <option value="">All Statuses</option>
               <option value="unpaid">Unpaid</option>
@@ -430,7 +443,9 @@ export default function FinancesPage() {
               >
                 <span className="flex items-center gap-2">
                   <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                  {selectedClientName || 'All Clients'}
+                  <span className={selectedClientName ? '' : 'text-muted-foreground'}>
+                    {selectedClientName || 'All Clients'}
+                  </span>
                 </span>
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
               </Button>
@@ -503,7 +518,8 @@ export default function FinancesPage() {
         </CardContent>
       </Card>
 
-      {/* Invoice Table */}
+      {/* Invoice Table. UX-SWEEP-#7: /finances is the read-only analytics
+          view — Mark Paid / Delete actions live on /invoices. */}
       <Card>
         <CardHeader className="pb-2">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -511,6 +527,14 @@ export default function FinancesPage() {
               <Receipt className="h-4 w-4" />
               Invoices ({totalCount})
             </CardTitle>
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-xs"
+              onClick={() => router.push('/invoices')}
+            >
+              View all in Invoices →
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -590,25 +614,6 @@ export default function FinancesPage() {
                         </div>
                       </div>
                       <div className="flex gap-2 pt-2 border-t">
-                        {canMarkPaid && MARK_PAID_STATUSES.includes(inv.status) && (
-                          <MarkPaidDialog
-                            invoice={{
-                              id: inv.id,
-                              invoice_number: inv.invoice_number,
-                              total_amount: Number(inv.total_amount) || 0,
-                            }}
-                            onSuccess={loadInvoices}
-                          >
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="flex-1 h-10 text-green-700 hover:text-green-800 hover:bg-green-50"
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                              Mark Paid
-                            </Button>
-                          </MarkPaidDialog>
-                        )}
                         <Button
                           size="sm"
                           variant="outline"
@@ -709,39 +714,18 @@ export default function FinancesPage() {
                             {new Date(inv.created_at).toLocaleDateString()}
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              {canMarkPaid && MARK_PAID_STATUSES.includes(inv.status) && (
-                                <MarkPaidDialog
-                                  invoice={{
-                                    id: inv.id,
-                                    invoice_number: inv.invoice_number,
-                                    total_amount: Number(inv.total_amount) || 0,
-                                  }}
-                                  onSuccess={loadInvoices}
-                                >
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-7 px-2 text-xs text-green-700 hover:text-green-800 hover:bg-green-50"
-                                  >
-                                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                                    Mark Paid
-                                  </Button>
-                                </MarkPaidDialog>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-2"
-                                disabled={!inv.job_id}
-                                onClick={() => {
-                                  if (!inv.job_id) return
-                                  router.push(`/jobs/${inv.job_id}`)
-                                }}
-                              >
-                                <Eye className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2"
+                              disabled={!inv.job_id}
+                              onClick={() => {
+                                if (!inv.job_id) return
+                                router.push(`/jobs/${inv.job_id}`)
+                              }}
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
                           </td>
                         </tr>
                       )

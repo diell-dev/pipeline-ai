@@ -71,69 +71,79 @@ export function EquipmentLifecycleWidget() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-red-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-red-700 flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Equipment Overdue
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-9 w-20" />
-            ) : (
-              <div className="text-3xl font-bold text-red-700">
-                {data?.overdue ?? 0}
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground mt-1">
-              Est. cost {loading ? '—' : formatCurrency(data?.overdueCost ?? 0)}
-            </p>
-          </CardContent>
-        </Card>
+      {/* UX-SWEEP-#15: collapse the 3 zero cards into a single success line
+          when there's nothing to flag — otherwise the widget feels empty. */}
+      {!loading && (data?.overdue ?? 0) === 0 && (data?.dueSoon ?? 0) === 0 && (data?.pastLifespan ?? 0) === 0 ? (
+        <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          <span aria-hidden>✓</span>
+          All equipment current — no overdue or upcoming service items.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="border-red-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-red-700 flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                Equipment Overdue
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-9 w-20" />
+              ) : (
+                <div className="text-3xl font-bold text-red-700">
+                  {data?.overdue ?? 0}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                Est. cost {loading ? '—' : formatCurrency(data?.overdueCost ?? 0)}
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card className="border-amber-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-amber-800 flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Due in 90 Days
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-9 w-20" />
-            ) : (
-              <div className="text-3xl font-bold text-amber-800">{data?.dueSoon ?? 0}</div>
-            )}
-            <p className="text-xs text-muted-foreground mt-1">
-              Est. cost {loading ? '—' : formatCurrency(data?.dueSoonCost ?? 0)}
-            </p>
-          </CardContent>
-        </Card>
+          <Card className="border-amber-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-amber-800 flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Due in 90 Days
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-9 w-20" />
+              ) : (
+                <div className="text-3xl font-bold text-amber-800">{data?.dueSoon ?? 0}</div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                Est. cost {loading ? '—' : formatCurrency(data?.dueSoonCost ?? 0)}
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-zinc-700 flex items-center gap-2">
-              <Layers className="h-4 w-4" />
-              Past Lifespan
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-9 w-20" />
-            ) : (
-              <div className="text-3xl font-bold text-zinc-700">{data?.pastLifespan ?? 0}</div>
-            )}
-            <p className="text-xs text-muted-foreground mt-1">
-              Est. cost {loading ? '—' : formatCurrency(data?.pastLifespanCost ?? 0)}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-zinc-700 flex items-center gap-2">
+                <Layers className="h-4 w-4" />
+                Past Lifespan
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-9 w-20" />
+              ) : (
+                <div className="text-3xl font-bold text-zinc-700">{data?.pastLifespan ?? 0}</div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                Est. cost {loading ? '—' : formatCurrency(data?.pastLifespanCost ?? 0)}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-      {/* Cost by category */}
-      {!loading && topCategories.length > 0 && (
+      {/* Cost by category. UX-SWEEP-#16: hide entirely when there's nothing
+          meaningful to compare (single category or all-zero costs). */}
+      {!loading && topCategories.length > 1 && topCategories.some((c) => c.cost > 0) && (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Replacement cost by category (top 5)</CardTitle>

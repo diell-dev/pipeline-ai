@@ -231,16 +231,23 @@ export default function SchedulePage() {
       })
     }
     if (view === 'week') {
+      // UX-SWEEP-#5: previous formatter produced "May 18 – 2026 (day: 24)" in some
+      // locales because passing `month: undefined` plus `day` + `year` to
+      // toLocaleDateString gives back an awkward fragment. Use explicit pieces
+      // so output is always either "May 18 – 24, 2026" (same month) or
+      // "May 28 – Jun 3, 2026" (crossing months).
       const start = startOfWeek(cursor)
       const end = addDays(start, 6)
       const sameMonth = start.getMonth() === end.getMonth()
-      const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      const endStr = end.toLocaleDateString('en-US', {
-        month: sameMonth ? undefined : 'short',
-        day: 'numeric',
-        year: 'numeric',
-      })
-      return `${startStr} – ${endStr}`
+      const startMonth = start.toLocaleDateString('en-US', { month: 'short' })
+      const startDay = start.getDate()
+      const endDay = end.getDate()
+      const endYear = end.getFullYear()
+      if (sameMonth) {
+        return `${startMonth} ${startDay} – ${endDay}, ${endYear}`
+      }
+      const endMonth = end.toLocaleDateString('en-US', { month: 'short' })
+      return `${startMonth} ${startDay} – ${endMonth} ${endDay}, ${endYear}`
     }
     return cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   }, [view, cursor])
@@ -583,7 +590,15 @@ function DayView({
 }
 
 // ============================================================
-// WeekView — 7 columns
+// WeekView — 7 columns, day-summary layout
+//
+// UX-SWEEP-#4: this is intentionally a "7-day overview" rather than a real
+// time-axis week grid. Each column is a day-cell with an event-count chip in
+// the header so the view is visually distinct from Month view. Real
+// hours-of-day × 7 grid is future work — track in the comment below.
+// TODO(UX-SWEEP-#4): real time-axis grid pending. When built, lay out as
+// 8-column grid (hour gutter + 7 days), rows = hour buckets, jobs
+// absolutely-positioned by scheduled_time / estimated_duration_minutes.
 // ============================================================
 function WeekView({
   days,
@@ -606,6 +621,7 @@ function WeekView({
           {days.map((day) => {
             const isToday = sameDay(day, today)
             const dayJobs = jobsByDate.get(ymd(day)) || []
+            const count = dayJobs.length
             return (
               <div key={ymd(day)} className="border-r last:border-r-0">
                 <div
@@ -616,10 +632,25 @@ function WeekView({
                   <div className="text-[10px] uppercase tracking-wider opacity-70">
                     {DAY_NAMES[day.getDay()]}
                   </div>
-                  <div className="text-sm font-semibold">{day.getDate()}</div>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <div className="text-sm font-semibold">{day.getDate()}</div>
+                    {/* UX-SWEEP-#4: event-count chip — makes it obvious this is a
+                        day-summary view, not a time grid */}
+                    {count > 0 && (
+                      <span
+                        className={`inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[10px] font-medium ${
+                          isToday
+                            ? 'bg-white/20 text-white'
+                            : 'bg-zinc-200 text-zinc-700'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div
-                  className="min-h-[400px] p-1 space-y-1 cursor-pointer hover:bg-zinc-50/50 transition-colors"
+                  className="min-h-[360px] p-1 space-y-1 cursor-pointer hover:bg-zinc-50/50 transition-colors"
                   onClick={(e) => {
                     if (e.target === e.currentTarget) {
                       const slot = new Date(day)
@@ -631,7 +662,7 @@ function WeekView({
                   {dayJobs.map((job) => (
                     <div
                       key={job.id}
-                      className="rounded p-1.5 text-[10px] cursor-pointer hover:opacity-90 transition-opacity"
+                      className="rounded px-1.5 py-1 text-[10px] cursor-pointer hover:opacity-90 transition-opacity"
                       style={{
                         backgroundColor: getJobColor(job) + '20',
                         borderLeft: `3px solid ${getJobColor(job)}`,
@@ -641,16 +672,15 @@ function WeekView({
                         onSelectJob(job)
                       }}
                     >
-                      {job.scheduled_time && (
-                        <div className="font-semibold mb-0.5">
-                          {formatTime(job.scheduled_time)}
-                        </div>
-                      )}
-                      <div className="font-medium truncate">
-                        {job.clients?.company_name}
-                      </div>
-                      <div className="text-muted-foreground truncate">
-                        {job.sites?.address || job.sites?.name}
+                      <div className="flex items-baseline gap-1">
+                        {job.scheduled_time && (
+                          <span className="font-semibold">
+                            {formatTime(job.scheduled_time)}
+                          </span>
+                        )}
+                        <span className="font-medium truncate">
+                          {job.clients?.company_name}
+                        </span>
                       </div>
                     </div>
                   ))}

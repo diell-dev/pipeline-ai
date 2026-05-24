@@ -305,7 +305,8 @@ export default function DashboardPage() {
             Welcome back{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {organization?.name} — {user?.role ? getRoleLabel(user.role) : ''}
+            {user?.role ? getRoleLabel(user.role) : ''}
+            {user?.email ? ` · ${user.email}` : ''}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
@@ -333,18 +334,22 @@ export default function DashboardPage() {
       </div>
 
       {/* Filter bar — sticky so it stays visible while scrolling KPI sections */}
+      {/* UX-SWEEP-#20: filter row was here — switched mobile layout from a
+          single column (TIMEFRAME / CLIENT on separate rows) to a 2-column
+          grid so both selects fit on one row on phones. Coordinate with
+          Agent A: this is the only change here in this scope. */}
       {showAnalytics && (
         <div className="sticky top-0 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
-          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">
+          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0 hidden sm:inline">
                 Timeframe
               </span>
               <Select
                 value={timeframe}
                 onValueChange={(value) => value && setTimeframe(value as Timeframe)}
               >
-                <SelectTrigger className="min-w-[140px] flex-1 sm:flex-none">
+                <SelectTrigger className="w-full sm:min-w-[140px] sm:w-auto sm:flex-none">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -357,15 +362,15 @@ export default function DashboardPage() {
               </Select>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0 hidden sm:inline">
                 Client
               </span>
               <Select
                 value={clientId}
                 onValueChange={(value) => value && setClientId(value)}
               >
-                <SelectTrigger className="min-w-[180px] flex-1 sm:flex-none">
+                <SelectTrigger className="w-full sm:min-w-[180px] sm:w-auto sm:flex-none">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -438,7 +443,7 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl sm:text-3xl font-bold text-blue-600">
+            <div className="text-2xl sm:text-3xl font-bold text-foreground">
               {loadingStats ? '—' : stats?.submitted ?? 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">being processed</p>
@@ -456,7 +461,7 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl sm:text-3xl font-bold text-amber-600">
+            <div className="text-2xl sm:text-3xl font-bold text-foreground">
               {loadingStats ? '—' : stats?.pendingReview ?? 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">awaiting approval</p>
@@ -474,7 +479,7 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl sm:text-3xl font-bold text-green-600">
+            <div className="text-2xl sm:text-3xl font-bold text-foreground">
               {loadingStats ? '—' : stats?.approved ?? 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">completed or sent</p>
@@ -484,7 +489,7 @@ export default function DashboardPage() {
 
       {/* Financials row — owner/manager only */}
       {showAnalytics && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -579,34 +584,36 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Flag className="h-4 w-4" />
-                Avg Started → Completed
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loadingAnalytics ? (
-                <Skeleton className="h-9 w-28" />
-              ) : analytics?.avgStartedToCompletedHours == null ? (
-                <div className="text-2xl sm:text-3xl font-bold">—</div>
-              ) : (
-                <div className="text-2xl sm:text-3xl font-bold">
-                  {formatDuration(analytics.avgStartedToCompletedHours)}
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">
-                {analytics
-                  ? `(based on ${analytics.recordCounts.startedToCompleted} jobs)`
-                  : ' '}
-              </p>
-            </CardContent>
-          </Card>
+          {(loadingAnalytics || analytics?.avgStartedToCompletedHours != null) && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Flag className="h-4 w-4" />
+                  Avg Started → Completed
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loadingAnalytics ? (
+                  <Skeleton className="h-9 w-28" />
+                ) : (
+                  <div className="text-2xl sm:text-3xl font-bold">
+                    {formatDuration(analytics!.avgStartedToCompletedHours!)}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  {analytics
+                    ? `(based on ${analytics.recordCounts.startedToCompleted} jobs)`
+                    : ' '}
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
       {/* Equipment lifecycle widget — visible only to users who can see equipment */}
+      {/* UX-SWEEP-#15: collapse 3 zero cards (Overdue / Due 90d / Past Lifespan) into a single success line "All equipment current — no overdue or upcoming service items" when all three are 0. Lives inside src/components/equipment/lifecycle-widget.tsx (out of scope for dashboard agent). */}
+      {/* UX-SWEEP-#16: hide the "Replacement cost by category (top 5)" sub-widget when the top result is $0 OR there's only 1 category with $0 cost. Also inside lifecycle-widget.tsx. */}
       {canViewEquipment && <EquipmentLifecycleWidget />}
 
       {/* Quick Actions */}
@@ -616,27 +623,27 @@ export default function DashboardPage() {
             <CardTitle className="text-base">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
+            {canCreate && (
+              <Button
+                variant="outline"
+                className="h-10"
+                onClick={() => router.push('/jobs/new')}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                New Job
+              </Button>
+            )}
             {canCreateProposal && (
-              <Button variant="brand" className="h-10" onClick={() => router.push('/proposals/new')}>
+              <Button variant="outline" className="h-10" onClick={() => router.push('/proposals/new')}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Proposal
               </Button>
             )}
-            {canCreate && (
-              <Button
-                className="h-10"
-                variant={canCreateProposal ? 'outline' : 'brand'}
-                onClick={() => router.push('/jobs/new')}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Submit New Job
-              </Button>
-            )}
-            <Button variant="outline" className="h-10" onClick={() => router.push('/clients')}>
-              View Clients
-            </Button>
             <Button variant="outline" className="h-10" onClick={() => router.push('/jobs')}>
               View {canViewAll ? 'All' : 'My'} Jobs
+            </Button>
+            <Button variant="outline" className="h-10" onClick={() => router.push('/clients')}>
+              View Clients
             </Button>
           </CardContent>
         </Card>

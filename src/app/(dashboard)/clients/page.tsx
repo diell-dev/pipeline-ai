@@ -192,7 +192,8 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Empty state — UX-SWEEP-#23: match the /proposals empty-state pattern
+          (icon + heading + helper + CTA). Only show CTA when not just a search miss. */}
       {!loading && filtered.length === 0 && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
@@ -201,10 +202,18 @@ export default function ClientsPage() {
               {search ? 'No matching clients' : 'No clients yet'}
             </h3>
             <p className="text-sm text-muted-foreground text-center max-w-md">
-              {canCreate
-                ? 'Add your first client to start managing their sites and jobs.'
-                : 'No clients have been added yet.'}
+              {search
+                ? 'Try a different search term, or clear the search to see all clients.'
+                : canCreate
+                  ? 'Add your first client to start tracking sites, equipment, and jobs.'
+                  : 'No clients have been added yet.'}
             </p>
+            {!search && canCreate && (
+              <Button className="mt-4" onClick={() => setShowAddDialog(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Client
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}

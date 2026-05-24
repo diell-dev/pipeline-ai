@@ -18,6 +18,14 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { MarkPaidDialog } from '@/components/invoices/mark-paid-dialog'
 import { toast } from 'sonner'
 import {
@@ -29,9 +37,13 @@ import {
   X,
   Trash2,
   CheckCircle2,
-  AlertTriangle,
 } from 'lucide-react'
 import type { InvoiceStatus, Client } from '@/types/database'
+
+// UX-SWEEP-#7: /finances should be the read-only analytics view —
+// remove row actions (Mark Paid, trash) from finances/page.tsx and add a
+// "View all in Invoices →" link there. This page (/invoices) remains the
+// operational list with full row actions.
 
 const MARK_PAID_STATUSES: InvoiceStatus[] = ['draft', 'sent', 'overdue', 'partially_paid']
 
@@ -194,6 +206,25 @@ export default function InvoicesPage() {
     })
   }
 
+  // UX-SWEEP-#17: row subtitle — five identical-looking rows in a row are hard to
+  // distinguish, so show created-relative-time per row. Lightweight, no extra join.
+  function formatRelative(dateStr: string) {
+    const then = new Date(dateStr).getTime()
+    const now = Date.now()
+    const diffMs = now - then
+    const mins = Math.round(diffMs / 60000)
+    if (mins < 1) return 'just now'
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.round(mins / 60)
+    if (hrs < 24) return `${hrs}h ago`
+    const days = Math.round(hrs / 24)
+    if (days < 30) return `${days}d ago`
+    const months = Math.round(days / 30)
+    if (months < 12) return `${months}mo ago`
+    const yrs = Math.round(months / 12)
+    return `${yrs}y ago`
+  }
+
   async function handleVoidInvoice(invoiceId: string) {
     setVoidingId(invoiceId)
     try {
@@ -334,6 +365,10 @@ export default function InvoicesPage() {
                       <p className="text-sm font-medium truncate mt-0.5">
                         {inv.clients?.company_name || '—'}
                       </p>
+                      {/* UX-SWEEP-#17: created-time subtitle */}
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Created {formatRelative(inv.created_at)}
+                      </p>
                     </div>
                     <Badge className={`text-[10px] border-0 shrink-0 ${displayStatus.className}`}>
                       {displayStatus.label}
@@ -380,41 +415,15 @@ export default function InvoicesPage() {
                         </MarkPaidDialog>
                       )}
                       {canDeleteInvoice && inv.status !== 'void' && inv.status !== 'paid' && (
-                        confirmVoidId === inv.id ? (
-                          <>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              className="flex-1 h-10"
-                              onClick={() => handleVoidInvoice(inv.id)}
-                              disabled={voidingId === inv.id}
-                            >
-                              {voidingId === inv.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                'Confirm Void'
-                              )}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex-1 h-10"
-                              onClick={() => setConfirmVoidId(null)}
-                            >
-                              Cancel
-                            </Button>
-                          </>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 h-10 text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => setConfirmVoidId(inv.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5 mr-1" />
-                            Void
-                          </Button>
-                        )
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 h-10 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => setConfirmVoidId(inv.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-1" />
+                          Void
+                        </Button>
                       )}
                     </div>
                   )}
@@ -450,7 +459,7 @@ export default function InvoicesPage() {
                   return (
                     <tr
                       key={inv.id}
-                      className="border-b last:border-0 hover:bg-zinc-50/50 transition-colors cursor-pointer"
+                      className="border-b last:border-0 hover:bg-zinc-50 even:bg-zinc-50/40 transition-colors cursor-pointer"
                       onClick={() => {
                         // Navigate to job detail (where invoice is displayed)
                         if (inv.job_id) {
@@ -458,31 +467,36 @@ export default function InvoicesPage() {
                         }
                       }}
                     >
-                      <td className="px-4 py-3 font-mono text-xs font-medium">
-                        {inv.invoice_number}
+                      <td className="px-4 py-3 font-mono text-xs font-medium align-top">
+                        <div>{inv.invoice_number}</div>
+                        {/* UX-SWEEP-#17: created-time subtitle so otherwise-identical rows
+                            are distinguishable at a glance */}
+                        <div className="text-[10px] font-normal text-muted-foreground mt-0.5">
+                          {formatRelative(inv.created_at)}
+                        </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 align-top">
                         {inv.clients?.company_name || '—'}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="px-4 py-3 text-muted-foreground align-top">
                         {formatDate(inv.created_at)}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="px-4 py-3 text-muted-foreground align-top">
                         {formatDate(inv.due_date)}
                       </td>
-                      <td className="px-4 py-3 text-right font-medium">
+                      <td className="px-4 py-3 text-right font-medium align-top">
                         {formatCurrency(inv.total_amount)}
                       </td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">
+                      <td className="px-4 py-3 text-right text-muted-foreground align-top">
                         {inv.paid_amount > 0 ? formatCurrency(inv.paid_amount) : '—'}
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-4 py-3 text-center align-top">
                         <Badge className={`text-[10px] border-0 ${displayStatus.className}`}>
                           {displayStatus.label}
                         </Badge>
                       </td>
                       {(canDeleteInvoice || canMarkPaid) && (
-                        <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                        <td className="px-4 py-3 text-center align-top" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-1 justify-center">
                             {canMarkPaid && MARK_PAID_STATUSES.includes(inv.status) && (
                               <MarkPaidDialog
@@ -504,36 +518,14 @@ export default function InvoicesPage() {
                               </MarkPaidDialog>
                             )}
                             {canDeleteInvoice && inv.status !== 'void' && inv.status !== 'paid' && (
-                              confirmVoidId === inv.id ? (
-                                <>
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    className="h-7 text-xs px-2"
-                                    onClick={() => handleVoidInvoice(inv.id)}
-                                    disabled={voidingId === inv.id}
-                                  >
-                                    {voidingId === inv.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Void'}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-7 text-xs px-2"
-                                    onClick={() => setConfirmVoidId(null)}
-                                  >
-                                    No
-                                  </Button>
-                                </>
-                              ) : (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 text-xs px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                  onClick={() => setConfirmVoidId(inv.id)}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              )
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => setConfirmVoidId(inv.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
                             )}
                           </div>
                         </td>
@@ -544,6 +536,56 @@ export default function InvoicesPage() {
               </tbody>
             </table>
           </div>
+
+          {/* UX-SWEEP-#1: confirm dialog before delete (was an inline two-button swap that
+              was easy to misclick). One shared modal for mobile + desktop rows. */}
+          <Dialog open={!!confirmVoidId} onOpenChange={(open) => !open && !voidingId && setConfirmVoidId(null)}>
+            <DialogContent className="sm:max-w-md">
+              {(() => {
+                const target = invoices.find((i) => i.id === confirmVoidId)
+                return (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle>
+                        Delete invoice {target?.invoice_number || ''}?
+                      </DialogTitle>
+                      <DialogDescription>
+                        This cannot be undone.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setConfirmVoidId(null)}
+                        disabled={!!voidingId}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={() => confirmVoidId && handleVoidInvoice(confirmVoidId)}
+                        disabled={!!voidingId}
+                      >
+                        {voidingId ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            Deleting…
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </>
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </>
+                )
+              })()}
+            </DialogContent>
+          </Dialog>
 
           {/* Pagination */}
           {totalPages > 1 && (

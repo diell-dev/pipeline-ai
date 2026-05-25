@@ -14,9 +14,37 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Pipeline AI — Smart Field Service Automation',
+  title: {
+    default: 'Pipeline AI — Smart Field Service Automation',
+    template: '%s · Pipeline AI',
+  },
   description:
     'AI-powered invoicing, reporting, and client management for trades businesses.',
+  applicationName: 'Pipeline AI',
+  // Icons: Next.js auto-discovers src/app/icon.tsx, apple-icon.tsx, and
+  // favicon.ico — declaring them here is redundant but lets us add the
+  // SVG variant for browsers that prefer vector favicons (Firefox,
+  // Safari 16+) without losing the static .ico fallback.
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+    ],
+  },
+  openGraph: {
+    title: 'Pipeline AI — Field service operations that don’t lose track',
+    description:
+      'AI-powered invoicing, reporting, and client management for trades businesses.',
+    siteName: 'Pipeline AI',
+    type: 'website',
+    // The /opengraph-image route is auto-wired by Next.js from
+    // src/app/opengraph-image.tsx; do not hand-add an `images` entry.
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Pipeline AI',
+    description:
+      'AI-powered invoicing, reporting, and client management for trades businesses.',
+  },
 }
 
 export default function RootLayout({

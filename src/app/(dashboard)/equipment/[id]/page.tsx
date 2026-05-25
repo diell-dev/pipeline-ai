@@ -26,6 +26,7 @@ import { toast } from 'sonner'
 import { ScheduleWorkOrderDialog } from '@/components/equipment/schedule-work-order-dialog'
 import { EditEquipmentDialog } from '@/components/equipment/edit-equipment-dialog'
 import { AddChildEquipmentDialog } from '@/components/equipment/add-child-equipment-dialog'
+import { Skeleton, SkeletonCard } from '@/components/ui/skeleton'
 import {
   ArrowLeft,
   Loader2,
@@ -274,8 +275,24 @@ export default function EquipmentDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="mx-auto max-w-5xl space-y-4 p-4 md:p-6">
+        {/* Header skeleton */}
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-9 w-9 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-6 w-1/3" />
+            <Skeleton className="h-4 w-1/2" />
+          </div>
+        </div>
+        {/* KPI / info skeletons */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+        {/* Detail body */}
+        <Skeleton className="h-48 w-full rounded-xl" />
+        <Skeleton className="h-32 w-full rounded-xl" />
       </div>
     )
   }

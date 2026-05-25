@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Wrench, Plus, Loader2, Search, DollarSign, Tag } from 'lucide-react'
+import { SkeletonList } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import type { ServiceCatalogItem, ServiceUnit } from '@/types/database'
 
@@ -183,9 +184,7 @@ export default function ServicesPage() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
+        <SkeletonList rows={5} />
       ) : services.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">

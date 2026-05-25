@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pipeline AI — Phase A Visual Direction Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ────────────────────────────────────────
+     PIPELINE AI — PHASE A TOKEN DEMO
+     Toggle palette + theme via the chips at the top.
+     This file is self-contained — open it in any browser.
+     ──────────────────────────────────────── */
+
+  :root {
+    /* Neutrals (zinc) */
+    --c-zinc-50:#fafafa; --c-zinc-100:#f4f4f5; --c-zinc-200:#e4e4e7;
+    --c-zinc-300:#d4d4d8; --c-zinc-400:#a1a1aa; --c-zinc-500:#71717a;
+    --c-zinc-600:#52525b; --c-zinc-700:#3f3f46; --c-zinc-800:#27272a;
+    --c-zinc-900:#18181b; --c-zinc-950:#09090b;
+
+    /* Status */
+    --c-emerald-50:#ecfdf5; --c-emerald-200:#a7f3d0; --c-emerald-600:#059669; --c-emerald-700:#047857;
+    --c-amber-50:#fffbeb;   --c-amber-200:#fde68a;   --c-amber-500:#f59e0b; --c-amber-700:#b45309; --c-amber-800:#92400e;
+    --c-red-50:#fef2f2;     --c-red-200:#fecaca;     --c-red-600:#dc2626;   --c-red-700:#b91c1c;
+    --c-blue-50:#eff6ff;    --c-blue-200:#bfdbfe;    --c-blue-600:#2563eb;  --c-blue-700:#1d4ed8;
+
+    /* Default brand = OPTION A (slate + sky) */
+    --brand-primary: #0f172a;
+    --brand-accent:  #0369a1;
+    --brand-primary-fg: #ffffff;
+
+    /* Semantic */
+    --surface:          #fafafa;
+    --surface-elevated: #ffffff;
+    --surface-muted:    #f4f4f5;
+    --text-primary:     var(--c-zinc-900);
+    --text-secondary:   var(--c-zinc-600);
+    --text-muted:       var(--c-zinc-500);
+    --border-default:   var(--c-zinc-200);
+    --border-subtle:    var(--c-zinc-100);
+    --shadow-card:      0 1px 2px 0 rgb(0 0 0 / 0.04);
+    --shadow-popover:   0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+
+    /* Type */
+    --font-sans: 'Geist', 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'Geist Mono', ui-monospace, monospace;
+
+    /* Motion */
+    --duration-fast: 150ms;
+    --ease-standard: cubic-bezier(.2,0,0,1);
+  }
+
+  [data-theme='dark'] {
+    --surface:          var(--c-zinc-950);
+    --surface-elevated: var(--c-zinc-900);
+    --surface-muted:    var(--c-zinc-900);
+    --text-primary:     var(--c-zinc-50);
+    --text-secondary:   var(--c-zinc-400);
+    --text-muted:       var(--c-zinc-500);
+    --border-default:   var(--c-zinc-800);
+    --border-subtle:    var(--c-zinc-800);
+    --shadow-card:      none;
+    --shadow-popover:   0 6px 14px 0 rgb(0 0 0 / 0.4);
+  }
+
+  /* Palette presets */
+  [data-palette='A'] { --brand-primary:#0f172a; --brand-accent:#0369a1; --brand-primary-fg:#ffffff; }
+  [data-palette='B'] { --brand-primary:#1e293b; --brand-accent:#10b981; --brand-primary-fg:#ffffff; }
+  [data-palette='C'] { --brand-primary:#171717; --brand-accent:#f59e0b; --brand-primary-fg:#ffffff; }
+  [data-palette='D'] { --brand-primary:#05093d; --brand-accent:#00ff85; --brand-primary-fg:#ffffff; }
+
+  /* Font presets */
+  [data-font='geist']   { --font-sans:'Geist',sans-serif;  --font-mono:'Geist Mono',monospace; }
+  [data-font='inter']   { --font-sans:'Inter',sans-serif;  --font-mono:'Geist Mono',monospace; }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--surface);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv11','ss01','ss03';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background var(--duration-fast) var(--ease-standard),
+                color var(--duration-fast) var(--ease-standard);
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 80px; }
+  header.bar { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:16px 0 24px; border-bottom:1px solid var(--border-default); margin-bottom:32px; }
+  h1 { font-size: 24px; font-weight: 700; letter-spacing:-0.01em; margin: 0; }
+  h1 small { display:block; font-size: 13px; color: var(--text-muted); font-weight:500; margin-top:4px; }
+
+  .controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .control-group { display:flex; gap:4px; align-items:center; padding:4px; background: var(--surface-muted); border-radius:8px; border:1px solid var(--border-default); }
+  .control-label { font-size:11px; font-weight:500; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; padding:0 8px; }
+  .chip {
+    appearance:none; border:1px solid transparent; background:transparent;
+    padding: 6px 10px; border-radius: 6px; font: inherit; font-size:13px; font-weight:500;
+    color: var(--text-secondary); cursor:pointer;
+    transition: background var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+  }
+  .chip:hover { background: var(--surface-elevated); color: var(--text-primary); }
+  .chip.active { background: var(--surface-elevated); color: var(--text-primary); border-color: var(--border-default); box-shadow: var(--shadow-card); }
+
+  /* Section header */
+  .section { margin-bottom: 48px; }
+  .section-title { font-size: 11px; font-weight:600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 12px; }
+
+  /* Dashboard mock */
+  .dashboard { display:grid; grid-template-columns: 240px 1fr; gap: 24px; min-height: 540px; border:1px solid var(--border-default); border-radius: 16px; overflow:hidden; background: var(--surface-elevated); box-shadow: var(--shadow-card); }
+  .sidebar { background: var(--brand-primary); color: var(--brand-primary-fg); padding: 20px 16px; display:flex; flex-direction:column; gap: 4px; }
+  .sidebar .logo { display:flex; align-items:center; gap:8px; padding: 4px 8px 24px; font-weight:600; font-size:15px; letter-spacing:-0.01em; }
+  .sidebar .logo-mark { width:24px; height:24px; border-radius:6px; background: var(--brand-accent); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color: var(--brand-primary); }
+  .nav-item { display:flex; align-items:center; gap:10px; padding: 8px 10px; border-radius: 6px; font-size: 14px; color: rgba(255,255,255,0.7); cursor:pointer; transition: background var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard); }
+  .nav-item:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.92); }
+  .nav-item.active { background: rgba(255,255,255,0.1); color:#fff; }
+  .nav-item .dot { width:6px; height:6px; border-radius:50%; background: var(--brand-accent); margin-left:auto; opacity:0; }
+  .nav-item.active .dot { opacity: 1; }
+
+  .main { padding: 24px 28px; display:flex; flex-direction:column; gap: 24px; min-width:0; }
+  .page-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+  .page-title { font-size: 22px; font-weight:700; letter-spacing:-0.01em; margin: 0 0 4px; }
+  .page-subtitle { font-size: 14px; color: var(--text-secondary); margin: 0; }
+
+  /* Buttons */
+  .btn { appearance:none; border: 1px solid transparent; font: inherit; font-size: 14px; font-weight:500;
+         padding: 10px 16px; border-radius: 8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px;
+         transition: background var(--duration-fast) var(--ease-standard),
+                     transform var(--duration-fast) var(--ease-standard),
+                     border-color var(--duration-fast) var(--ease-standard); }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--brand-primary); color: var(--brand-primary-fg); }
+  .btn-primary:hover { background: color-mix(in oklch, var(--brand-primary) 88%, white 12%); }
+  .btn-accent { background: var(--brand-accent); color: #fff; }
+  .btn-accent:hover { filter: brightness(1.08); }
+  .btn-secondary { background: transparent; color: var(--text-primary); border-color: var(--border-default); }
+  .btn-secondary:hover { background: var(--surface-muted); border-color: var(--c-zinc-300); }
+  [data-theme='dark'] .btn-secondary:hover { border-color: var(--c-zinc-700); background: var(--c-zinc-800); }
+  .btn-ghost { background: transparent; color: var(--text-secondary); }
+  .btn-ghost:hover { background: var(--surface-muted); color: var(--text-primary); }
+
+  /* KPI cards */
+  .kpis { display:grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .kpi { background: var(--surface-elevated); border:1px solid var(--border-default); border-radius: 12px; padding: 16px; box-shadow: var(--shadow-card); }
+  .kpi .label { font-size: 12px; color: var(--text-muted); font-weight:500; text-transform: uppercase; letter-spacing: 0.04em; margin: 0; }
+  .kpi .value { font-size: 28px; font-weight:700; letter-spacing:-0.02em; margin: 4px 0 8px; font-variant-numeric: tabular-nums; }
+  .kpi .delta { font-size: 12px; font-weight:500; display:inline-flex; align-items:center; gap:4px; padding: 2px 8px; border-radius: 9999px; }
+  .kpi .delta.up   { background: var(--c-emerald-50); color: var(--c-emerald-700); border:1px solid var(--c-emerald-200); }
+  .kpi .delta.down { background: var(--c-red-50); color: var(--c-red-700); border:1px solid var(--c-red-200); }
+  [data-theme='dark'] .kpi .delta.up   { background: rgb(16 185 129 / 0.12); color:#6ee7b7; border-color: rgb(16 185 129 / 0.32); }
+  [data-theme='dark'] .kpi .delta.down { background: rgb(239 68 68 / 0.12); color:#fca5a5; border-color: rgb(239 68 68 / 0.32); }
+
+  /* Card with table */
+  .card { background: var(--surface-elevated); border:1px solid var(--border-default); border-radius: 12px; box-shadow: var(--shadow-card); overflow: hidden; }
+  .card-header { padding: 16px 20px; border-bottom: 1px solid var(--border-subtle); display:flex; justify-content:space-between; align-items:center; }
+  .card-header h3 { margin:0; font-size:14px; font-weight:600; letter-spacing:-0.005em; }
+  .card-body { padding: 4px 8px; }
+  table { width:100%; border-collapse: collapse; }
+  th, td { text-align:left; padding: 10px 12px; font-size: 13px; }
+  th { font-size: 11px; font-weight:600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  td { color: var(--text-primary); border-top: 1px solid var(--border-subtle); }
+  td.amount { font-variant-numeric: tabular-nums; font-weight:500; text-align:right; }
+
+  /* Status badges */
+  .badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:500; padding:2px 8px; border-radius: 9999px; border:1px solid transparent; }
+  .badge.success { background: var(--c-emerald-50); color: var(--c-emerald-700); border-color: var(--c-emerald-200); }
+  .badge.warning { background: var(--c-amber-50); color: var(--c-amber-800); border-color: var(--c-amber-200); }
+  .badge.danger  { background: var(--c-red-50); color: var(--c-red-700); border-color: var(--c-red-200); }
+  .badge.info    { background: var(--c-blue-50); color: var(--c-blue-700); border-color: var(--c-blue-200); }
+  .badge.neutral { background: var(--c-zinc-100); color: var(--c-zinc-700); border-color: var(--c-zinc-200); }
+  [data-theme='dark'] .badge.success { background: rgb(16 185 129 / 0.12); color:#6ee7b7; border-color: rgb(16 185 129 / 0.32); }
+  [data-theme='dark'] .badge.warning { background: rgb(245 158 11 / 0.12); color:#fcd34d; border-color: rgb(245 158 11 / 0.32); }
+  [data-theme='dark'] .badge.danger  { background: rgb(239 68 68 / 0.12); color:#fca5a5; border-color: rgb(239 68 68 / 0.32); }
+  [data-theme='dark'] .badge.info    { background: rgb(59 130 246 / 0.12); color:#93c5fd; border-color: rgb(59 130 246 / 0.32); }
+  [data-theme='dark'] .badge.neutral { background: var(--c-zinc-800); color: var(--c-zinc-300); border-color: var(--c-zinc-700); }
+
+  /* Inputs */
+  .field { display:flex; flex-direction:column; gap:6px; flex: 1; min-width: 200px; }
+  .field label { font-size: 12px; font-weight:500; color: var(--text-secondary); }
+  .field input { font: inherit; font-size: 14px; height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border-default); background: var(--surface-elevated); color: var(--text-primary); transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard); }
+  .field input::placeholder { color: var(--text-muted); }
+  .field input:hover { border-color: var(--c-zinc-300); }
+  [data-theme='dark'] .field input:hover { border-color: var(--c-zinc-700); }
+  .field input:focus { outline:none; border-color: var(--brand-primary); box-shadow: 0 0 0 3px color-mix(in oklch, var(--brand-primary) 20%, transparent); }
+  .field.error input { border-color: var(--c-red-600); }
+  .field.error .helper { color: var(--c-red-700); }
+  .helper { font-size: 12px; color: var(--text-muted); }
+  [data-theme='dark'] .field.error .helper { color: #fca5a5; }
+
+  /* Token gallery */
+  .grid-3 { display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; }
+  .swatch-card { background: var(--surface-elevated); border:1px solid var(--border-default); border-radius:12px; padding: 16px; box-shadow: var(--shadow-card); }
+  .swatch-card h4 { margin:0 0 12px; font-size:13px; font-weight:600; color: var(--text-primary); }
+  .swatch-row { display:flex; gap:8px; align-items:center; margin-bottom: 6px; }
+  .swatch { width:24px; height:24px; border-radius:6px; border: 1px solid rgb(0 0 0 / 0.06); flex-shrink:0; }
+  .swatch-meta { font-size:12px; color: var(--text-secondary); font-family: var(--font-mono); }
+  .swatch-meta strong { color: var(--text-primary); font-weight:600; font-family: var(--font-sans); margin-right:6px; }
+
+  /* Type spec */
+  .type-row { padding: 12px 0; border-bottom: 1px solid var(--border-subtle); display:flex; justify-content:space-between; align-items:baseline; gap:16px; flex-wrap:wrap; }
+  .type-row:last-child { border-bottom: none; }
+  .type-sample { color: var(--text-primary); }
+  .type-meta { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); flex-shrink:0; white-space: nowrap; }
+
+  .text-eyebrow { font-size: 12px; font-weight:500; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+  .text-body { font-size: 14px; }
+  .text-card-title { font-size: 14px; font-weight: 600; }
+  .text-section-header { font-size: 16px; font-weight: 600; letter-spacing:-0.005em; }
+  .text-page-title { font-size: 22px; font-weight: 700; letter-spacing:-0.01em; }
+  .text-hero { font-size: 32px; font-weight: 700; letter-spacing:-0.02em; }
+  .text-kpi-value { font-size: 28px; font-weight: 700; letter-spacing:-0.02em; font-variant-numeric: tabular-nums; }
+  .text-mono { font-family: var(--font-mono); font-size: 13px; }
+
+  /* Shadow demo */
+  .grid-4 { display:grid; grid-template-columns: repeat(4, 1fr); gap:16px; }
+  .shadow-tile { background: var(--surface-elevated); border:1px solid var(--border-default); border-radius: 12px; padding: 16px; height: 90px; display:flex; flex-direction:column; justify-content:space-between; font-size:12px; color:var(--text-secondary); }
+  .shadow-tile strong { color: var(--text-primary); font-size: 13px; }
+  .shadow-tile.sm { box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04); }
+  .shadow-tile.md { box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06); }
+  .shadow-tile.lg { box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.04); }
+  .shadow-tile.xl { box-shadow: 0 12px 24px -8px rgb(0 0 0 / 0.12), 0 4px 8px -4px rgb(0 0 0 / 0.06); }
+  [data-theme='dark'] .shadow-tile.sm { box-shadow: none; }
+
+  .row { display:flex; gap: 12px; flex-wrap:wrap; align-items:center; }
+
+  @media (max-width: 880px) {
+    .dashboard { grid-template-columns: 1fr; }
+    .sidebar { flex-direction: row; overflow-x:auto; padding: 12px; gap: 8px; }
+    .sidebar .logo { padding: 0 8px 0 0; border-right: 1px solid rgba(255,255,255,0.15); }
+    .kpis { grid-template-columns: repeat(2,1fr); }
+    .grid-3, .grid-4 { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 540px) {
+    .kpis, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body data-palette="A" data-theme="light" data-font="geist">
+
+<div class="wrap">
+
+  <header class="bar">
+    <h1>
+      Pipeline AI — Phase A Visual Direction
+      <small>Toggle palette, theme, and font to compare. None of this is shipped to the app yet.</small>
+    </h1>
+    <div class="controls">
+      <div class="control-group">
+        <span class="control-label">Palette</span>
+        <button class="chip active" data-palette-btn="A">A · Slate + Sky</button>
+        <button class="chip" data-palette-btn="B">B · Slate + Emerald</button>
+        <button class="chip" data-palette-btn="C">C · Charcoal + Amber</button>
+        <button class="chip" data-palette-btn="D">D · Current Navy + Neon</button>
+      </div>
+      <div class="control-group">
+        <span class="control-label">Font</span>
+        <button class="chip active" data-font-btn="geist">Geist</button>
+        <button class="chip" data-font-btn="inter">Inter</button>
+      </div>
+      <div class="control-group">
+        <span class="control-label">Theme</span>
+        <button class="chip active" data-theme-btn="light">Light</button>
+        <button class="chip" data-theme-btn="dark">Dark</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- DASHBOARD MOCK -->
+  <section class="section">
+    <h2 class="section-title">Dashboard surface</h2>
+    <div class="dashboard">
+      <aside class="sidebar">
+        <div class="logo">
+          <div class="logo-mark">P</div>
+          <span>Pipeline AI</span>
+        </div>
+        <a class="nav-item active">Dashboard <span class="dot"></span></a>
+        <a class="nav-item">Jobs</a>
+        <a class="nav-item">Clients</a>
+        <a class="nav-item">Proposals</a>
+        <a class="nav-item">Invoices</a>
+        <a class="nav-item">Equipment</a>
+        <a class="nav-item">Reports</a>
+        <a class="nav-item">Settings</a>
+      </aside>
+
+      <main class="main">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">Welcome back, Bogdan</h2>
+            <p class="page-subtitle">3 jobs scheduled today · 1 invoice awaiting payment.</p>
+          </div>
+          <div class="row">
+            <button class="btn btn-secondary">Export</button>
+            <button class="btn btn-primary">New job</button>
+          </div>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi">
+            <p class="label">Revenue MTD</p>
+            <p class="value">$42,310</p>
+            <span class="delta up">▲ 12.4%</span>
+          </div>
+          <div class="kpi">
+            <p class="label">Jobs completed</p>
+            <p class="value">128</p>
+            <span class="delta up">▲ 8</span>
+          </div>
+          <div class="kpi">
+            <p class="label">Avg. ticket</p>
+            <p class="value">$331</p>
+            <span class="delta up">▲ 4.2%</span>
+          </div>
+          <div class="kpi">
+            <p class="label">Outstanding</p>
+            <p class="value">$8,920</p>
+            <span class="delta down">▼ 5.1%</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Recent jobs</h3>
+            <button class="btn btn-ghost">View all →</button>
+          </div>
+          <div class="card-body">
+            <table>
+              <thead><tr>
+                <th>Job</th><th>Client</th><th>Status</th><th style="text-align:right;">Total</th>
+              </tr></thead>
+              <tbody>
+                <tr><td>Drain camera inspection</td><td>O'Connor &amp; Sons</td><td><span class="badge success">Paid</span></td><td class="amount">$420.00</td></tr>
+                <tr><td>Sewer line replacement</td><td>Atlas Realty</td><td><span class="badge info">In progress</span></td><td class="amount">$8,250.00</td></tr>
+                <tr><td>Backflow test annual</td><td>Brooklyn Heights HOA</td><td><span class="badge warning">Pending review</span></td><td class="amount">$1,180.00</td></tr>
+                <tr><td>Emergency unclog</td><td>Goldstein Residence</td><td><span class="badge danger">Overdue</span></td><td class="amount">$285.00</td></tr>
+                <tr><td>Hydro jetting service</td><td>Manhattan Diner Co.</td><td><span class="badge neutral">Draft</span></td><td class="amount">$1,540.00</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="row" style="gap:24px; align-items: flex-end;">
+          <div class="field">
+            <label>Client name</label>
+            <input type="text" value="O'Connor & Sons Plumbing" />
+            <span class="helper">Used on invoices and reports.</span>
+          </div>
+          <div class="field error">
+            <label>Email</label>
+            <input type="text" value="not-an-email" />
+            <span class="helper">Please enter a valid email address.</span>
+          </div>
+          <div class="field">
+            <label>Tax rate (%)</label>
+            <input type="text" placeholder="0.00" />
+            <span class="helper">Applied to all invoices.</span>
+          </div>
+        </div>
+      </main>
+    </div>
+  </section>
+
+  <!-- BUTTON FAMILY -->
+  <section class="section">
+    <h2 class="section-title">Buttons</h2>
+    <div class="card" style="padding: 20px;">
+      <div class="row" style="margin-bottom: 16px;">
+        <button class="btn btn-primary">Send invoice</button>
+        <button class="btn btn-accent">Quick action</button>
+        <button class="btn btn-secondary">Cancel</button>
+        <button class="btn btn-ghost">Skip</button>
+        <button class="btn btn-primary" disabled style="opacity:0.5;cursor:not-allowed;">Disabled</button>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" style="font-size:13px;padding:8px 12px;">Small</button>
+        <button class="btn btn-primary">Default</button>
+        <button class="btn btn-primary" style="font-size:15px;padding:12px 20px;">Large</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- TYPOGRAPHY -->
+  <section class="section">
+    <h2 class="section-title">Typography scale</h2>
+    <div class="card" style="padding: 8px 20px;">
+      <div class="type-row"><span class="type-sample text-hero">Pipeline AI keeps your trades business in flow</span><span class="type-meta">text-hero · 32/700/-0.02em</span></div>
+      <div class="type-row"><span class="type-sample text-page-title">Dashboard</span><span class="type-meta">text-page-title · 22/700/-0.01em</span></div>
+      <div class="type-row"><span class="type-sample text-section-header">Recent jobs</span><span class="type-meta">text-section-header · 16/600/-0.005em</span></div>
+      <div class="type-row"><span class="type-sample text-card-title">O'Connor &amp; Sons Plumbing</span><span class="type-meta">text-card-title · 14/600</span></div>
+      <div class="type-row"><span class="type-sample text-body">Pipeline AI replaces manual invoicing with an automation-first workflow built for sewer &amp; drain pros.</span><span class="type-meta">text-body · 14/400</span></div>
+      <div class="type-row"><span class="type-sample text-eyebrow">Revenue MTD</span><span class="type-meta">text-eyebrow · 12/500 uppercase</span></div>
+      <div class="type-row"><span class="type-sample text-kpi-value">$42,310.00</span><span class="type-meta">text-kpi-value · 28/700 tabular</span></div>
+      <div class="type-row"><span class="type-sample text-mono">INV-2026-00481 · job_id=4f2c</span><span class="type-meta">font-mono · 13/400</span></div>
+    </div>
+  </section>
+
+  <!-- COLOR GALLERY -->
+  <section class="section">
+    <h2 class="section-title">Tokens at a glance</h2>
+    <div class="grid-3">
+      <div class="swatch-card">
+        <h4>Brand</h4>
+        <div class="swatch-row"><span class="swatch" style="background:var(--brand-primary)"></span><span class="swatch-meta"><strong>--brand-primary</strong> per-tenant</span></div>
+        <div class="swatch-row"><span class="swatch" style="background:var(--brand-accent)"></span><span class="swatch-meta"><strong>--brand-accent</strong> per-tenant</span></div>
+      </div>
+      <div class="swatch-card">
+        <h4>Surfaces</h4>
+        <div class="swatch-row"><span class="swatch" style="background:var(--surface)"></span><span class="swatch-meta"><strong>--surface</strong> page</span></div>
+        <div class="swatch-row"><span class="swatch" style="background:var(--surface-elevated)"></span><span class="swatch-meta"><strong>--surface-elevated</strong> card</span></div>
+        <div class="swatch-row"><span class="swatch" style="background:var(--surface-muted)"></span><span class="swatch-meta"><strong>--surface-muted</strong> sunken</span></div>
+      </div>
+      <div class="swatch-card">
+        <h4>Text</h4>
+        <div class="swatch-row"><span class="swatch" style="background:var(--text-primary)"></span><span class="swatch-meta"><strong>--text-primary</strong> body</span></div>
+        <div class="swatch-row"><span class="swatch" style="background:var(--text-secondary)"></span><span class="swatch-meta"><strong>--text-secondary</strong> sub</span></div>
+        <div class="swatch-row"><span class="swatch" style="background:var(--text-muted)"></span><span class="swatch-meta"><strong>--text-muted</strong> meta</span></div>
+      </div>
+      <div class="swatch-card">
+        <h4>Status — Success</h4>
+        <div class="swatch-row"><span class="swatch" style="background:var(--c-emerald-50);border-color:var(--c-emerald-200);"></span><span class="swatch-meta"><strong>bg</strong> emerald-50</span></div>
+        <div class="swatch-row"><span class="swatch" style="background:var(--c-emerald-600)"></span><span class="swatch-meta"><strong>solid</strong> emerald-600</span></div>
+      </div>
+      <div class="swatch-card">
+        <h4>Status — Warning</h4>
+        <div class="swatch-row"><span class="swatch" style="background:var(--c-amber-50);border-color:var(--c-amber-200);"></span><span class="swatch-meta"><strong>bg</strong> amber-50</span></div>
+        <div class="swatch-row"><span class="swatch" style="background:var(--c-amber-500)"></span><span class="swatch-meta"><strong>solid</strong> amber-500</span></div>
+      </div>
+      <div class="swatch-card">
+        <h4>Status — Danger</h4>
+        <div class="swatch-row"><span class="swatch" style="background:var(--c-red-50);border-color:var(--c-red-200);"></span><span class="swatch-meta"><strong>bg</strong> red-50</span></div>
+        <div class="swatch-row"><span class="swatch" style="background:var(--c-red-600)"></span><span class="swatch-meta"><strong>solid</strong> red-600</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ELEVATION -->
+  <section class="section">
+    <h2 class="section-title">Elevation (shadow scale)</h2>
+    <div class="grid-4">
+      <div class="shadow-tile sm"><strong>shadow-sm</strong><span>card</span></div>
+      <div class="shadow-tile md"><strong>shadow-md</strong><span>floating</span></div>
+      <div class="shadow-tile lg"><strong>shadow-lg</strong><span>popover</span></div>
+      <div class="shadow-tile xl"><strong>shadow-xl</strong><span>modal</span></div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  const root = document.body;
+  function bind(group, attr) {
+    document.querySelectorAll('[data-' + group + '-btn]').forEach(b => {
+      b.addEventListener('click', () => {
+        const v = b.getAttribute('data-' + group + '-btn');
+        root.setAttribute(attr, v);
+        document.querySelectorAll('[data-' + group + '-btn]').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+      });
+    });
+  }
+  bind('palette', 'data-palette');
+  bind('theme',   'data-theme');
+  bind('font',    'data-font');
+</script>
+
+</body>
+</html>

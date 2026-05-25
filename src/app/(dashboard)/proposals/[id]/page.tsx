@@ -15,6 +15,7 @@ import { hasPermission } from '@/lib/permissions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton, SkeletonCard } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import {
   ArrowLeft,
@@ -186,8 +187,20 @@ export default function ProposalDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="mx-auto max-w-5xl space-y-4 p-4 md:p-6">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-9 w-9 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-6 w-1/3" />
+            <Skeleton className="h-4 w-1/2" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+        <Skeleton className="h-72 w-full rounded-xl" />
       </div>
     )
   }

@@ -25,6 +25,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { ClientCombobox } from '@/components/clients/client-combobox'
+import { SkeletonList } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import {
   Repeat,
@@ -365,11 +366,7 @@ export default function RecurringPage() {
         )}
       </div>
 
-      {loading && (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      )}
+      {loading && <SkeletonList rows={4} />}
 
       {!loading && schedules.length === 0 && (
         <Card>

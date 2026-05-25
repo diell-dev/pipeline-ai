@@ -27,6 +27,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { MarkPaidDialog } from '@/components/invoices/mark-paid-dialog'
+import { SkeletonList } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import {
   FileText,
@@ -319,9 +320,7 @@ export default function InvoicesPage() {
 
       {/* Invoice List */}
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+        <SkeletonList rows={6} />
       ) : invoices.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">

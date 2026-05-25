@@ -21,10 +21,10 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { SkeletonList } from '@/components/ui/skeleton'
 import {
   Building2,
   ChevronDown,
-  Loader2,
   MapPin,
   Plus,
   QrCode,
@@ -463,12 +463,8 @@ export default function EquipmentListPage() {
         })}
       </div>
 
-      {/* Loading */}
-      {loading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      )}
+      {/* Loading — content-shaped skeleton instead of a centered spinner */}
+      {loading && <SkeletonList rows={6} />}
 
       {/* Empty */}
       {!loading && filteredEquipment.length === 0 && (

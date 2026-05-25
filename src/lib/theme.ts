@@ -5,10 +5,15 @@
  * The theme is loaded from the organization record in the database
  * and applied as CSS custom properties on the root element.
  *
- * Default theme: Polar Bear Agency branding
- * - Primary: #05093d (Dark Navy)
- * - Accent: #00ff85 (Neon Green)
- * - Secondary: #0d06ff (Electric Blue)
+ * Default theme: Pipeline AI product identity (Phase A / B)
+ * - Primary:   #0F172A (Slate-900)  — sidebars, primary surfaces
+ * - Accent:    #0369A1 (Sky-700)    — primary CTAs, focus rings
+ * - Secondary: #475569 (Slate-600)  — subtle accents, secondary badges
+ *
+ * Polar Bear Agency / NYSD / any other tenant overrides these via the
+ * branding settings page; BrandProvider re-applies the per-tenant colors
+ * once the organization loads. The defaults exist so SSR surfaces (login,
+ * public proposal pages, first paint) look intentional before any JS runs.
  *
  * Public helpers (used by BrandProvider + branding settings page):
  *   - tintsFor(hex)         → 10-step tint/shade ramp keyed by 50..900
@@ -25,11 +30,13 @@ export interface BrandTheme {
   organizationName: string // Shown when logo is missing
 }
 
-// Polar Bear Agency default theme
+// Pipeline AI product default theme — Slate-900 + Sky-700.
+// Per-tenant overrides (e.g. Polar Bear Agency's navy + neon) replace
+// these at runtime via BrandProvider.
 export const DEFAULT_THEME: BrandTheme = {
-  primaryColor: '#05093d',
-  accentColor: '#00ff85',
-  secondaryColor: '#0d06ff',
+  primaryColor: '#0f172a',
+  accentColor: '#0369a1',
+  secondaryColor: '#475569',
   logoUrl: null,
   organizationName: 'Pipeline AI',
 }

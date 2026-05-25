@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertTriangle, Clock, Layers, Wrench } from 'lucide-react'
+import { AlertTriangle, Clock, Layers, Wrench, Check } from 'lucide-react'
 
 interface LifecycleResponse {
   dueSoon: number
@@ -75,7 +75,7 @@ export function EquipmentLifecycleWidget() {
           when there's nothing to flag — otherwise the widget feels empty. */}
       {!loading && (data?.overdue ?? 0) === 0 && (data?.dueSoon ?? 0) === 0 && (data?.pastLifespan ?? 0) === 0 ? (
         <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          <span aria-hidden>✓</span>
+          <Check className="h-4 w-4 shrink-0" aria-hidden />
           All equipment current — no overdue or upcoming service items.
         </div>
       ) : (

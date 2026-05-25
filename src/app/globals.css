@@ -1,15 +1,17 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* Phase B: bring in the Phase A token system (primitive + semantic + component) */
+@import "../../assets/design-tokens.css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-heading);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -46,6 +48,31 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* ────────────────────────────────────────────────────────────────
+   * Phase B: brand-aware Tailwind colors → reference the runtime vars
+   * written by BrandProvider. Per-tenant overrides flow through here.
+   * Use as `bg-brand-primary`, `text-brand-accent`, `border-brand`.
+   * ──────────────────────────────────────────────────────────────── */
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-primary-fg: var(--brand-primary-fg);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-fg: var(--brand-accent-fg);
+
+  /* Semantic surface / text / border tokens — for components that opt in.
+   * Existing `bg-zinc-50`, `text-zinc-900`, etc. continue to work via the
+   * default Tailwind palette. */
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-inverse: var(--surface-inverse);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-on-brand: var(--text-on-brand);
+  --color-border-default: var(--border-default);
+  --color-border-strong: var(--border-strong);
+  --color-border-subtle: var(--border-subtle);
 }
 
 :root {
@@ -57,23 +84,29 @@
    * organization loads. The defaults below ensure server-rendered
    * surfaces (login, public proposal pages) still look intentional
    * before any JS runs.
+   *
+   * Pipeline AI product identity (Phase A / B):
+   *   --brand-primary = slate-900 (#0F172A)
+   *   --brand-accent  = sky-700   (#0369A1)
+   * Polar Bear Agency, NYSD, and other tenants override these via
+   * BrandProvider once their org loads.
    * ──────────────────────────────────────────────────────────────── */
-  --brand-primary: #05093d;
-  --brand-primary-rgb: 5 9 61;
+  --brand-primary: #0f172a;
+  --brand-primary-rgb: 15 23 42;
   --brand-primary-fg: #ffffff;
-  --brand-primary-50:  #e8e9f1;
-  --brand-primary-100: #c5c7da;
-  --brand-primary-200: #9ea2bf;
-  --brand-primary-300: #777ca4;
-  --brand-primary-400: #4f5689;
-  --brand-primary-500: #05093d;
-  --brand-primary-600: #04072f;
-  --brand-primary-700: #030624;
-  --brand-primary-800: #020418;
-  --brand-primary-900: #01020c;
-  --brand-accent: #00ff85;
-  --brand-accent-rgb: 0 255 133;
-  --brand-accent-fg: #0a0a0a;
+  --brand-primary-50:  #f1f5f9;
+  --brand-primary-100: #e2e8f0;
+  --brand-primary-200: #cbd5e1;
+  --brand-primary-300: #94a3b8;
+  --brand-primary-400: #64748b;
+  --brand-primary-500: #475569;
+  --brand-primary-600: #334155;
+  --brand-primary-700: #1e293b;
+  --brand-primary-800: #0f172a;
+  --brand-primary-900: #020617;
+  --brand-accent: #0369a1;
+  --brand-accent-rgb: 3 105 161;
+  --brand-accent-fg: #ffffff;
 
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -147,12 +180,29 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    @apply font-sans antialiased;
+    /* Phase B: 15.5px base, tuned for product-grade density without
+     * feeling cramped. Tailwind's `text-sm`/`text-base` scales adjust
+     * proportionally — body copy stays comfortable, dense tables stay
+     * scannable. */
+    font-size: 15.5px;
+    font-feature-settings: "cv11", "ss01", "ss03";
+  }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-body);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
-  html {
-    @apply font-sans;
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
   }
+  h1 { letter-spacing: -0.02em; }
 }
 
 /* ────────────────────────────────────────────────────────────────
@@ -189,6 +239,35 @@
   .hover\:bg-brand-primary-600:hover {
     background-color: var(--brand-primary-600);
   }
+
+  /* Generic brand-border alias — uses the primary unless overridden. */
+  .border-brand {
+    border-color: var(--brand-primary);
+  }
+
+  /* Phase B: typography utilities ------------------------------------ */
+
+  /* Tabular numerals — apply to anything with monetary, numeric, or
+   * tabular content (KPI cards, invoice rows, prices, dates in tables).
+   * Keeps the columns aligned and the rhythm steady. */
+  .font-tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum", "cv11", "ss01";
+  }
+
+  /* Use on grouped digits where you also want slashed-zero clarity */
+  .font-tabular-slashed {
+    font-variant-numeric: tabular-nums slashed-zero;
+    font-feature-settings: "tnum", "zero", "cv11", "ss01";
+  }
+}
+
+/* Phase B: shimmer keyframe used by <Skeleton />. Wrapped in motion-safe
+ * via the .before:motion-safe:animate-* class — reduced-motion users get
+ * the static pulse instead. */
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 /* ────────────────────────────────────────────────────────────────
  * Design system additions (Phase 2 of design overhaul)

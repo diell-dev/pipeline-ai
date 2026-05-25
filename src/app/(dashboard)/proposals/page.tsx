@@ -17,10 +17,10 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { SkeletonList } from '@/components/ui/skeleton'
 import {
   FileSignature,
   Plus,
-  Loader2,
   Calendar,
   Eye,
   Building2,
@@ -245,11 +245,7 @@ export default function ProposalsPage() {
         ))}
       </div>
 
-      {loading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      )}
+      {loading && <SkeletonList rows={5} />}
 
       {!loading && proposals.length === 0 && (
         <Card>

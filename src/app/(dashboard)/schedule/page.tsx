@@ -16,6 +16,7 @@ import { hasPermission } from '@/lib/permissions'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog,
   DialogContent,
@@ -29,7 +30,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
-  Loader2,
   Clock,
   MapPin,
   User as UserIcon,
@@ -328,10 +328,11 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      {/* Loading */}
+      {/* Loading — calendar-shaped skeleton */}
       {loading && (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="space-y-3">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-64 w-full rounded-xl" />
         </div>
       )}
 

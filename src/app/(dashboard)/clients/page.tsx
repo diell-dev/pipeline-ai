@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { SkeletonList } from '@/components/ui/skeleton'
 import { Building2, Plus, Loader2, Search, Phone, Mail, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Client, ClientType, PaymentTerms, ServiceContractType } from '@/types/database'
@@ -185,12 +186,8 @@ export default function ClientsPage() {
         />
       </div>
 
-      {/* Loading */}
-      {loading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      )}
+      {/* Loading — content-shaped skeleton instead of a centered spinner */}
+      {loading && <SkeletonList rows={6} />}
 
       {/* Empty state — UX-SWEEP-#23: match the /proposals empty-state pattern
           (icon + heading + helper + CTA). Only show CTA when not just a search miss. */}

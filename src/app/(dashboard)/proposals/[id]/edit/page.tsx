@@ -13,7 +13,8 @@ import { useAuthStore } from '@/stores/auth-store'
 import { hasPermission } from '@/lib/permissions'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   ProposalForm,
@@ -154,8 +155,11 @@ export default function EditProposalPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="mx-auto max-w-3xl space-y-4 p-4 md:p-6">
+        <Skeleton className="h-9 w-40" />
+        <Skeleton className="h-12 w-full rounded-lg" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+        <Skeleton className="h-40 w-full rounded-xl" />
       </div>
     )
   }

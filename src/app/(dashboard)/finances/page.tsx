@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { SkeletonList } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import {
   DollarSign,
@@ -539,8 +540,8 @@ export default function FinancesPage() {
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="p-4">
+              <SkeletonList rows={5} />
             </div>
           ) : invoices.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">

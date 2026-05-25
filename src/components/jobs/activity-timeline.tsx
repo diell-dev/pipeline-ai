@@ -11,7 +11,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2 } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { ActivityAction } from '@/types/database'
 
 // ── Action display config ─────────────────────────────────────────────
@@ -182,8 +182,16 @@ export function JobActivityTimeline({ jobId }: { jobId: string }) {
         <CardHeader>
           <CardTitle className="text-sm">Activity Timeline</CardTitle>
         </CardHeader>
-        <CardContent className="flex items-center justify-center py-8">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <CardContent className="space-y-3 pb-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-start gap-3">
+              <Skeleton className="h-6 w-6 rounded-full shrink-0" />
+              <div className="flex-1 space-y-1.5 min-w-0">
+                <Skeleton className="h-3.5 w-1/2" />
+                <Skeleton className="h-3 w-1/3" />
+              </div>
+            </div>
+          ))}
         </CardContent>
       </Card>
     )

@@ -4,12 +4,21 @@
  * Global Providers
  *
  * Wraps the app with:
- * 1. Auth session loader (fetches user + org on mount)
- * 2. Brand theme applier (CSS custom properties)
- * 3. Toast notifications (Sonner)
+ * 1. ThemeProvider     — light/dark mode (next-themes, class on <html>)
+ * 2. Auth session loader (fetches user + org on mount)
+ * 3. Brand theme applier (CSS custom properties — per-tenant brand colors)
+ * 4. Toast notifications (Sonner)
+ *
+ * Theme + Brand are deliberately independent:
+ *   - ThemeProvider toggles light/dark by writing `class="dark"` on <html>.
+ *     Semantic tokens (--surface, --text-primary, etc.) flip via the
+ *     `.dark` selector in assets/design-tokens.css.
+ *   - BrandProvider writes per-tenant `--brand-primary` / `--brand-accent`.
+ *     Brand hex stays the same in light + dark — by design.
  */
 import { useEffect } from 'react'
 import { Toaster } from '@/components/ui/sonner'
+import { ThemeProvider } from '@/components/theme/theme-provider'
 import { useAuthStore } from '@/stores/auth-store'
 import { useThemeBrand } from '@/hooks/use-theme-brand'
 import { createClient } from '@/lib/supabase/client'
@@ -89,9 +98,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, [setSession, clearSession, setLoading])
 
   return (
-    <>
+    <ThemeProvider>
       {children}
       <Toaster position="top-right" richColors />
-    </>
+    </ThemeProvider>
   )
 }

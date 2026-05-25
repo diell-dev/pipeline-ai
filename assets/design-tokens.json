@@ -1,0 +1,361 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "name": "Pipeline AI Design Tokens",
+  "version": "1.0.0",
+  "description": "Three-layer token system: primitive (raw values) → semantic (theme-aware aliases, light + dark) → component (UI-part specific). Brand tokens (--brand-primary, --brand-accent) are overridable per tenant by BrandProvider. All other tokens are constant across tenants.",
+
+  "primitive": {
+    "color": {
+      "white": "#ffffff",
+      "black": "#000000",
+      "zinc": {
+        "50":  "#fafafa",
+        "100": "#f4f4f5",
+        "200": "#e4e4e7",
+        "300": "#d4d4d8",
+        "400": "#a1a1aa",
+        "500": "#71717a",
+        "600": "#52525b",
+        "700": "#3f3f46",
+        "800": "#27272a",
+        "900": "#18181b",
+        "950": "#09090b"
+      },
+      "slate": {
+        "50":  "#f8fafc",
+        "100": "#f1f5f9",
+        "200": "#e2e8f0",
+        "300": "#cbd5e1",
+        "400": "#94a3b8",
+        "500": "#64748b",
+        "600": "#475569",
+        "700": "#334155",
+        "800": "#1e293b",
+        "900": "#0f172a",
+        "950": "#020617"
+      },
+      "blue": {
+        "50":  "#eff6ff",
+        "100": "#dbeafe",
+        "200": "#bfdbfe",
+        "300": "#93c5fd",
+        "400": "#60a5fa",
+        "500": "#3b82f6",
+        "600": "#2563eb",
+        "700": "#1d4ed8",
+        "800": "#1e40af",
+        "900": "#1e3a8a",
+        "950": "#172554"
+      },
+      "sky": {
+        "50":  "#f0f9ff",
+        "100": "#e0f2fe",
+        "200": "#bae6fd",
+        "300": "#7dd3fc",
+        "400": "#38bdf8",
+        "500": "#0ea5e9",
+        "600": "#0284c7",
+        "700": "#0369a1",
+        "800": "#075985",
+        "900": "#0c4a6e",
+        "950": "#082f49"
+      },
+      "emerald": {
+        "50":  "#ecfdf5",
+        "100": "#d1fae5",
+        "200": "#a7f3d0",
+        "300": "#6ee7b7",
+        "400": "#34d399",
+        "500": "#10b981",
+        "600": "#059669",
+        "700": "#047857",
+        "800": "#065f46",
+        "900": "#064e3b",
+        "950": "#022c22"
+      },
+      "amber": {
+        "50":  "#fffbeb",
+        "100": "#fef3c7",
+        "200": "#fde68a",
+        "300": "#fcd34d",
+        "400": "#fbbf24",
+        "500": "#f59e0b",
+        "600": "#d97706",
+        "700": "#b45309",
+        "800": "#92400e",
+        "900": "#78350f",
+        "950": "#451a03"
+      },
+      "red": {
+        "50":  "#fef2f2",
+        "100": "#fee2e2",
+        "200": "#fecaca",
+        "300": "#fca5a5",
+        "400": "#f87171",
+        "500": "#ef4444",
+        "600": "#dc2626",
+        "700": "#b91c1c",
+        "800": "#991b1b",
+        "900": "#7f1d1d",
+        "950": "#450a0a"
+      }
+    },
+
+    "spacing": {
+      "0":  "0px",
+      "1":  "4px",
+      "2":  "8px",
+      "3":  "12px",
+      "4":  "16px",
+      "5":  "20px",
+      "6":  "24px",
+      "8":  "32px",
+      "10": "40px",
+      "12": "48px",
+      "16": "64px",
+      "20": "80px",
+      "24": "96px",
+      "32": "128px",
+      "40": "160px"
+    },
+
+    "radius": {
+      "none": "0px",
+      "sm":   "4px",
+      "md":   "6px",
+      "lg":   "8px",
+      "xl":   "12px",
+      "2xl":  "16px",
+      "full": "9999px"
+    },
+
+    "shadow": {
+      "none": "none",
+      "sm":   "0 1px 2px 0 rgb(0 0 0 / 0.04)",
+      "md":   "0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06)",
+      "lg":   "0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.04)",
+      "xl":   "0 12px 24px -8px rgb(0 0 0 / 0.12), 0 4px 8px -4px rgb(0 0 0 / 0.06)"
+    },
+
+    "font": {
+      "size": {
+        "xs":   "12px",
+        "sm":   "14px",
+        "base": "16px",
+        "lg":   "18px",
+        "xl":   "20px",
+        "2xl":  "24px",
+        "3xl":  "30px",
+        "4xl":  "36px"
+      },
+      "weight": {
+        "normal":   "400",
+        "medium":   "500",
+        "semibold": "600",
+        "bold":     "700"
+      },
+      "lineHeight": {
+        "tight":   "1.2",
+        "snug":    "1.35",
+        "normal":  "1.5",
+        "relaxed": "1.65"
+      },
+      "tracking": {
+        "tighter": "-0.02em",
+        "tight":   "-0.01em",
+        "normal":  "0",
+        "wider":   "0.04em"
+      }
+    },
+
+    "duration": {
+      "instant": "75ms",
+      "fast":    "150ms",
+      "normal":  "250ms",
+      "slow":    "400ms"
+    },
+
+    "ease": {
+      "standard": "cubic-bezier(0.2, 0, 0, 1)",
+      "in":       "cubic-bezier(0.4, 0, 1, 1)",
+      "out":      "cubic-bezier(0, 0, 0.2, 1)",
+      "spring":   "cubic-bezier(0.34, 1.56, 0.64, 1)"
+    }
+  },
+
+  "semantic": {
+    "_note": "Aliases mapped to primitives. `light` and `dark` keys for each token. Brand tokens are overridable per tenant via CSS variables.",
+
+    "color.brand.primary": {
+      "_overridable": true,
+      "_cssVar": "--brand-primary",
+      "_defaultsTo": "{primitive.color.slate.900}",
+      "light": "#0f172a",
+      "dark":  "#e2e8f0"
+    },
+    "color.brand.accent": {
+      "_overridable": true,
+      "_cssVar": "--brand-accent",
+      "_defaultsTo": "{primitive.color.sky.700}",
+      "light": "#0369a1",
+      "dark":  "#38bdf8"
+    },
+
+    "color.surface": {
+      "_role": "App background (page canvas)",
+      "light": "{primitive.color.white}",
+      "dark":  "{primitive.color.zinc.950}"
+    },
+    "color.surface-elevated": {
+      "_role": "Cards, popovers, modals (above surface)",
+      "light": "{primitive.color.white}",
+      "dark":  "{primitive.color.zinc.900}"
+    },
+    "color.surface-muted": {
+      "_role": "Sunken panels, alt rows, code blocks",
+      "light": "{primitive.color.zinc.50}",
+      "dark":  "{primitive.color.zinc.900}"
+    },
+    "color.surface-inverse": {
+      "_role": "Tooltips, dark popovers on light theme",
+      "light": "{primitive.color.zinc.900}",
+      "dark":  "{primitive.color.zinc.50}"
+    },
+
+    "color.text-primary": {
+      "_role": "Body, headings, primary text",
+      "light": "{primitive.color.zinc.900}",
+      "dark":  "{primitive.color.zinc.50}"
+    },
+    "color.text-secondary": {
+      "_role": "Subheadings, secondary info",
+      "light": "{primitive.color.zinc.600}",
+      "dark":  "{primitive.color.zinc.400}"
+    },
+    "color.text-muted": {
+      "_role": "Meta, captions, placeholders",
+      "light": "{primitive.color.zinc.500}",
+      "dark":  "{primitive.color.zinc.500}"
+    },
+    "color.text-on-brand": {
+      "_role": "Text on brand-primary background",
+      "_computed": "Derived by getContrastingText(--brand-primary)",
+      "light": "#ffffff",
+      "dark":  "#ffffff"
+    },
+    "color.text-inverse": {
+      "_role": "Text on inverse surface (tooltips)",
+      "light": "{primitive.color.zinc.50}",
+      "dark":  "{primitive.color.zinc.900}"
+    },
+
+    "color.border": {
+      "_role": "Default borders, dividers",
+      "light": "{primitive.color.zinc.200}",
+      "dark":  "{primitive.color.zinc.800}"
+    },
+    "color.border-strong": {
+      "_role": "Emphasized borders, focused input outline",
+      "light": "{primitive.color.zinc.300}",
+      "dark":  "{primitive.color.zinc.700}"
+    },
+    "color.border-subtle": {
+      "_role": "Hairline dividers inside cards",
+      "light": "{primitive.color.zinc.100}",
+      "dark":  "{primitive.color.zinc.800}"
+    },
+
+    "color.status.success": {
+      "bg":     { "light": "{primitive.color.emerald.50}",  "dark": "rgba(16,185,129,0.12)" },
+      "fg":     { "light": "{primitive.color.emerald.700}", "dark": "{primitive.color.emerald.300}" },
+      "border": { "light": "{primitive.color.emerald.200}", "dark": "rgba(16,185,129,0.32)" },
+      "solid":  { "light": "{primitive.color.emerald.600}", "dark": "{primitive.color.emerald.500}" }
+    },
+    "color.status.warning": {
+      "bg":     { "light": "{primitive.color.amber.50}",  "dark": "rgba(245,158,11,0.12)" },
+      "fg":     { "light": "{primitive.color.amber.800}", "dark": "{primitive.color.amber.300}" },
+      "border": { "light": "{primitive.color.amber.200}", "dark": "rgba(245,158,11,0.32)" },
+      "solid":  { "light": "{primitive.color.amber.500}", "dark": "{primitive.color.amber.500}" }
+    },
+    "color.status.danger": {
+      "bg":     { "light": "{primitive.color.red.50}",  "dark": "rgba(239,68,68,0.12)" },
+      "fg":     { "light": "{primitive.color.red.700}", "dark": "{primitive.color.red.300}" },
+      "border": { "light": "{primitive.color.red.200}", "dark": "rgba(239,68,68,0.32)" },
+      "solid":  { "light": "{primitive.color.red.600}", "dark": "{primitive.color.red.500}" }
+    },
+    "color.status.info": {
+      "bg":     { "light": "{primitive.color.blue.50}",  "dark": "rgba(59,130,246,0.12)" },
+      "fg":     { "light": "{primitive.color.blue.700}", "dark": "{primitive.color.blue.300}" },
+      "border": { "light": "{primitive.color.blue.200}", "dark": "rgba(59,130,246,0.32)" },
+      "solid":  { "light": "{primitive.color.blue.600}", "dark": "{primitive.color.blue.500}" }
+    },
+    "color.status.neutral": {
+      "bg":     { "light": "{primitive.color.zinc.100}", "dark": "{primitive.color.zinc.800}" },
+      "fg":     { "light": "{primitive.color.zinc.700}", "dark": "{primitive.color.zinc.300}" },
+      "border": { "light": "{primitive.color.zinc.200}", "dark": "{primitive.color.zinc.700}" }
+    },
+
+    "elevation.card":    { "light": "{primitive.shadow.sm}", "dark": "{primitive.shadow.none}" },
+    "elevation.popover": { "light": "{primitive.shadow.lg}", "dark": "{primitive.shadow.md}" },
+    "elevation.modal":   { "light": "{primitive.shadow.xl}", "dark": "{primitive.shadow.lg}" },
+
+    "typography.heading-font": "Geist, ui-sans-serif, system-ui, sans-serif",
+    "typography.body-font":    "Geist, ui-sans-serif, system-ui, sans-serif",
+    "typography.mono-font":    "Geist Mono, ui-monospace, SFMono-Regular, monospace"
+  },
+
+  "component": {
+    "button.primary": {
+      "bg":          "{semantic.color.brand.primary}",
+      "text":        "{semantic.color.text-on-brand}",
+      "hover.bg":    "color-mix(in oklch, var(--brand-primary) 88%, white 12%)",
+      "active.bg":   "color-mix(in oklch, var(--brand-primary) 88%, black 12%)",
+      "disabled.bg": { "light": "{primitive.color.zinc.200}", "dark": "{primitive.color.zinc.800}" },
+      "disabled.text": { "light": "{primitive.color.zinc.500}", "dark": "{primitive.color.zinc.500}" }
+    },
+    "button.secondary": {
+      "bg":         "transparent",
+      "text":       "{semantic.color.text-primary}",
+      "border":     "{semantic.color.border}",
+      "hover.bg":   { "light": "{primitive.color.zinc.50}", "dark": "{primitive.color.zinc.900}" },
+      "active.bg":  { "light": "{primitive.color.zinc.100}", "dark": "{primitive.color.zinc.800}" }
+    },
+    "button.ghost": {
+      "bg":         "transparent",
+      "text":       "{semantic.color.text-primary}",
+      "hover.bg":   { "light": "{primitive.color.zinc.100}", "dark": "{primitive.color.zinc.800}" }
+    },
+    "button.destructive": {
+      "bg":         "{semantic.color.status.danger.solid}",
+      "text":       "#ffffff",
+      "hover.bg":   { "light": "{primitive.color.red.700}", "dark": "{primitive.color.red.600}" }
+    },
+
+    "card": {
+      "bg":     "{semantic.color.surface-elevated}",
+      "border": "{semantic.color.border}",
+      "shadow": "{semantic.elevation.card}",
+      "radius": "{primitive.radius.xl}",
+      "padding": "{primitive.spacing.6}"
+    },
+
+    "input": {
+      "bg":            "{semantic.color.surface}",
+      "text":          "{semantic.color.text-primary}",
+      "placeholder":   "{semantic.color.text-muted}",
+      "border":        "{semantic.color.border}",
+      "border-hover":  "{semantic.color.border-strong}",
+      "border-focus":  "{semantic.color.brand.primary}",
+      "border-error":  "{semantic.color.status.danger.solid}",
+      "radius":        "{primitive.radius.lg}",
+      "height":        "44px",
+      "ring-focus":    "{semantic.color.brand.primary}"
+    },
+
+    "badge.success":  { "bg": "{semantic.color.status.success.bg}",  "text": "{semantic.color.status.success.fg}",  "border": "{semantic.color.status.success.border}" },
+    "badge.warning":  { "bg": "{semantic.color.status.warning.bg}",  "text": "{semantic.color.status.warning.fg}",  "border": "{semantic.color.status.warning.border}" },
+    "badge.danger":   { "bg": "{semantic.color.status.danger.bg}",   "text": "{semantic.color.status.danger.fg}",   "border": "{semantic.color.status.danger.border}" },
+    "badge.info":     { "bg": "{semantic.color.status.info.bg}",     "text": "{semantic.color.status.info.fg}",     "border": "{semantic.color.status.info.border}" },
+    "badge.neutral":  { "bg": "{semantic.color.status.neutral.bg}",  "text": "{semantic.color.status.neutral.fg}",  "border": "{semantic.color.status.neutral.border}" }
+  }
+}

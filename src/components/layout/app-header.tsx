@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
+import { ThemeToggle } from '@/components/theme/theme-toggle'
 import { Bell, LogOut, User, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -51,8 +52,11 @@ export function AppHeader() {
         )}
       </div>
 
-      {/* Right: notifications + user menu */}
+      {/* Right: theme toggle + notifications + user menu */}
       <div className="flex items-center gap-2">
+        {/* Light / dark / system theme cycle */}
+        <ThemeToggle />
+
         {/* Notification bell */}
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-4 w-4" />

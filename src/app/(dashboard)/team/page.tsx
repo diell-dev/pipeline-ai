@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { SkeletonList } from '@/components/ui/skeleton'
 import {
   Dialog,
   DialogContent,
@@ -187,9 +188,7 @@ export default function TeamPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+        <SkeletonList rows={4} />
       ) : members.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">

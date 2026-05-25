@@ -13,12 +13,12 @@ import { useAuthStore } from '@/stores/auth-store'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { SkeletonList } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import {
   Calendar,
   Clock,
   MapPin,
-  Loader2,
   Building2,
   PlayCircle,
   AlertTriangle,
@@ -158,11 +158,7 @@ export default function MySchedulePage() {
         </div>
       </div>
 
-      {loading && (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      )}
+      {loading && <SkeletonList rows={4} />}
 
       {!loading && jobs.length === 0 && (
         <Card>

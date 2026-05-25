@@ -324,7 +324,8 @@ export default function JobsPage() {
           if (count === 0 && tab.value !== 'all' && tab.value !== 'pending_review' && !active) return null
 
           // UX-SWEEP-#9: single selection style — solid dark for active, white outlined for inactive
-          const baseClass = 'inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium border transition-colors'
+          // Phase F: tap-down scale for tactile press feedback.
+          const baseClass = 'inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium border transition-all duration-150 motion-safe:active:scale-[0.97]'
           let toneClass = ''
           if (active) {
             toneClass = 'bg-zinc-900 text-white border-zinc-900 hover:bg-zinc-800'
@@ -408,7 +409,8 @@ export default function JobsPage() {
             return (
               <Card
                 key={job.id}
-                className={`hover:shadow-md transition-shadow cursor-pointer ${
+                style={{ '--row-index': idx } as React.CSSProperties}
+                className={`row-stagger-up hover:shadow-md transition-shadow cursor-pointer ${
                   sameAsPrev ? 'ml-4 border-l-2 border-l-zinc-200' : ''
                 }`}
                 onClick={() => router.push(`/jobs/${job.id}`)}

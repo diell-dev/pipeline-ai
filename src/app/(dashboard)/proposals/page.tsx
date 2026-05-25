@@ -272,12 +272,13 @@ export default function ProposalsPage() {
         <>
           {/* Mobile: card list */}
           <div className="md:hidden space-y-3">
-            {proposals.map((p) => {
+            {proposals.map((p, idx) => {
               const statusConf = STATUS_CONFIG[p.status]
               return (
                 <div
                   key={p.id}
-                  className="rounded-lg border bg-white p-4 space-y-3 cursor-pointer"
+                  style={{ '--row-index': idx } as React.CSSProperties}
+                  className="row-stagger-up rounded-lg border bg-white p-4 space-y-3 cursor-pointer"
                   onClick={() => router.push(`/proposals/${p.id}`)}
                 >
                   <div className="flex items-start justify-between gap-2">

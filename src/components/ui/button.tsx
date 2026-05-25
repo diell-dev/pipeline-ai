@@ -1,10 +1,17 @@
+import * as React from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
+import { Loader2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  // Phase F: `motion-safe:active:scale-[0.97]` gives a tactile press feedback
+  // on every button without breaking keyboard interaction (motion-safe gates
+  // the scale on prefers-reduced-motion). The existing `active:translate-y-px`
+  // sub-pixel offset is preserved for the previous look. Transform-only —
+  // no layout reflow.
+  "group/button relative inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all duration-150 ease-out outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px motion-safe:active:not-aria-[haspopup]:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -44,19 +51,70 @@ const buttonVariants = cva(
   }
 )
 
+interface ButtonProps
+  extends ButtonPrimitive.Props,
+    VariantProps<typeof buttonVariants> {
+  /**
+   * Phase F (F8): when true, render an absolutely-positioned spinner over
+   * the existing children and fade the label to opacity-0. The button keeps
+   * its original width, so the layout never shifts when an action transitions
+   * to its loading state. Also auto-disables the button to prevent double
+   * submits.
+   *
+   * Replaces the consumer-side `{saving ? <Loader2/> : "Save"}` pattern that
+   * caused width-jumps. Existing call sites work unchanged — opt-in only.
+   */
+  loading?: boolean
+}
+
 function Button({
   className,
   variant = "default",
   size = "default",
+  loading = false,
+  disabled,
+  children,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonProps) {
+  // Non-loading buttons render children directly so the existing layout,
+  // gap, and icon-only sizing remain pixel-perfect.
+  if (!loading) {
+    return (
+      <ButtonPrimitive
+        data-slot="button"
+        disabled={disabled}
+        className={cn(buttonVariants({ variant, size, className }))}
+        {...props}
+      >
+        {children}
+      </ButtonPrimitive>
+    )
+  }
+
+  // Loading: wrap children in a "ghosted" layout span (kept in flow so the
+  // button keeps its natural width) and overlay an absolutely-positioned
+  // spinner. No width-shift between idle and loading states.
   return (
     <ButtonPrimitive
       data-slot="button"
+      data-loading="true"
+      aria-busy="true"
+      disabled
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
-    />
+    >
+      <span className="pointer-events-none inline-flex items-center justify-center gap-1.5 opacity-0">
+        {children}
+      </span>
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 flex items-center justify-center"
+      >
+        <Loader2 className="motion-safe:animate-spin" />
+      </span>
+    </ButtonPrimitive>
   )
 }
 
 export { Button, buttonVariants }
+export type { ButtonProps }

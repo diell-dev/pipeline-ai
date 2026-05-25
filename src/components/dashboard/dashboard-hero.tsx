@@ -99,7 +99,8 @@ function ActionChip({ action }: { action: DashboardActionInput }) {
     <Link
       href={action.href}
       className={cn(
-        'group inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+        // Phase F: chip press feedback (motion-safe to respect prefs).
+        'group inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-150 motion-safe:active:scale-[0.97]',
         TONE_CLASSES[tone]
       )}
     >
@@ -184,7 +185,7 @@ export function DashboardHero({
               <button
                 type="button"
                 onClick={() => setMobileExpanded(true)}
-                className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-all duration-150 motion-safe:active:scale-[0.97]"
               >
                 +{urgent.length - 1} more
               </button>

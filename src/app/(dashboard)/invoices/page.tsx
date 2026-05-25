@@ -334,7 +334,7 @@ export default function InvoicesPage() {
         <>
           {/* Mobile: card list */}
           <div className="md:hidden space-y-3">
-            {invoices.map((inv) => {
+            {invoices.map((inv, idx) => {
               const style = STATUS_STYLES[inv.status] || STATUS_STYLES.draft
               const isOverdue =
                 inv.status === 'sent' && new Date(inv.due_date) < new Date()
@@ -346,7 +346,8 @@ export default function InvoicesPage() {
               return (
                 <div
                   key={inv.id}
-                  className="rounded-lg border bg-white p-4 space-y-3"
+                  style={{ '--row-index': idx } as React.CSSProperties}
+                  className="row-stagger-up rounded-lg border bg-white p-4 space-y-3"
                   onClick={() => {
                     if (inv.job_id) {
                       window.location.href = `/jobs/${inv.job_id}`

@@ -217,10 +217,11 @@ export default function ClientsPage() {
       {/* Client list */}
       {!loading && filtered.length > 0 && (
         <div className="space-y-2">
-          {filtered.map((client) => (
+          {filtered.map((client, idx) => (
             <Card
               key={client.id}
-              className="hover:shadow-md transition-shadow cursor-pointer"
+              style={{ '--row-index': idx } as React.CSSProperties}
+              className="row-stagger-up hover:shadow-md transition-shadow cursor-pointer"
               onClick={() => router.push(`/clients/${client.id}`)}
             >
               <CardContent className="flex items-center justify-between py-4">

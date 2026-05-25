@@ -492,14 +492,15 @@ export default function EquipmentListPage() {
         <>
           {/* Mobile / tablet cards */}
           <div className="space-y-3 md:hidden">
-            {filteredEquipment.map((eq) => {
+            {filteredEquipment.map((eq, idx) => {
               const d = daysUntil(eq.next_service_due_date)
               const chip = dueChip(d)
               const makeModel = [eq.make, eq.model].filter(Boolean).join(' ') || 'No make/model'
               return (
                 <Card
                   key={eq.id}
-                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  style={{ '--row-index': idx } as React.CSSProperties}
+                  className="row-stagger-up cursor-pointer hover:shadow-md transition-shadow"
                   onClick={() => router.push(`/equipment/${eq.id}`)}
                 >
                   <CardContent className="flex items-start gap-3 py-4">

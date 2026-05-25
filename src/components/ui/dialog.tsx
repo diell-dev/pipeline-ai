@@ -80,12 +80,22 @@ function DialogContent({
           // Desktop: re-anchor to center, default narrow width (consumers
           // can override with sm:max-w-lg / sm:max-w-2xl), fully rounded.
           "sm:left-1/2 sm:top-1/2 sm:right-auto sm:bottom-auto sm:w-[calc(100%-2rem)] sm:max-w-md sm:max-h-[88dvh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:p-5 sm:pb-5",
-          // Animations: mobile slides up from the bottom, desktop fades+scales
+          // Animations:
+          //   Mobile  → slides up from the bottom (200ms ease-out)
+          //   Desktop → spring-scale + fade (250ms cubic-bezier(0.34, 1.56, 0.64, 1))
+          //     The spring overshoots ~1.2% before settling for a tactile open.
+          //     `dialog-spring-open` is defined in globals.css and is gated
+          //     on `prefers-reduced-motion: no-preference` so reduced-motion
+          //     users get an instant open.
           "duration-200 ease-out data-open:animate-in data-closed:animate-out",
           "data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",
           "sm:data-open:slide-in-from-bottom-0 sm:data-closed:slide-out-to-bottom-0",
           "data-open:fade-in-0 data-closed:fade-out-0",
           "sm:data-open:zoom-in-95 sm:data-closed:zoom-out-95",
+          // Phase F: desktop-only spring overshoot on open. The class is
+          // always applied; the @media-gated CSS rule in globals.css only
+          // fires for the matching `[data-open]` state when motion is allowed.
+          "sm:dialog-spring-open",
           className
         )}
         {...props}

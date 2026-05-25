@@ -269,6 +269,84 @@
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
+
+/* ────────────────────────────────────────────────────────────────
+ * Phase F — Motion + micro-interactions
+ *
+ * Keyframes + opt-in utility classes for the project-wide motion
+ * language. All keyframes animate only transform + opacity (never
+ * layout-affecting properties) and all utility classes are gated on
+ * `prefers-reduced-motion: no-preference` so reduced-motion users
+ * see the final state immediately with zero animation.
+ *
+ *   .page-fade-in   — main content fades up on route change (F2)
+ *   .row-stagger-up — list rows fade-up with per-index delay     (F3)
+ *   .dialog-spring  — used by Dialog open animation              (F4)
+ *
+ * Stagger usage: parent passes child its index via
+ *   style={{ '--row-index': i }}
+ * and the keyframe delay calculates as i * 35ms, capped at 280ms
+ * (the 9th item and onwards animate as a single batch — long lists
+ * stay snappy instead of cascading for half a second).
+ * ──────────────────────────────────────────────────────────────── */
+
+@keyframes pipeline-page-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pipeline-row-stagger-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pipeline-dialog-spring-in {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.94); }
+  60%  { opacity: 1; transform: translate(-50%, -50%) scale(1.012); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes pipeline-success-pop {
+  0%   { opacity: 0; transform: scale(0.6); }
+  60%  { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .page-fade-in {
+    animation: pipeline-page-fade-in var(--duration-fast) var(--ease-out) both;
+  }
+
+  .row-stagger-up {
+    /* Per-row delay: i * 35ms, capped at 280ms so long lists don't lag */
+    animation: pipeline-row-stagger-up var(--duration-normal) var(--ease-out) both;
+    animation-delay: calc(min(var(--row-index, 0), 8) * 35ms);
+  }
+
+  .animate-success-pop {
+    animation: pipeline-success-pop var(--duration-slow) var(--ease-spring) both;
+  }
+
+  /* Dialog desktop "spring" open — overrides the default zoom-in-95
+   * keyframe with a slight overshoot. Applies only when the popup is
+   * open (`data-open` attribute set by Base UI) and not when closing,
+   * so the close animation still uses tw-animate-css's clean fade-out. */
+  [data-slot="dialog-content"].dialog-spring-open[data-open] {
+    animation: pipeline-dialog-spring-in var(--duration-normal) var(--ease-spring) both;
+  }
+}
+
+/* Reduced-motion fallbacks: ensure the elements are visible in their
+ * final state without playing an animation. */
+@media (prefers-reduced-motion: reduce) {
+  .page-fade-in,
+  .row-stagger-up,
+  .animate-success-pop {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
 /* ────────────────────────────────────────────────────────────────
  * Design system additions (Phase 2 of design overhaul)
  *

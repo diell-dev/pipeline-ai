@@ -1,5 +1,6 @@
 'use client'
 
+import { usePathname } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { AppHeader } from '@/components/layout/app-header'
@@ -13,6 +14,10 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const { isLoading } = useAuthStore()
+  // Phase F: re-key the <main> on pathname so the page-fade-in keyframe
+  // replays on every route change. No layout shift — purely opacity + 4px
+  // translateY. Reduced-motion users get the final state instantly.
+  const pathname = usePathname()
 
   if (isLoading) {
     return (
@@ -35,7 +40,10 @@ export default function DashboardLayout({
         </div>
         <div className="flex flex-1 flex-col overflow-hidden">
           <AppHeader />
-          <main className="flex-1 overflow-y-auto bg-zinc-50 pb-20 md:pb-0">
+          <main
+            key={pathname}
+            className="page-fade-in flex-1 overflow-y-auto bg-zinc-50 pb-20 md:pb-0"
+          >
             {children}
           </main>
         </div>

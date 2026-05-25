@@ -1,10 +1,17 @@
 'use client'
 
 /**
- * Public Proposal Sign Page (no auth)
+ * Public Proposal Sign Page — Phase E2
  *
- * Loads /api/proposals/public/[token], shows the client-facing estimate,
- * and lets the customer e-sign (drawn or typed) or reject with a reason.
+ * Customer-facing estimate sign experience. Uses the tenant's brand
+ * colors + logo to feel like the contractor's product (not Pipeline's),
+ * lifts line items into a clean tabular/card layout, sharpens the totals
+ * hierarchy, and replaces the inline "done" notice with a full success
+ * screen that includes a Phase F check-mark pop, "What's next" copy, and
+ * tenant contact info.
+ *
+ * Data flow is untouched — we still hit /api/proposals/public/[token]
+ * and POST signatures to the same endpoints.
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
@@ -13,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Loader2,
   CheckCircle2,
@@ -21,6 +29,14 @@ import {
   PenTool,
   Type,
   Eraser,
+  Calendar,
+  MapPin,
+  Phone,
+  Mail,
+  Globe,
+  FileText,
+  ShieldCheck,
+  Sparkles,
 } from 'lucide-react'
 
 interface PublicProposal {
@@ -129,7 +145,6 @@ export default function PublicProposalSignPage() {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    // Set internal pixel size matching CSS size for crisp lines
     function resize() {
       if (!canvas) return
       const rect = canvas.getBoundingClientRect()
@@ -146,10 +161,6 @@ export default function PublicProposalSignPage() {
       }
     }
 
-    // Mobile Safari quirk: when switching tabs, the parent container may not
-    // have laid out yet, so getBoundingClientRect() returns 0×0 and the canvas
-    // renders invisible. Defer to next frame, then fall back to a 50ms retry
-    // if the layout still hasn't settled.
     let retryTimer: ReturnType<typeof setTimeout> | null = null
     const rafId = window.requestAnimationFrame(() => {
       resize()
@@ -158,8 +169,6 @@ export default function PublicProposalSignPage() {
       }
     })
 
-    // ResizeObserver catches subsequent layout changes (rotation, viewport
-    // resize, parent container changes) without losing crisp rendering.
     const ro =
       typeof ResizeObserver !== 'undefined'
         ? new ResizeObserver(() => resize())
@@ -259,6 +268,10 @@ export default function PublicProposalSignPage() {
         throw new Error(json.error || 'Failed to sign')
       }
       setSuccess(true)
+      // Scroll back to the top so the success screen takes the viewport.
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Failed to submit signature')
     } finally {
@@ -284,6 +297,9 @@ export default function PublicProposalSignPage() {
         throw new Error(json.error || 'Failed to reject')
       }
       setRejected(true)
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Failed to reject')
     } finally {
@@ -294,8 +310,17 @@ export default function PublicProposalSignPage() {
   // ── Render states ──
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+      <div className="max-w-3xl mx-auto py-6 sm:py-10 px-3 sm:px-4">
+        <Skeleton className="h-24 rounded-t-2xl rounded-b-none" />
+        <div className="rounded-b-2xl bg-white shadow-md p-4 sm:p-8 space-y-6">
+          <Skeleton className="h-8 w-2/3" />
+          <Skeleton className="h-4 w-1/3" />
+          <div className="space-y-3 pt-4">
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        </div>
       </div>
     )
   }
@@ -305,9 +330,11 @@ export default function PublicProposalSignPage() {
       <div className="max-w-xl mx-auto py-24 px-4">
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <AlertTriangle className="h-10 w-10 text-amber-500 mb-3" />
-            <h1 className="text-xl font-bold mb-2">Estimate Not Available</h1>
-            <p className="text-sm text-muted-foreground">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 ring-1 ring-amber-200">
+              <AlertTriangle className="h-7 w-7 text-amber-600" />
+            </div>
+            <h1 className="font-heading text-xl font-bold mb-2">Estimate not available</h1>
+            <p className="text-sm text-muted-foreground max-w-sm">
               {errorMsg ||
                 'This estimate may have expired or the link is no longer valid. Please contact us if you believe this is a mistake.'}
             </p>
@@ -319,7 +346,8 @@ export default function PublicProposalSignPage() {
 
   const proposal = data.proposal
   const org = data.organization
-  const primaryColor = org?.primary_color || '#1e3a5f'
+  const primaryColor = org?.primary_color || '#0f172a'
+  const accentColor = org?.accent_color || primaryColor
   const totallyDone =
     success ||
     rejected ||
@@ -327,16 +355,219 @@ export default function PublicProposalSignPage() {
     data.already_rejected ||
     proposal.status === 'converted_to_job'
 
+  const wasRejected = rejected || data.already_rejected
+  const wasSigned = success || data.already_signed
+
+  // ──────────────────────────────────────────────────────────────────────
+  // SUCCESS / DONE SCREENS — full-page polished confirmation
+  // ──────────────────────────────────────────────────────────────────────
+  if (totallyDone) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        {/* Branded header bar */}
+        <header
+          className="text-white px-4 sm:px-6 py-4 shadow-md"
+          style={{ background: primaryColor }}
+        >
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              {org?.logo_url ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={org.logo_url}
+                  alt={org.name}
+                  referrerPolicy="no-referrer"
+                  className="max-h-9 sm:max-h-10 max-w-[140px] sm:max-w-[180px] object-contain bg-white/10 rounded p-1"
+                />
+              ) : (
+                <h1 className="font-heading text-base sm:text-lg font-semibold truncate">
+                  {org?.name || 'Service Estimate'}
+                </h1>
+              )}
+            </div>
+            <div className="text-right flex-shrink-0">
+              <p className="text-[10px] uppercase tracking-wider opacity-75">Estimate</p>
+              <p className="text-xs sm:text-sm font-mono">{proposal.proposal_number}</p>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 flex items-start sm:items-center justify-center px-4 py-10 sm:py-14 bg-zinc-50">
+          <div className="w-full max-w-xl page-fade-in">
+            {wasRejected && !wasSigned ? (
+              <Card className="overflow-hidden">
+                <CardContent className="px-6 py-10 sm:py-14 text-center">
+                  <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-red-50 ring-1 ring-red-200 animate-success-pop">
+                    <XCircle className="h-8 w-8 text-red-600" />
+                  </div>
+                  <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight">
+                    Estimate declined
+                  </h2>
+                  <p className="mt-3 text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
+                    Thanks for taking the time to review. We&rsquo;ve let{' '}
+                    {org?.name || 'the team'} know — reach out anytime if
+                    anything changes.
+                  </p>
+
+                  {(org?.company_phone || org?.company_email) && (
+                    <div className="mt-8 space-y-2 text-sm">
+                      {org?.company_phone && (
+                        <a
+                          href={`tel:${org.company_phone}`}
+                          className="inline-flex items-center justify-center gap-2 text-foreground hover:underline"
+                        >
+                          <Phone className="h-4 w-4 text-muted-foreground" />
+                          {org.company_phone}
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="overflow-hidden">
+                <CardContent className="px-6 py-10 sm:py-14">
+                  <div className="text-center">
+                    {/* Animated check */}
+                    <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 ring-1 ring-emerald-200 animate-success-pop">
+                      <CheckCircle2 className="h-10 w-10 text-emerald-600" />
+                    </div>
+                    <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight">
+                      {wasSigned ? 'Estimate signed!' : 'This estimate is complete'}
+                    </h2>
+                    <p className="mt-3 text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
+                      {wasSigned
+                        ? `Thank you. We've received your approval for ${proposal.proposal_number} — totalling ${fmtUSD(Number(proposal.total_amount))}.`
+                        : 'No further action is needed on your part.'}
+                    </p>
+                  </div>
+
+                  {wasSigned && (
+                    <div className="mt-8 border-t pt-6">
+                      <h3 className="font-heading text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                        What happens next
+                      </h3>
+                      <ol className="mt-4 space-y-4">
+                        {[
+                          {
+                            n: 1,
+                            title: "We'll reach out to schedule",
+                            body:
+                              "Our team will contact you within one business day to confirm a service date.",
+                          },
+                          {
+                            n: 2,
+                            title: 'A crew is dispatched',
+                            body:
+                              "You'll get an arrival window and the technician's name before they arrive on-site.",
+                          },
+                          {
+                            n: 3,
+                            title: "Job complete, invoice follows",
+                            body:
+                              'Once the work is done you receive a final invoice with payment options.',
+                          },
+                        ].map((step) => (
+                          <li key={step.n} className="flex gap-3">
+                            <span
+                              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+                              style={{ background: accentColor }}
+                            >
+                              {step.n}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-foreground">
+                                {step.title}
+                              </p>
+                              <p className="mt-0.5 text-sm text-muted-foreground leading-relaxed">
+                                {step.body}
+                              </p>
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+
+                  {/* Contact strip */}
+                  {(org?.company_phone || org?.company_email || org?.company_website) && (
+                    <div className="mt-8 border-t pt-6">
+                      <h3 className="font-heading text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                        Questions? Reach {org?.name || 'us'}
+                      </h3>
+                      <div className="mt-4 grid gap-2 text-sm">
+                        {org?.company_phone && (
+                          <a
+                            href={`tel:${org.company_phone}`}
+                            className="flex items-center gap-3 text-foreground hover:underline"
+                          >
+                            <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <span>{org.company_phone}</span>
+                          </a>
+                        )}
+                        {org?.company_email && (
+                          <a
+                            href={`mailto:${org.company_email}`}
+                            className="flex items-center gap-3 text-foreground hover:underline break-all"
+                          >
+                            <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <span>{org.company_email}</span>
+                          </a>
+                        )}
+                        {org?.company_website && (
+                          <a
+                            href={
+                              org.company_website.startsWith('http')
+                                ? org.company_website
+                                : `https://${org.company_website}`
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 text-foreground hover:underline break-all"
+                          >
+                            <Globe className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <span>{org.company_website}</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Powered-by footer (small, unobtrusive) */}
+            <p className="mt-6 text-center text-xs text-muted-foreground">
+              Powered by <span className="font-medium text-foreground">Pipeline AI</span>
+            </p>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // MAIN VIEW — review + sign
+  // ──────────────────────────────────────────────────────────────────────
+  const itemCount = data.line_items?.length ?? 0
+
   return (
-    <div className="max-w-3xl mx-auto py-4 sm:py-8 px-3 sm:px-4">
-      {/* Branded header */}
+    <div className="max-w-3xl mx-auto py-4 sm:py-8 px-3 sm:px-4 page-fade-in">
+      {/* ── Branded hero header ── */}
       <div
-        className="rounded-t-2xl text-white p-4 sm:p-6 shadow-md"
+        className="rounded-t-2xl text-white p-5 sm:p-8 shadow-md relative overflow-hidden"
         style={{ background: primaryColor }}
       >
-        <div className="flex items-center justify-between gap-3">
+        {/* Soft decorative glow in the corner — uses accent color */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-20 -right-16 h-64 w-64 rounded-full opacity-20 blur-3xl"
+          style={{ background: accentColor }}
+        />
+        <div className="relative flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             {org?.logo_url ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={org.logo_url}
                 alt={org.name}
@@ -344,91 +575,131 @@ export default function PublicProposalSignPage() {
                 className="max-h-10 sm:max-h-12 max-w-[140px] sm:max-w-[180px] object-contain bg-white/10 rounded p-1"
               />
             ) : (
-              <h1 className="text-lg sm:text-xl font-bold truncate">{org?.name || 'Service Estimate'}</h1>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <h1 className="font-heading text-lg sm:text-xl font-semibold tracking-tight truncate">
+                  {org?.name || 'Service Estimate'}
+                </h1>
+              </div>
             )}
           </div>
           <div className="text-right flex-shrink-0">
-            <p className="text-xs opacity-80">Estimate</p>
+            <p className="text-[10px] uppercase tracking-wider opacity-75">Estimate</p>
             <p className="text-xs sm:text-sm font-mono">{proposal.proposal_number}</p>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-b-2xl shadow-md p-4 sm:p-8 space-y-6">
+      <div className="bg-white rounded-b-2xl shadow-md p-4 sm:p-8 space-y-7">
         {/* Greeting */}
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
-            Estimate for {proposal.client?.company_name || 'Your Property'}
+        <section>
+          <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight leading-tight">
+            Estimate for{' '}
+            <span style={{ color: primaryColor }}>
+              {proposal.client?.company_name || 'Your Property'}
+            </span>
           </h2>
-          {proposal.site?.address && (
-            <p className="text-sm text-muted-foreground mt-1">{proposal.site.address}</p>
-          )}
-          {proposal.valid_until && (
-            <p className="text-xs text-muted-foreground mt-2">
-              Valid through{' '}
-              {new Date(proposal.valid_until).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })}
-            </p>
-          )}
-        </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
+            {proposal.site?.address && (
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5" />
+                {proposal.site.address}
+              </span>
+            )}
+            {proposal.valid_until && (
+              <span className="inline-flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5" />
+                Valid through{' '}
+                {new Date(proposal.valid_until).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </span>
+            )}
+          </div>
+        </section>
 
         {/* Issue */}
         <section>
           <h3
-            className="text-sm uppercase tracking-wide font-semibold mb-2"
-            style={{ color: primaryColor }}
+            className="font-heading text-xs uppercase tracking-wider font-semibold mb-2"
+            style={{ color: accentColor }}
           >
-            The Issue
+            The issue
           </h3>
-          <p className="text-sm leading-6 whitespace-pre-wrap">{proposal.issue_description}</p>
+          <p className="text-sm leading-6 whitespace-pre-wrap text-foreground">
+            {proposal.issue_description}
+          </p>
         </section>
 
         {/* Proposed Solution */}
         <section>
           <h3
-            className="text-sm uppercase tracking-wide font-semibold mb-2"
-            style={{ color: primaryColor }}
+            className="font-heading text-xs uppercase tracking-wider font-semibold mb-2"
+            style={{ color: accentColor }}
           >
-            Proposed Solution
+            Proposed solution
           </h3>
-          <p className="text-sm leading-6 whitespace-pre-wrap">{proposal.proposed_solution}</p>
+          <p className="text-sm leading-6 whitespace-pre-wrap text-foreground">
+            {proposal.proposed_solution}
+          </p>
         </section>
 
         {/* Line items */}
-        {data.line_items && data.line_items.length > 0 && (
+        {itemCount > 0 && (
           <section>
             <h3
-              className="text-sm uppercase tracking-wide font-semibold mb-2"
-              style={{ color: primaryColor }}
+              className="font-heading text-xs uppercase tracking-wider font-semibold mb-3"
+              style={{ color: accentColor }}
             >
-              Services
+              Services included
+              <span className="ml-2 text-muted-foreground/70 font-normal normal-case tracking-normal">
+                ({itemCount} item{itemCount === 1 ? '' : 's'})
+              </span>
             </h3>
+
             {/* Desktop: table */}
-            <div className="hidden sm:block border rounded-lg overflow-hidden text-sm">
+            <div className="hidden sm:block rounded-xl border border-border overflow-hidden text-sm">
               <table className="w-full">
-                <thead className="bg-zinc-50">
-                  <tr>
-                    <th className="text-left px-3 py-2 font-medium text-zinc-600">Item</th>
-                    <th className="text-center px-3 py-2 font-medium text-zinc-600">Qty</th>
-                    <th className="text-right px-3 py-2 font-medium text-zinc-600">Price</th>
-                    <th className="text-right px-3 py-2 font-medium text-zinc-600">Total</th>
+                <thead className="bg-muted/40">
+                  <tr className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <th className="text-left px-4 py-2.5 font-semibold">Item</th>
+                    <th className="text-center px-4 py-2.5 font-semibold w-20">Qty</th>
+                    <th className="text-right px-4 py-2.5 font-semibold w-28">Price</th>
+                    <th className="text-right px-4 py-2.5 font-semibold w-28">Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.line_items.map((li) => (
-                    <tr key={li.id} className="border-t">
-                      <td className="px-3 py-2">
-                        <p className="font-medium">{li.service_name}</p>
+                  {data.line_items.map((li, idx) => (
+                    <tr
+                      key={li.id}
+                      className={`border-t border-border/60 row-stagger-up ${
+                        idx % 2 === 1 ? 'bg-muted/20' : ''
+                      }`}
+                      style={{ '--row-index': idx } as React.CSSProperties}
+                    >
+                      <td className="px-4 py-3 align-top">
+                        <p className="font-medium text-foreground">{li.service_name}</p>
                         {li.description && (
-                          <p className="text-xs text-muted-foreground">{li.description}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 leading-5">
+                            {li.description}
+                          </p>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-center">{li.quantity}</td>
-                      <td className="px-3 py-2 text-right">{fmtUSD(Number(li.unit_price))}</td>
-                      <td className="px-3 py-2 text-right font-medium">
+                      <td className="px-4 py-3 text-center text-muted-foreground tabular-nums align-top">
+                        {li.quantity}
+                        {li.unit ? (
+                          <span className="text-xs ml-0.5 opacity-70">{li.unit}</span>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums align-top">
+                        {fmtUSD(Number(li.unit_price))}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold tabular-nums align-top">
                         {fmtUSD(Number(li.total))}
                       </td>
                     </tr>
@@ -436,105 +707,127 @@ export default function PublicProposalSignPage() {
                 </tbody>
               </table>
             </div>
+
             {/* Mobile: card list */}
-            <div className="sm:hidden space-y-2">
-              {data.line_items.map((li) => (
-                <div key={li.id} className="border rounded-lg p-3 text-sm">
-                  <p className="font-medium">{li.service_name}</p>
-                  {li.description && (
-                    <p className="text-xs text-muted-foreground mt-0.5">{li.description}</p>
-                  )}
-                  <div className="flex items-baseline justify-between mt-2 pt-2 border-t">
-                    <p className="text-xs text-muted-foreground">
-                      {li.quantity} × {fmtUSD(Number(li.unit_price))}
+            <div className="sm:hidden space-y-2.5">
+              {data.line_items.map((li, idx) => (
+                <div
+                  key={li.id}
+                  className="rounded-xl border border-border bg-white p-3.5 text-sm row-stagger-up"
+                  style={{ '--row-index': idx } as React.CSSProperties}
+                >
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="font-medium text-foreground min-w-0">
+                      {li.service_name}
                     </p>
-                    <p className="font-semibold">{fmtUSD(Number(li.total))}</p>
+                    <p className="font-semibold tabular-nums flex-shrink-0">
+                      {fmtUSD(Number(li.total))}
+                    </p>
                   </div>
+                  {li.description && (
+                    <p className="text-xs text-muted-foreground mt-1 leading-5">
+                      {li.description}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-2 tabular-nums">
+                    {li.quantity}
+                    {li.unit ? ` ${li.unit}` : ''} ×{' '}
+                    {fmtUSD(Number(li.unit_price))}
+                  </p>
                 </div>
               ))}
             </div>
           </section>
         )}
 
-        {/* Totals */}
-        <section className="border-t pt-4 text-right space-y-1">
-          <p className="text-sm">
-            <span className="text-muted-foreground">Subtotal:</span>{' '}
-            <strong>{fmtUSD(Number(proposal.subtotal))}</strong>
-          </p>
-          {proposal.discount_enabled && Number(proposal.discount_amount) > 0 && (
-            <p className="text-sm text-muted-foreground">
-              Discount{proposal.discount_reason ? ` (${proposal.discount_reason})` : ''}:{' '}
-              <strong className="text-red-600">−{fmtUSD(Number(proposal.discount_amount))}</strong>
-            </p>
-          )}
-          <p className="text-sm">
-            <span className="text-muted-foreground">Tax ({proposal.tax_rate}%):</span>{' '}
-            <strong>{fmtUSD(Number(proposal.tax_amount))}</strong>
-          </p>
-          <p className="text-2xl font-bold pt-2" style={{ color: primaryColor }}>
-            Total: {fmtUSD(Number(proposal.total_amount))}
-          </p>
+        {/* Totals — strong hierarchy */}
+        <section className="rounded-xl bg-muted/40 border border-border p-4 sm:p-5">
+          <dl className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <dt className="text-muted-foreground">Subtotal</dt>
+              <dd className="font-medium tabular-nums">
+                {fmtUSD(Number(proposal.subtotal))}
+              </dd>
+            </div>
+            {proposal.discount_enabled && Number(proposal.discount_amount) > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <dt className="text-muted-foreground">
+                  Discount
+                  {proposal.discount_reason ? ` (${proposal.discount_reason})` : ''}
+                </dt>
+                <dd className="font-medium tabular-nums text-red-600">
+                  −{fmtUSD(Number(proposal.discount_amount))}
+                </dd>
+              </div>
+            )}
+            <div className="flex items-center justify-between text-sm">
+              <dt className="text-muted-foreground">
+                Tax ({proposal.tax_rate}%)
+              </dt>
+              <dd className="font-medium tabular-nums">
+                {fmtUSD(Number(proposal.tax_amount))}
+              </dd>
+            </div>
+            <div
+              className="flex items-baseline justify-between pt-3 mt-1 border-t border-border"
+            >
+              <dt className="font-heading text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Total
+              </dt>
+              <dd
+                className="font-heading text-3xl sm:text-4xl font-bold tabular-nums"
+                style={{ color: primaryColor }}
+              >
+                {fmtUSD(Number(proposal.total_amount))}
+              </dd>
+            </div>
+          </dl>
         </section>
 
-        {/* Done states — green for signed, red for rejected */}
-        {totallyDone && (() => {
-          const wasRejected = rejected || data.already_rejected
-          const wasSigned = success || data.already_signed
-          if (wasRejected && !wasSigned) {
-            return (
-              <div className="rounded-xl border bg-red-50 border-red-200 p-6 text-center space-y-2">
-                <XCircle className="h-10 w-10 mx-auto text-red-600" />
-                <h3 className="text-lg font-semibold text-red-800">
-                  You declined this estimate
-                </h3>
-                <p className="text-sm text-red-700">
-                  We appreciate the time you took to review. Reach out anytime if anything changes.
-                </p>
-              </div>
-            )
-          }
-          return (
-            <div className="rounded-xl border bg-green-50 border-green-200 p-6 text-center space-y-2">
-              <CheckCircle2 className="h-10 w-10 mx-auto text-green-600" />
-              <h3 className="text-lg font-semibold text-green-800">
-                {wasSigned ? 'Thank you — estimate signed!' : 'This estimate is complete'}
-              </h3>
-              <p className="text-sm text-green-700">
-                {wasSigned
-                  ? "We've received your approval. Our team will reach out shortly to schedule the work."
-                  : 'No further action is needed.'}
-              </p>
-            </div>
-          )
-        })()}
-
-        {/* Sign UI */}
-        {!totallyDone && data.expired && (
+        {/* Expired notice */}
+        {data.expired && (
           <div className="rounded-xl border bg-amber-50 border-amber-200 p-6 text-center space-y-2">
             <AlertTriangle className="h-8 w-8 mx-auto text-amber-600" />
-            <h3 className="font-semibold text-amber-800">This estimate has expired</h3>
+            <h3 className="font-heading font-semibold text-amber-800">
+              This estimate has expired
+            </h3>
             <p className="text-sm text-amber-700">
               Please contact us to request an updated estimate.
             </p>
           </div>
         )}
 
-        {!totallyDone && !data.expired && !rejectMode && (
-          <section className="border-t pt-6 space-y-4">
-            <h3 className="text-lg font-semibold">Approve &amp; Sign</h3>
+        {/* Sign UI */}
+        {!data.expired && !rejectMode && (
+          <section className="border-t pt-6 space-y-5">
+            <div className="flex items-center gap-2">
+              <span
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-white"
+                style={{ background: primaryColor }}
+              >
+                <PenTool className="h-4 w-4" />
+              </span>
+              <h3 className="font-heading text-lg font-semibold">Approve &amp; sign</h3>
+            </div>
+
+            <p className="text-sm text-muted-foreground -mt-2">
+              Add your details below, then sign with your name or by drawing.
+              You&rsquo;ll receive an emailed copy for your records.
+            </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="name">Full Name *</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="name">Full name *</Label>
                 <Input
                   id="name"
                   value={signedName}
                   onChange={(e) => setSignedName(e.target.value)}
                   placeholder="Your name"
+                  className="h-11"
+                  autoComplete="name"
                 />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label htmlFor="email">Email *</Label>
                 <Input
                   id="email"
@@ -542,15 +835,19 @@ export default function PublicProposalSignPage() {
                   value={signedEmail}
                   onChange={(e) => setSignedEmail(e.target.value)}
                   placeholder="you@example.com"
+                  className="h-11"
+                  autoComplete="email"
                 />
               </div>
-              <div className="space-y-1 sm:col-span-2">
+              <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="title">Title (optional)</Label>
                 <Input
                   id="title"
                   value={signedTitle}
                   onChange={(e) => setSignedTitle(e.target.value)}
                   placeholder="e.g. Property Manager"
+                  className="h-11"
+                  autoComplete="organization-title"
                 />
               </div>
             </div>
@@ -558,48 +855,75 @@ export default function PublicProposalSignPage() {
             {/* Signature tabs */}
             <div className="space-y-3">
               <Label>Signature</Label>
-              <div className="inline-flex border rounded-lg overflow-hidden">
+              <div className="inline-flex rounded-lg border border-border bg-muted/40 p-0.5">
                 <button
                   type="button"
-                  className={`flex items-center gap-2 px-4 py-2 text-sm ${
-                    tab === 'typed' ? 'bg-zinc-100 font-semibold' : 'hover:bg-zinc-50'
+                  className={`flex items-center gap-2 px-3.5 py-1.5 text-sm rounded-md transition-all ${
+                    tab === 'typed'
+                      ? 'bg-white shadow-sm font-semibold text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
                   onClick={() => setTab('typed')}
                 >
-                  <Type className="h-4 w-4" /> Type your name
+                  <Type className="h-3.5 w-3.5" /> Type
                 </button>
                 <button
                   type="button"
-                  className={`flex items-center gap-2 px-4 py-2 text-sm border-l ${
-                    tab === 'drawn' ? 'bg-zinc-100 font-semibold' : 'hover:bg-zinc-50'
+                  className={`flex items-center gap-2 px-3.5 py-1.5 text-sm rounded-md transition-all ${
+                    tab === 'drawn'
+                      ? 'bg-white shadow-sm font-semibold text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
                   onClick={() => setTab('drawn')}
                 >
-                  <PenTool className="h-4 w-4" /> Draw signature
+                  <PenTool className="h-3.5 w-3.5" /> Draw
                 </button>
               </div>
 
               {tab === 'typed' ? (
-                <div
-                  className="border-b border-dashed py-4 px-2 text-3xl font-serif italic text-zinc-700 min-h-[60px]"
-                  style={{ fontFamily: '"Brush Script MT", "Lucida Handwriting", cursive' }}
-                >
-                  {signedName || 'Your signature will appear here'}
+                <div className="rounded-xl border border-border bg-white px-4 pt-4 pb-2">
+                  <div
+                    className="border-b-2 border-dashed border-border py-3 px-1 text-3xl text-zinc-700 min-h-[64px] leading-tight"
+                    style={{
+                      fontFamily:
+                        '"Brush Script MT", "Lucida Handwriting", cursive',
+                    }}
+                  >
+                    {signedName || (
+                      <span className="text-muted-foreground/60 text-base italic font-sans">
+                        Type your name above &mdash; your signature appears here
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1.5 italic">
+                    By typing your name, you agree this counts as your legal signature.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="border rounded-lg bg-white" style={{ height: 200 }}>
+                  <div
+                    className="rounded-xl border-2 border-dashed border-border bg-white"
+                    style={{ height: 200 }}
+                  >
                     <canvas
                       ref={canvasRef}
-                      className="w-full h-full touch-none cursor-crosshair"
+                      className="w-full h-full touch-none cursor-crosshair rounded-xl"
                       onPointerDown={handlePointerDown}
                       onPointerMove={handlePointerMove}
                       onPointerUp={handlePointerUp}
                       onPointerLeave={handlePointerUp}
                     />
                   </div>
-                  <div className="flex justify-end">
-                    <Button type="button" variant="ghost" size="sm" onClick={clearCanvas}>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground italic">
+                      Sign with your finger or mouse in the box above
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearCanvas}
+                    >
                       <Eraser className="h-3.5 w-3.5 mr-1" /> Clear
                     </Button>
                   </div>
@@ -608,15 +932,24 @@ export default function PublicProposalSignPage() {
             </div>
 
             {errorMsg && (
-              <div className="text-sm text-red-600 flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" /> {errorMsg}
+              <div className="text-sm text-red-600 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" /> {errorMsg}
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+            {/* Trust strip */}
+            <div className="flex items-start gap-2 text-xs text-muted-foreground rounded-lg bg-muted/30 border border-border/60 px-3 py-2.5">
+              <ShieldCheck className="h-4 w-4 flex-shrink-0 mt-0.5" />
+              <span className="leading-5">
+                Your signature is timestamped and stored securely. You&rsquo;ll
+                receive an emailed copy of this approved estimate.
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
               <button
                 type="button"
-                className="text-sm text-zinc-500 hover:text-red-600 underline self-start"
+                className="text-sm text-muted-foreground hover:text-red-600 underline self-start"
                 onClick={() => {
                   setRejectMode(true)
                   setErrorMsg(null)
@@ -627,32 +960,24 @@ export default function PublicProposalSignPage() {
               <Button
                 onClick={submitSignature}
                 disabled={submitting}
+                loading={submitting}
                 size="lg"
                 style={{ background: primaryColor }}
-                className="text-white hover:opacity-90"
+                className="text-white hover:opacity-90 h-12 px-6"
               >
-                {submitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Signing...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Approve &amp; Sign Estimate
-                  </>
-                )}
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Approve &amp; Sign {fmtUSD(Number(proposal.total_amount))}
               </Button>
             </div>
           </section>
         )}
 
-        {!totallyDone && !data.expired && rejectMode && (
+        {!data.expired && rejectMode && (
           <section className="border-t pt-6 space-y-4">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <XCircle className="h-5 w-5 text-red-500" /> Decline Estimate
+            <h3 className="font-heading text-lg font-semibold flex items-center gap-2">
+              <XCircle className="h-5 w-5 text-red-500" /> Decline estimate
             </h3>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label htmlFor="reason">Tell us why (helps us improve)</Label>
               <Textarea
                 id="reason"
@@ -663,8 +988,8 @@ export default function PublicProposalSignPage() {
               />
             </div>
             {errorMsg && (
-              <div className="text-sm text-red-600 flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" /> {errorMsg}
+              <div className="text-sm text-red-600 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" /> {errorMsg}
               </div>
             )}
             <div className="flex gap-2 justify-end">
@@ -681,19 +1006,55 @@ export default function PublicProposalSignPage() {
                 variant="destructive"
                 onClick={submitReject}
                 disabled={rejectSubmitting}
+                loading={rejectSubmitting}
               >
-                {rejectSubmitting ? 'Submitting…' : 'Submit Rejection'}
+                Submit decision
               </Button>
             </div>
           </section>
         )}
 
-        <footer className="text-xs text-muted-foreground text-center pt-6 border-t">
-          {org?.name && <p>{org.name}</p>}
-          {org?.company_phone && <p>{org.company_phone}</p>}
-          {org?.company_email && <p>{org.company_email}</p>}
+        {/* Footer */}
+        <footer className="text-xs text-muted-foreground text-center pt-6 border-t border-border space-y-2">
+          {org?.name && (
+            <p className="font-medium text-foreground">{org.name}</p>
+          )}
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+            {org?.company_phone && (
+              <a
+                href={`tel:${org.company_phone}`}
+                className="hover:text-foreground transition-colors"
+              >
+                {org.company_phone}
+              </a>
+            )}
+            {org?.company_email && (
+              <>
+                <span aria-hidden className="opacity-40">·</span>
+                <a
+                  href={`mailto:${org.company_email}`}
+                  className="hover:text-foreground transition-colors"
+                >
+                  {org.company_email}
+                </a>
+              </>
+            )}
+          </div>
+          <p className="pt-3 inline-flex items-center gap-1 opacity-70">
+            <Sparkles className="h-3 w-3" />
+            <span>
+              Powered by <span className="font-medium">Pipeline AI</span>
+            </span>
+          </p>
         </footer>
       </div>
+
+      {/* Floating loader during submit isn't needed — Button has its own state. */}
+      {submitting && (
+        <span aria-hidden className="sr-only">
+          <Loader2 />
+        </span>
+      )}
     </div>
   )
 }

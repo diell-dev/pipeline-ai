@@ -70,7 +70,7 @@ export async function GET(
       .maybeSingle(),
     supabase
       .from('organizations')
-      .select('name, company_phone, company_email')
+      .select('name, company_phone, company_email, logo_url, primary_color')
       .eq('id', qrRow.organization_id)
       .maybeSingle(),
   ])
@@ -112,6 +112,11 @@ export async function GET(
     organizationName: org?.name || null,
     organizationPhone: org?.company_phone || null,
     organizationEmail: org?.company_email || null,
+    // Public branding surface — tenants see the contractor's logo and color
+    // when they scan a sticker. Both are nullable (a tenant with no brand
+    // configured still gets a clean default).
+    organizationLogoUrl: org?.logo_url || null,
+    organizationPrimaryColor: org?.primary_color || null,
     makeOrCategory,
   })
 }

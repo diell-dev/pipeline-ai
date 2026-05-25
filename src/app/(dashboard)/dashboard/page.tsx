@@ -1,27 +1,45 @@
 'use client'
 
 /**
- * Dashboard Page
+ * Dashboard Page — Phase D refresh
  *
- * Role-adaptive dashboard:
- * - Field Tech: My jobs stats, quick submit button
- * - Owner/Office Manager: All jobs overview, financials summary
- * - Client: Their reports and invoices
+ * Role-adaptive home that reads as a purposeful product surface, not a
+ * stats wall.
  *
- * Owners/managers also get an analytics layer (timeframe + client filter,
- * KPI cards for total jobs, outstanding revenue, avg cost per job, and
- * three "time-to-X" workflow metrics) on top of the existing summary.
+ * Composition (top → bottom):
+ *   1. <DashboardHero>           greeting + next-best-action chips
+ *   2. Filter strip              timeframe / client selectors (analytics roles)
+ *   3. "No jobs in this window"  helpful hint when filter is too narrow
+ *   4. Primary KPI strip         4 pipeline KPIs via <KPICard>
+ *   5. Financials KPI strip      revenue / cost / time-to-X KPIs (analytics)
+ *   6. <EquipmentLifecycleWidget> with the new inline bar chart
+ *   7. <DashboardActivityFeed>   recent activity (desktop: side-by-side with
+ *                                quick actions; mobile: full width)
+ *   8. Quick Actions             (kept at bottom on desktop, hidden on
+ *                                mobile in favor of bottom nav + chips)
+ *
+ * Mobile layout collapses to a single vertical column with the most
+ * actionable KPI featured first and the timeline taking the remaining
+ * scroll real estate. Bottom-nav clearance: `pb-24`.
+ *
+ * Roles:
+ *   - super_admin            sees all orgs (RLS-permitted)
+ *   - owner / office_manager full analytics + lifecycle widget
+ *   - field_tech             scoped to their own jobs; no analytics
+ *   - client                 no analytics, simplified KPIs
  */
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
 import { hasPermission, type Permission } from '@/lib/permissions'
-import { getRoleLabel } from '@/lib/permissions'
 import { EquipmentLifecycleWidget } from '@/components/equipment/lifecycle-widget'
+import { DashboardHero } from '@/components/dashboard/dashboard-hero'
+import { DashboardActivityFeed } from '@/components/dashboard/activity-feed'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { KPICard } from '@/components/ui/kpi-card'
 import {
   Select,
   SelectContent,
@@ -41,6 +59,9 @@ import {
   Hourglass,
   PlayCircle,
   Flag,
+  ChevronDown,
+  ChevronUp,
+  Wrench,
 } from 'lucide-react'
 
 interface DashboardStats {
@@ -48,6 +69,16 @@ interface DashboardStats {
   pendingReview: number
   approved: number
   submitted: number
+}
+
+interface OverdueInvoiceStats {
+  count: number
+  outstandingTotal: number
+}
+
+interface EquipmentDueStats {
+  dueSoon: number
+  overdue: number
 }
 
 type Timeframe = 'week' | 'month' | 'quarter' | 'year' | 'all'
@@ -97,7 +128,6 @@ function getDateRange(tf: Timeframe): { from: string | null; to: string | null }
 
   const start = new Date(now)
   if (tf === 'week') {
-    // Start of week (Sunday)
     const day = start.getDay()
     start.setDate(start.getDate() - day)
   } else if (tf === 'month') {
@@ -125,35 +155,42 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loadingStats, setLoadingStats] = useState(true)
 
-  // Analytics filters. Default to 'year' so users see their historical data
-  // immediately instead of an empty "0 this month" dashboard when they have
-  // data from prior months. They can narrow to 'month' or 'week' via the picker.
   const [timeframe, setTimeframe] = useState<Timeframe>('year')
   const [clientId, setClientId] = useState<string>('all')
-  // Track whether *any* jobs exist (without the timeframe filter) so we can
-  // show a helpful "your data is outside this timeframe" hint when the
-  // current filter returns 0 but the org has jobs.
   const [lifetimeJobs, setLifetimeJobs] = useState<number | null>(null)
   const [clients, setClients] = useState<ClientOption[]>([])
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null)
   const [loadingAnalytics, setLoadingAnalytics] = useState(true)
 
+  // Phase D: extra "next-best-action" signals — overdue invoices & equipment
+  // due/overdue. These are intentionally one-off lightweight queries (count
+  // only) so the hero strip can render fast even before /api/dashboard/*
+  // resolves.
+  const [overdueInvoices, setOverdueInvoices] = useState<OverdueInvoiceStats | null>(null)
+  const [equipmentDue, setEquipmentDue] = useState<EquipmentDueStats | null>(null)
+
+  // Phase D: "Show all metrics" toggle. Hidden cards = those whose value is
+  // missing/empty (the "—" cards that used to feel like padding).
+  const [showAllMetrics, setShowAllMetrics] = useState(false)
+
   const canViewAll = user?.role ? hasPermission(user.role, 'jobs:view_all') : false
   const canCreate = user?.role ? hasPermission(user.role, 'jobs:create') : false
-  const canCreateProposal = user?.role ? hasPermission(user.role, 'proposals:create') : false
-  // Cast: 'equipment:view' is added to the Permission union by the backend agent.
+  const canCreateProposal = user?.role
+    ? hasPermission(user.role, 'proposals:create')
+    : false
   const canViewEquipment = user?.role
     ? hasPermission(user.role, 'equipment:view' as Permission)
     : false
-  // Analytics layer is only useful to people who can see all jobs (owners/managers).
+  const canViewInvoices = user?.role
+    ? hasPermission(user.role, 'invoices:view_all' as Permission) ||
+      hasPermission(user.role, 'invoices:view_own' as Permission)
+    : false
   const showAnalytics = canViewAll
-  // Super_admin can read across all orgs (RLS allows it). The dashboard scopes
-  // queries to the user's own org by default, but for super_admin we drop that
-  // filter so they see platform-wide aggregates — otherwise super_admins land
-  // on a "0 of everything" dashboard when their nominal org has no real data.
   const isSuperAdmin = user?.role === 'super_admin'
 
   const dateRange = useMemo(() => getDateRange(timeframe), [timeframe])
+
+  const firstName = user?.full_name ? user.full_name.split(' ')[0] : null
 
   // One-time fetch: do we have ANY jobs at all? Used to detect the
   // "your filter is too narrow" empty state.
@@ -173,9 +210,7 @@ export default function DashboardPage() {
     loadLifetime()
   }, [organization, user, canViewAll, isSuperAdmin])
 
-  // Re-applies stats query whenever the timeframe / client filter changes
-  // so the existing "Total Jobs" / "Submitted" / "Pending Review" / "Approved"
-  // KPIs respect the same filters as the new analytics layer.
+  // Stats query — drives the primary KPI strip.
   useEffect(() => {
     if (!organization || !user) return
 
@@ -188,18 +223,12 @@ export default function DashboardPage() {
         .select('status', { count: 'exact' })
         .is('deleted_at', null)
 
-      // Super_admin sees all orgs; everyone else scoped to their own org
       if (!isSuperAdmin) {
         query = query.eq('organization_id', organization!.id)
       }
-
-      // Field techs only see their own
       if (!canViewAll) {
         query = query.eq('submitted_by', user!.id)
       }
-
-      // Apply timeframe + client filters (only meaningful for owner/manager view,
-      // but harmless for techs since they're already constrained to their jobs).
       if (dateRange.from) query = query.gte('service_date', dateRange.from)
       if (dateRange.to) query = query.lte('service_date', dateRange.to)
       if (clientId !== 'all') query = query.eq('client_id', clientId)
@@ -232,7 +261,79 @@ export default function DashboardPage() {
     loadStats()
   }, [organization, user, canViewAll, dateRange, clientId, isSuperAdmin])
 
-  // Load client list for the filter dropdown (owner/manager only)
+  // Phase D: cheap secondary query for the hero "1 invoice overdue → mark
+  // paid" chip. We pull every invoice that's flagged overdue OR is past its
+  // due_date but still in 'sent' / 'partially_paid' status, then total the
+  // outstanding balance for the chip subtitle.
+  useEffect(() => {
+    if (!organization || !user || !canViewInvoices) return
+    let cancelled = false
+    async function loadOverdue() {
+      const supabase = createClient()
+      const today = isoDate(new Date())
+      let q = supabase
+        .from('invoices')
+        .select('id, total_amount, paid_amount, status, due_date')
+        .in('status', ['overdue', 'sent', 'partially_paid'])
+      if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
+      const { data, error } = await q
+      if (error) {
+        console.error('Overdue invoices load failed:', error.message)
+        if (!cancelled) setOverdueInvoices({ count: 0, outstandingTotal: 0 })
+        return
+      }
+      const overdueRows = (data || []).filter((inv) => {
+        if (inv.status === 'overdue') return true
+        return inv.due_date && inv.due_date < today
+      })
+      const outstanding = overdueRows.reduce((sum, inv) => {
+        const total = Number(inv.total_amount) || 0
+        const paid = Number(inv.paid_amount) || 0
+        return sum + Math.max(0, total - paid)
+      }, 0)
+      if (!cancelled) {
+        setOverdueInvoices({
+          count: overdueRows.length,
+          outstandingTotal: outstanding,
+        })
+      }
+    }
+    loadOverdue()
+    return () => {
+      cancelled = true
+    }
+  }, [organization, user, canViewInvoices, isSuperAdmin])
+
+  // Phase D: cheap secondary query for equipment due-soon / overdue chips.
+  // Re-uses the lifecycle endpoint that's already in production so we don't
+  // duplicate the lifecycle math here.
+  useEffect(() => {
+    if (!canViewEquipment) return
+    let cancelled = false
+    async function loadEquipment() {
+      try {
+        const res = await fetch('/api/dashboard/equipment-lifecycle', {
+          cache: 'no-store',
+        })
+        if (!res.ok) throw new Error(`status ${res.status}`)
+        const json = (await res.json()) as { dueSoon: number; overdue: number }
+        if (!cancelled) {
+          setEquipmentDue({
+            dueSoon: json.dueSoon ?? 0,
+            overdue: json.overdue ?? 0,
+          })
+        }
+      } catch (err) {
+        console.error('Equipment-due load failed:', err)
+        if (!cancelled) setEquipmentDue({ dueSoon: 0, overdue: 0 })
+      }
+    }
+    loadEquipment()
+    return () => {
+      cancelled = true
+    }
+  }, [canViewEquipment])
+
   useEffect(() => {
     if (!organization || !showAnalytics) return
 
@@ -252,7 +353,6 @@ export default function DashboardPage() {
     loadClients()
   }, [organization, showAnalytics, isSuperAdmin])
 
-  // Fetch analytics from the API whenever the filters change
   const loadAnalytics = useCallback(async () => {
     if (!showAnalytics) return
     setLoadingAnalytics(true)
@@ -284,10 +384,102 @@ export default function DashboardPage() {
     loadAnalytics()
   }, [loadAnalytics])
 
+  // ── Compose next-best-action chips for the hero ──────────────────────
+  // Order matters here: highest-impact actions first. The hero re-sorts
+  // by tone severity but preserves relative order for ties.
+  const heroActions = useMemo(() => {
+    const list: Array<{
+      count: number
+      noun: string
+      context: string
+      href: string
+      icon: typeof ClipboardList
+      tone: 'warning' | 'danger' | 'info' | 'success'
+    }> = []
+
+    if (canViewAll && stats && stats.pendingReview > 0) {
+      list.push({
+        count: stats.pendingReview,
+        noun: 'job',
+        context: 'pending review',
+        href: '/jobs?status=pending_review',
+        icon: ClipboardList,
+        tone: 'warning',
+      })
+    }
+    if (canViewInvoices && overdueInvoices && overdueInvoices.count > 0) {
+      list.push({
+        count: overdueInvoices.count,
+        noun: 'invoice',
+        context: 'overdue',
+        href: '/invoices?status=overdue',
+        icon: DollarSign,
+        tone: 'danger',
+      })
+    }
+    const equipmentTotal =
+      (equipmentDue?.overdue ?? 0) + (equipmentDue?.dueSoon ?? 0)
+    if (canViewEquipment && equipmentTotal > 0) {
+      list.push({
+        count: equipmentTotal,
+        noun: 'piece of equipment',
+        context: equipmentDue!.overdue > 0 ? 'overdue or due soon' : 'due soon',
+        href: '/equipment',
+        icon: Wrench,
+        tone: equipmentDue!.overdue > 0 ? 'warning' : 'info',
+      })
+    }
+    return list
+  }, [
+    canViewAll,
+    canViewInvoices,
+    canViewEquipment,
+    stats,
+    overdueInvoices,
+    equipmentDue,
+  ])
+
+  // Pick the "featured" KPI for the mobile single-column layout.
+  const featuredMobileKPI = useMemo(() => {
+    if (!stats) return null
+    if (stats.pendingReview > 0 && canViewAll) {
+      return {
+        label: 'Pending Review',
+        value: stats.pendingReview,
+        helper: 'Jobs awaiting your approval',
+        icon: Clock,
+        onClick: () => router.push('/jobs?status=pending_review'),
+      }
+    }
+    if (showAnalytics && analytics && analytics.outstandingRevenue > 0) {
+      return {
+        label: 'Outstanding Revenue',
+        value: formatCurrency(analytics.outstandingRevenue),
+        helper: 'Unpaid invoice balance',
+        icon: Receipt,
+        onClick: () => router.push('/invoices'),
+      }
+    }
+    return {
+      label: canViewAll ? 'Total Jobs' : 'My Jobs',
+      value: stats.totalJobs,
+      helper: showAnalytics
+        ? TIMEFRAME_LABELS[timeframe].toLowerCase()
+        : 'all time',
+      icon: ClipboardList,
+      onClick: () => router.push('/jobs'),
+    }
+  }, [stats, analytics, canViewAll, showAnalytics, timeframe, router])
+
   if (isLoading) {
     return (
-      <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto pb-24 sm:pb-6">
         <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-5 w-40" />
+        <div className="flex gap-2">
+          <Skeleton className="h-7 w-32 rounded-full" />
+          <Skeleton className="h-7 w-24 rounded-full" />
+        </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {[...Array(4)].map((_, i) => (
             <Skeleton key={i} className="h-32 rounded-xl" />
@@ -297,47 +489,55 @@ export default function DashboardPage() {
     )
   }
 
+  const heroRightActions = (
+    <>
+      {canCreateProposal && (
+        <Button
+          variant="outline"
+          className="w-full sm:w-auto h-10"
+          onClick={() => router.push('/proposals/new')}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          New Proposal
+        </Button>
+      )}
+      {canCreate && (
+        <Button
+          variant="brand"
+          className="w-full sm:w-auto h-10"
+          onClick={() => router.push('/jobs/new')}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          New Job
+        </Button>
+      )}
+    </>
+  )
+
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-            Welcome back{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {user?.role ? getRoleLabel(user.role) : ''}
-            {user?.email ? ` · ${user.email}` : ''}
-          </p>
+    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto pb-24 sm:pb-6">
+      {/* D1: Hero greeting + next-best-action chips */}
+      <DashboardHero
+        firstName={firstName}
+        actions={heroActions}
+        rightActions={heroRightActions}
+      />
+
+      {/* MOBILE-ONLY: single featured KPI card (D5) */}
+      {featuredMobileKPI && (
+        <div className="sm:hidden">
+          <KPICard
+            label={featuredMobileKPI.label}
+            value={featuredMobileKPI.value}
+            helper={featuredMobileKPI.helper}
+            icon={featuredMobileKPI.icon}
+            onClick={featuredMobileKPI.onClick}
+            loading={loadingStats}
+          />
         </div>
-        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
-          {canCreateProposal && (
-            <Button
-              variant="outline"
-              className="w-full sm:w-auto h-10"
-              onClick={() => router.push('/proposals/new')}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              New Proposal
-            </Button>
-          )}
-          {canCreate && (
-            <Button
-              variant="brand"
-              className="w-full sm:w-auto h-10"
-              onClick={() => router.push('/jobs/new')}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              New Job
-            </Button>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Filter bar — sticky so it stays visible while scrolling KPI sections */}
-      {/* UX-SWEEP-#20: filter row was here — switched mobile layout from a
-          single column (TIMEFRAME / CLIENT on separate rows) to a 2-column
-          grid so both selects fit on one row on phones. Coordinate with
-          Agent A: this is the only change here in this scope. */}
       {showAnalytics && (
         <div className="sticky top-0 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
           <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-row sm:flex-wrap sm:items-center">
@@ -393,16 +593,17 @@ export default function DashboardPage() {
         timeframe !== 'all' &&
         stats?.totalJobs === 0 &&
         (lifetimeJobs ?? 0) > 0 && (
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
-            <p className="text-amber-900">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-500/30 dark:bg-amber-500/10">
+            <p className="text-amber-900 dark:text-amber-200">
               <strong>No jobs in this timeframe.</strong> You have{' '}
-              <strong>{lifetimeJobs}</strong> {lifetimeJobs === 1 ? 'job' : 'jobs'} in total.
-              Try widening the timeframe.
+              <strong>{lifetimeJobs}</strong>{' '}
+              {lifetimeJobs === 1 ? 'job' : 'jobs'} in total. Try widening the
+              timeframe.
             </p>
             <Button
               size="sm"
               variant="outline"
-              className="h-9 border-amber-300 text-amber-900 hover:bg-amber-100"
+              className="h-9 border-amber-300 text-amber-900 hover:bg-amber-100 dark:border-amber-500/40 dark:text-amber-200 dark:hover:bg-amber-500/20"
               onClick={() => setTimeframe('all')}
             >
               View all time
@@ -410,244 +611,225 @@ export default function DashboardPage() {
           </div>
         )}
 
-      {/* KPI Cards — Pipeline summary */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
+      {/* D2: Primary KPI strip — hidden on mobile (featured card replaces it) */}
+      <div className="hidden sm:grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <KPICard
+          label={canViewAll ? 'Total Jobs' : 'My Jobs'}
+          value={stats?.totalJobs ?? 0}
+          icon={ClipboardList}
+          helper={
+            showAnalytics ? TIMEFRAME_LABELS[timeframe].toLowerCase() : 'all time'
+          }
           onClick={() => router.push('/jobs')}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <ClipboardList className="h-4 w-4" />
-              {canViewAll ? 'Total Jobs' : 'My Jobs'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl sm:text-3xl font-bold">
-              {loadingStats ? '—' : stats?.totalJobs ?? 0}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {showAnalytics ? TIMEFRAME_LABELS[timeframe].toLowerCase() : 'all time'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
+          loading={loadingStats}
+        />
+        <KPICard
+          label="Submitted"
+          value={stats?.submitted ?? 0}
+          icon={Send}
+          helper="being processed"
           onClick={() => router.push('/jobs')}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Send className="h-4 w-4" />
-              Submitted
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl sm:text-3xl font-bold text-foreground">
-              {loadingStats ? '—' : stats?.submitted ?? 0}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">being processed</p>
-          </CardContent>
-        </Card>
-
-        <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
+          loading={loadingStats}
+        />
+        <KPICard
+          label="Pending Review"
+          value={stats?.pendingReview ?? 0}
+          icon={Clock}
+          helper="awaiting approval"
+          onClick={() => router.push('/jobs?status=pending_review')}
+          loading={loadingStats}
+        />
+        <KPICard
+          label="Approved"
+          value={stats?.approved ?? 0}
+          icon={CheckCircle2}
+          helper="completed or sent"
           onClick={() => router.push('/jobs')}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Pending Review
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl sm:text-3xl font-bold text-foreground">
-              {loadingStats ? '—' : stats?.pendingReview ?? 0}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">awaiting approval</p>
-          </CardContent>
-        </Card>
-
-        <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => router.push('/jobs')}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4" />
-              Approved
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl sm:text-3xl font-bold text-foreground">
-              {loadingStats ? '—' : stats?.approved ?? 0}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">completed or sent</p>
-          </CardContent>
-        </Card>
+          loading={loadingStats}
+        />
       </div>
 
-      {/* Financials row — owner/manager only */}
+      {/* D2: Financials KPI strip — owner/manager only.
+          The cards with null analytics values are hidden by default; the
+          "Show all metrics" toggle reveals them. */}
       {showAnalytics && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Receipt className="h-4 w-4" />
-                Outstanding Revenue
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loadingAnalytics ? (
-                <Skeleton className="h-9 w-28" />
-              ) : (
-                <div className="text-2xl sm:text-3xl font-bold">
-                  {formatCurrency(analytics?.outstandingRevenue ?? 0)}
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">unpaid invoice balance</p>
-            </CardContent>
-          </Card>
+        <div className="hidden sm:block space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <KPICard
+              label="Outstanding Revenue"
+              value={
+                analytics ? formatCurrency(analytics.outstandingRevenue) : '$0'
+              }
+              icon={Receipt}
+              helper="unpaid invoice balance"
+              onClick={() => router.push('/invoices')}
+              loading={loadingAnalytics}
+            />
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <DollarSign className="h-4 w-4" />
-                Avg Cost per Job
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loadingAnalytics ? (
-                <Skeleton className="h-9 w-28" />
-              ) : analytics?.avgCostPerJob == null ? (
-                <div className="text-2xl sm:text-3xl font-bold">—</div>
-              ) : (
-                <div className="text-2xl sm:text-3xl font-bold">
-                  {formatCurrency(analytics.avgCostPerJob)}
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">
-                {analytics
-                  ? `(based on ${analytics.recordCounts.jobs} jobs / ${analytics.recordCounts.invoices} invoices)`
-                  : ' '}
-              </p>
-            </CardContent>
-          </Card>
+            {/* Show always if a value exists, otherwise behind toggle. */}
+            {(showAllMetrics || (analytics?.avgCostPerJob ?? null) !== null) && (
+              <KPICard
+                label="Avg Cost per Job"
+                value={
+                  analytics?.avgCostPerJob == null
+                    ? '—'
+                    : formatCurrency(analytics.avgCostPerJob)
+                }
+                icon={DollarSign}
+                helper={
+                  analytics
+                    ? `${analytics.recordCounts.jobs} jobs · ${analytics.recordCounts.invoices} invoices`
+                    : ' '
+                }
+                loading={loadingAnalytics}
+              />
+            )}
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Hourglass className="h-4 w-4" />
-                Avg Proposal → Signed
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loadingAnalytics ? (
-                <Skeleton className="h-9 w-28" />
-              ) : analytics?.avgProposalToSignedHours == null ? (
-                <div className="text-2xl sm:text-3xl font-bold">—</div>
-              ) : (
-                <div className="text-2xl sm:text-3xl font-bold">
-                  {formatDuration(analytics.avgProposalToSignedHours)}
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">
-                {analytics
-                  ? `(based on ${analytics.recordCounts.proposalToSigned} proposals)`
-                  : ' '}
-              </p>
-            </CardContent>
-          </Card>
+            {(showAllMetrics ||
+              (analytics?.avgProposalToSignedHours ?? null) !== null) && (
+              <KPICard
+                label="Avg Proposal → Signed"
+                value={
+                  analytics?.avgProposalToSignedHours == null
+                    ? '—'
+                    : formatDuration(analytics.avgProposalToSignedHours)
+                }
+                icon={Hourglass}
+                helper={
+                  analytics
+                    ? `${analytics.recordCounts.proposalToSigned} proposals`
+                    : ' '
+                }
+                loading={loadingAnalytics}
+              />
+            )}
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <PlayCircle className="h-4 w-4" />
-                Avg Signed → Started
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loadingAnalytics ? (
-                <Skeleton className="h-9 w-28" />
-              ) : analytics?.avgSignedToStartedHours == null ? (
-                <div className="text-2xl sm:text-3xl font-bold">—</div>
-              ) : (
-                <div className="text-2xl sm:text-3xl font-bold">
-                  {formatDuration(analytics.avgSignedToStartedHours)}
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">
-                {analytics
-                  ? `(based on ${analytics.recordCounts.signedToStarted} jobs)`
-                  : ' '}
-              </p>
-            </CardContent>
-          </Card>
+            {(showAllMetrics ||
+              (analytics?.avgSignedToStartedHours ?? null) !== null) && (
+              <KPICard
+                label="Avg Signed → Started"
+                value={
+                  analytics?.avgSignedToStartedHours == null
+                    ? '—'
+                    : formatDuration(analytics.avgSignedToStartedHours)
+                }
+                icon={PlayCircle}
+                helper={
+                  analytics
+                    ? `${analytics.recordCounts.signedToStarted} jobs`
+                    : ' '
+                }
+                loading={loadingAnalytics}
+              />
+            )}
 
-          {(loadingAnalytics || analytics?.avgStartedToCompletedHours != null) && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <Flag className="h-4 w-4" />
-                  Avg Started → Completed
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loadingAnalytics ? (
-                  <Skeleton className="h-9 w-28" />
+            {(showAllMetrics ||
+              (analytics?.avgStartedToCompletedHours ?? null) !== null) && (
+              <KPICard
+                label="Avg Started → Completed"
+                value={
+                  analytics?.avgStartedToCompletedHours == null
+                    ? '—'
+                    : formatDuration(analytics.avgStartedToCompletedHours)
+                }
+                icon={Flag}
+                helper={
+                  analytics
+                    ? `${analytics.recordCounts.startedToCompleted} jobs`
+                    : ' '
+                }
+                loading={loadingAnalytics}
+              />
+            )}
+          </div>
+
+          {/* "Show all metrics" toggle — only when there's something hidden */}
+          {!loadingAnalytics &&
+            analytics &&
+            [
+              analytics.avgCostPerJob,
+              analytics.avgProposalToSignedHours,
+              analytics.avgSignedToStartedHours,
+              analytics.avgStartedToCompletedHours,
+            ].some((v) => v == null) && (
+              <button
+                type="button"
+                onClick={() => setShowAllMetrics((v) => !v)}
+                className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showAllMetrics ? (
+                  <>
+                    <ChevronUp className="h-3.5 w-3.5" />
+                    Hide empty metrics
+                  </>
                 ) : (
-                  <div className="text-2xl sm:text-3xl font-bold">
-                    {formatDuration(analytics!.avgStartedToCompletedHours!)}
-                  </div>
+                  <>
+                    <ChevronDown className="h-3.5 w-3.5" />
+                    Show all metrics
+                  </>
                 )}
-                <p className="text-xs text-muted-foreground mt-1">
-                  {analytics
-                    ? `(based on ${analytics.recordCounts.startedToCompleted} jobs)`
-                    : ' '}
-                </p>
-              </CardContent>
-            </Card>
-          )}
+              </button>
+            )}
         </div>
       )}
 
-      {/* Equipment lifecycle widget — visible only to users who can see equipment */}
-      {/* UX-SWEEP-#15: collapse 3 zero cards (Overdue / Due 90d / Past Lifespan) into a single success line "All equipment current — no overdue or upcoming service items" when all three are 0. Lives inside src/components/equipment/lifecycle-widget.tsx (out of scope for dashboard agent). */}
-      {/* UX-SWEEP-#16: hide the "Replacement cost by category (top 5)" sub-widget when the top result is $0 OR there's only 1 category with $0 cost. Also inside lifecycle-widget.tsx. */}
+      {/* D4: Equipment lifecycle widget — visible to users who can see equipment */}
       {canViewEquipment && <EquipmentLifecycleWidget />}
 
-      {/* Quick Actions */}
-      {(canCreate || canCreateProposal) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            {canCreate && (
-              <Button
-                variant="outline"
-                className="h-10"
-                onClick={() => router.push('/jobs/new')}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                New Job
-              </Button>
-            )}
-            {canCreateProposal && (
-              <Button variant="outline" className="h-10" onClick={() => router.push('/proposals/new')}>
-                <Plus className="mr-2 h-4 w-4" />
-                New Proposal
-              </Button>
-            )}
-            <Button variant="outline" className="h-10" onClick={() => router.push('/jobs')}>
-              View {canViewAll ? 'All' : 'My'} Jobs
-            </Button>
-            <Button variant="outline" className="h-10" onClick={() => router.push('/clients')}>
-              View Clients
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {/* D3 + D5: Activity feed.
+          Desktop = side-by-side with quick actions; mobile = full width. */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="lg:col-span-2">
+          <DashboardActivityFeed limit={10} />
+        </div>
+        {(canCreate || canCreateProposal) && (
+          <div className="hidden sm:block">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                  Quick Actions
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                {canCreate && (
+                  <Button
+                    variant="outline"
+                    className="h-10 w-full justify-start"
+                    onClick={() => router.push('/jobs/new')}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Job
+                  </Button>
+                )}
+                {canCreateProposal && (
+                  <Button
+                    variant="outline"
+                    className="h-10 w-full justify-start"
+                    onClick={() => router.push('/proposals/new')}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Proposal
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  className="h-10 w-full justify-start"
+                  onClick={() => router.push('/jobs')}
+                >
+                  View {canViewAll ? 'All' : 'My'} Jobs
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-10 w-full justify-start"
+                  onClick={() => router.push('/clients')}
+                >
+                  View Clients
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

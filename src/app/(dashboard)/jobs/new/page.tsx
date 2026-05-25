@@ -573,13 +573,13 @@ export default function NewJobPage() {
                 className="pl-9 h-10"
               />
               {showServiceDropdown && filteredServices.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-60 overflow-auto">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-lg shadow-lg z-50 max-h-60 overflow-auto">
                   {filteredServices.map((s) => (
                     <button
                       key={s.id}
                       type="button"
                       onClick={() => addService(s)}
-                      className="w-full text-left px-3 py-2.5 hover:bg-zinc-50 transition-colors min-h-[44px]"
+                      className="w-full text-left px-3 py-2.5 hover:bg-muted transition-colors min-h-[44px]"
                     >
                       <span className="text-sm font-medium">{s.name}</span>
                       <span className="text-xs text-muted-foreground ml-2">
@@ -593,7 +593,7 @@ export default function NewJobPage() {
 
             {/* Custom service */}
             {showCustomForm ? (
-              <div className="border rounded-lg p-3 space-y-3 bg-zinc-50">
+              <div className="border rounded-lg p-3 space-y-3 bg-muted/50">
                 <p className="text-sm font-medium">Custom Service</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
@@ -739,8 +739,8 @@ export default function NewJobPage() {
                         onClick={() => setAssigneeKind(k)}
                         className={`px-2 py-2.5 min-h-[44px] text-xs rounded-md border capitalize ${
                           assigneeKind === k
-                            ? 'bg-zinc-900 text-white border-zinc-900'
-                            : 'bg-white border-zinc-200 hover:bg-zinc-50'
+                            ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100'
+                            : 'bg-card border-border hover:bg-muted'
                         }`}
                       >
                         {k === 'none' ? 'Unassigned' : k === 'tech' ? 'Individual Tech' : 'Crew'}

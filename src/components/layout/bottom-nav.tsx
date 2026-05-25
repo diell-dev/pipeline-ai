@@ -123,7 +123,7 @@ export function BottomNav() {
               href={item.href}
               className={cn(
                 'relative flex flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors',
-                active ? 'text-brand-primary' : 'text-zinc-500 hover:text-zinc-900'
+                active ? 'text-brand-primary' : 'text-muted-foreground hover:text-foreground'
               )}
             >
               {/* Active top border */}
@@ -143,7 +143,7 @@ export function BottomNav() {
               'relative flex flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors',
               overflowItems.some((it) => isActive(it.href))
                 ? 'text-brand-primary'
-                : 'text-zinc-500 hover:text-zinc-900'
+                : 'text-muted-foreground hover:text-foreground'
             )}
           >
             {overflowItems.some((it) => isActive(it.href)) && (
@@ -174,7 +174,7 @@ export function BottomNav() {
                       'flex flex-col items-center justify-center gap-2 rounded-xl border p-4 text-xs font-medium transition-colors',
                       active
                         ? 'border-brand-primary bg-brand-primary/5 text-brand-primary'
-                        : 'border-zinc-200 text-zinc-700 hover:bg-zinc-50'
+                        : 'border-border text-foreground hover:bg-muted'
                     )}
                   >
                     <Icon className="h-6 w-6" />

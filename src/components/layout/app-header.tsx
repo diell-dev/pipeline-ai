@@ -36,7 +36,7 @@ export function AppHeader() {
   }
 
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-white px-6">
+    <header className="flex h-14 items-center justify-between border-b bg-card px-6">
       {/* Left: breadcrumb area (will be dynamic per page) */}
       {/* UX-SWEEP-#10: was an unlabeled tier pill ("Full Operations") that read as mystery
           meat. Prefixed with "Plan:" so users understand it's their subscription tier. */}
@@ -65,8 +65,8 @@ export function AppHeader() {
 
         {/* User dropdown */}
         <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 transition-colors outline-none">
-            <div className="h-7 w-7 rounded-full bg-zinc-200 flex items-center justify-center text-xs font-medium">
+          <DropdownMenuTrigger className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted transition-colors outline-none">
+            <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
               {user?.full_name?.charAt(0) || '?'}
             </div>
             <span className="text-sm font-medium hidden sm:inline">

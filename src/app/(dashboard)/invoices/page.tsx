@@ -66,12 +66,12 @@ interface InvoiceRow {
 }
 
 const STATUS_STYLES: Record<InvoiceStatus, { label: string; className: string }> = {
-  draft: { label: 'Draft', className: 'bg-zinc-100 text-zinc-700' },
-  sent: { label: 'Sent', className: 'bg-blue-100 text-blue-700' },
-  paid: { label: 'Paid', className: 'bg-green-100 text-green-700' },
-  partially_paid: { label: 'Partial', className: 'bg-amber-100 text-amber-700' },
-  overdue: { label: 'Overdue', className: 'bg-red-100 text-red-700' },
-  void: { label: 'Void', className: 'bg-zinc-100 text-zinc-500 line-through' },
+  draft: { label: 'Draft', className: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' },
+  sent: { label: 'Sent', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  paid: { label: 'Paid', className: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+  partially_paid: { label: 'Partial', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  overdue: { label: 'Overdue', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+  void: { label: 'Void', className: 'bg-zinc-100 text-zinc-500 line-through dark:bg-zinc-800 dark:text-zinc-400' },
 }
 
 const PAGE_SIZE = 15
@@ -281,12 +281,12 @@ export default function InvoicesPage() {
             </button>
           )}
           {showClientDropdown && filteredClients.length > 0 && !selectedClientId && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-48 overflow-auto">
+            <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-lg shadow-lg z-50 max-h-48 overflow-auto">
               {filteredClients.map((c) => (
                 <button
                   key={c.id}
                   onClick={() => selectClient(c.id, c.company_name)}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-50 transition-colors"
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
                 >
                   {c.company_name}
                 </button>
@@ -347,7 +347,7 @@ export default function InvoicesPage() {
                 <div
                   key={inv.id}
                   style={{ '--row-index': idx } as React.CSSProperties}
-                  className="row-stagger-up rounded-lg border bg-white p-4 space-y-3"
+                  className="row-stagger-up rounded-lg border bg-card p-4 space-y-3"
                   onClick={() => {
                     if (inv.job_id) {
                       window.location.href = `/jobs/${inv.job_id}`
@@ -404,7 +404,7 @@ export default function InvoicesPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="flex-1 h-10 text-green-700 hover:text-green-800 hover:bg-green-50"
+                            className="flex-1 h-10 text-green-700 hover:text-green-800 hover:bg-green-50 dark:text-green-400 dark:hover:text-green-300 dark:hover:bg-green-500/10"
                           >
                             <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
                             Mark Paid
@@ -415,7 +415,7 @@ export default function InvoicesPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex-1 h-10 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          className="flex-1 h-10 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-500/10"
                           onClick={() => setConfirmVoidId(inv.id)}
                         >
                           <Trash2 className="h-3.5 w-3.5 mr-1" />
@@ -433,7 +433,7 @@ export default function InvoicesPage() {
           <div className="hidden md:block border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-zinc-50">
+                <tr className="border-b bg-muted/50">
                   <th className="text-left font-medium px-4 py-3">Invoice #</th>
                   <th className="text-left font-medium px-4 py-3">Client</th>
                   <th className="text-left font-medium px-4 py-3">Date</th>
@@ -456,7 +456,7 @@ export default function InvoicesPage() {
                   return (
                     <tr
                       key={inv.id}
-                      className="border-b last:border-0 hover:bg-zinc-50 even:bg-zinc-50/40 transition-colors cursor-pointer"
+                      className="border-b last:border-0 hover:bg-muted even:bg-muted/40 transition-colors cursor-pointer"
                       onClick={() => {
                         // Navigate to job detail (where invoice is displayed)
                         if (inv.job_id) {
@@ -507,7 +507,7 @@ export default function InvoicesPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-7 text-xs px-2 text-green-700 hover:text-green-800 hover:bg-green-50"
+                                  className="h-7 text-xs px-2 text-green-700 hover:text-green-800 hover:bg-green-50 dark:text-green-400 dark:hover:text-green-300 dark:hover:bg-green-500/10"
                                 >
                                   <CheckCircle2 className="h-3 w-3 mr-1" />
                                   Mark Paid
@@ -518,7 +518,7 @@ export default function InvoicesPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 text-xs px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                className="h-7 text-xs px-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-500/10"
                                 onClick={() => setConfirmVoidId(inv.id)}
                               >
                                 <Trash2 className="h-3 w-3" />

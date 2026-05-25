@@ -143,9 +143,9 @@ export function EquipmentLifecycleWidget() {
                         {c.count} units · {formatCurrency(c.cost)}
                       </span>
                     </div>
-                    <div className="h-2 rounded-full bg-zinc-100 overflow-hidden">
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
                       <div
-                        className="h-full bg-zinc-700"
+                        className="h-full bg-zinc-700 dark:bg-zinc-300"
                         style={{ width: `${pct}%` }}
                       />
                     </div>

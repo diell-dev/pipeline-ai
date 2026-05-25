@@ -335,7 +335,7 @@ export default function ClientDetailPage() {
           </Link>
 
           <Link href={`/invoices?client=${clientId}&status=unpaid`}>
-            <Card className={`cursor-pointer hover:shadow-md transition-shadow ${stats.unpaidBalance > 0 ? 'border-amber-200 bg-amber-50/50' : ''}`}>
+            <Card className={`cursor-pointer hover:shadow-md transition-shadow ${stats.unpaidBalance > 0 ? 'border-amber-200 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-500/10' : ''}`}>
               <CardContent className="pt-4 pb-3 px-4">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
                   {stats.unpaidBalance > 0 ? (
@@ -568,8 +568,8 @@ export default function ClientDetailPage() {
                       onClick={() => toggleDrainType(dt)}
                       className={`px-3 py-2 min-h-[44px] rounded-md text-xs border transition-colors ${
                         siteForm.drain_types.includes(dt)
-                          ? 'bg-blue-100 border-blue-300 text-blue-700'
-                          : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100'
+                          ? 'bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900/40 dark:border-blue-500/40 dark:text-blue-300'
+                          : 'bg-muted border-border text-muted-foreground hover:bg-muted/80 dark:hover:bg-muted'
                       }`}
                     >
                       {dt.replace('_', ' ')}

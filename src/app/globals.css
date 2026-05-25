@@ -365,30 +365,33 @@
  * UI doesn't look like a rainbow dashboard.
  * ──────────────────────────────────────────────────────────────── */
 @layer components {
-  /* Typography tokens */
+  /* Typography tokens — Phase G: swapped hardcoded zinc for semantic tokens
+   * so they flip with the theme. `text-muted-foreground` and `text-foreground`
+   * resolve via the @theme inline map, which pulls from `--foreground` /
+   * `--muted-foreground` and flips in `.dark`. */
   .text-eyebrow {
-    @apply text-xs font-medium uppercase tracking-wider text-zinc-500;
+    @apply text-xs font-medium uppercase tracking-wider text-muted-foreground;
   }
   .text-body {
-    @apply text-sm leading-relaxed text-zinc-700;
+    @apply text-sm leading-relaxed text-foreground/85;
   }
   .text-card-title {
-    @apply text-sm font-semibold text-zinc-900;
+    @apply text-sm font-semibold text-foreground;
   }
   .text-section-header {
-    @apply text-base font-semibold text-zinc-900;
+    @apply text-base font-semibold text-foreground;
   }
   .text-page-title {
-    @apply text-xl sm:text-2xl font-bold tracking-tight text-zinc-900;
+    @apply text-xl sm:text-2xl font-bold tracking-tight text-foreground;
   }
   .text-hero {
-    @apply text-3xl sm:text-4xl font-bold tracking-tight text-zinc-900;
+    @apply text-3xl sm:text-4xl font-bold tracking-tight text-foreground;
   }
   .text-kpi-value {
     @apply text-2xl sm:text-3xl font-bold tabular-nums tracking-tight;
   }
   .text-meta {
-    @apply text-xs text-zinc-500;
+    @apply text-xs text-muted-foreground;
   }
   .nums {
     @apply tabular-nums;
@@ -396,20 +399,22 @@
 
   /* Status palettes — keep these 5 semantic roles and map every domain
    * status to the right role. Stops the app from looking like a Skittles
-   * bag and makes the meaning obvious at a glance. */
+   * bag and makes the meaning obvious at a glance.
+   * Phase G: added dark variants so the light-100 fills don't blow out
+   * against the zinc-950 page surface. */
   .status-neutral {
-    @apply bg-zinc-100 text-zinc-700 border border-zinc-200;
+    @apply bg-zinc-100 text-zinc-700 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700;
   }
   .status-info {
-    @apply bg-blue-50 text-blue-700 border border-blue-200;
+    @apply bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-500/30;
   }
   .status-success {
-    @apply bg-emerald-50 text-emerald-700 border border-emerald-200;
+    @apply bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-500/30;
   }
   .status-warning {
-    @apply bg-amber-50 text-amber-800 border border-amber-200;
+    @apply bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-500/30;
   }
   .status-danger {
-    @apply bg-red-50 text-red-700 border border-red-200;
+    @apply bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-500/30;
   }
 }

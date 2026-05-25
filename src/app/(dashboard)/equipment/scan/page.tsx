@@ -701,7 +701,7 @@ export default function EquipmentScanPage() {
                     type="button"
                     onClick={() => setUnitMode('unit')}
                     className={`text-xs rounded-full px-3 py-1 border ${
-                      unitMode === 'unit' ? 'bg-zinc-900 text-white border-zinc-900' : 'border-zinc-200'
+                      unitMode === 'unit' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100' : 'border-border'
                     }`}
                   >
                     Unit Number
@@ -710,7 +710,7 @@ export default function EquipmentScanPage() {
                     type="button"
                     onClick={() => setUnitMode('common')}
                     className={`text-xs rounded-full px-3 py-1 border ${
-                      unitMode === 'common' ? 'bg-zinc-900 text-white border-zinc-900' : 'border-zinc-200'
+                      unitMode === 'common' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100' : 'border-border'
                     }`}
                   >
                     Common Area
@@ -760,7 +760,7 @@ export default function EquipmentScanPage() {
                       <div className="relative aspect-square w-32 overflow-hidden rounded-lg border">
                         <img src={unitPhotoUrl} alt="Unit" className="h-full w-full object-cover" />
                       </div>
-                      <label className="flex h-10 cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+                      <label className="flex h-10 cursor-pointer items-center gap-2 rounded-lg border bg-card px-3 text-sm font-medium text-foreground hover:bg-muted">
                         {uploadingUnit ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
@@ -777,7 +777,7 @@ export default function EquipmentScanPage() {
                       </label>
                     </div>
                   ) : (
-                    <label className="flex items-center justify-center gap-2 h-24 rounded-lg border border-dashed cursor-pointer hover:bg-zinc-50">
+                    <label className="flex items-center justify-center gap-2 h-24 rounded-lg border border-dashed cursor-pointer hover:bg-muted">
                       {uploadingUnit ? (
                         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                       ) : (
@@ -808,7 +808,7 @@ export default function EquipmentScanPage() {
                         <img src={dataPlatePhotoUrl} alt="Data plate" className="h-full w-full object-cover" />
                       </div>
                       <div className="flex flex-col gap-2">
-                        <label className="flex h-10 cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+                        <label className="flex h-10 cursor-pointer items-center gap-2 rounded-lg border bg-card px-3 text-sm font-medium text-foreground hover:bg-muted">
                           {uploadingPlate || ocrLoading ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
@@ -829,7 +829,7 @@ export default function EquipmentScanPage() {
                       </div>
                     </div>
                   ) : (
-                    <label className="flex items-center justify-center gap-2 h-24 rounded-lg border border-dashed cursor-pointer hover:bg-zinc-50">
+                    <label className="flex items-center justify-center gap-2 h-24 rounded-lg border border-dashed cursor-pointer hover:bg-muted">
                       {uploadingPlate ? (
                         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                       ) : (

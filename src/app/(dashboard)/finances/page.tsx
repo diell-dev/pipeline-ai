@@ -43,14 +43,14 @@ import {
 } from 'lucide-react'
 
 
-// Status config for badges
+// Status config for badges — Phase G: paired with dark variants
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-  draft: { label: 'Draft', className: 'bg-zinc-100 text-zinc-600' },
-  sent: { label: 'Sent', className: 'bg-blue-100 text-blue-700' },
-  paid: { label: 'Paid', className: 'bg-green-100 text-green-700' },
-  partially_paid: { label: 'Partial', className: 'bg-amber-100 text-amber-700' },
-  overdue: { label: 'Overdue', className: 'bg-red-100 text-red-700' },
-  void: { label: 'Void', className: 'bg-zinc-100 text-zinc-400' },
+  draft: { label: 'Draft', className: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400' },
+  sent: { label: 'Sent', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  paid: { label: 'Paid', className: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+  partially_paid: { label: 'Partial', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  overdue: { label: 'Overdue', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+  void: { label: 'Void', className: 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500' },
 }
 
 interface InvoiceRow {
@@ -580,7 +580,7 @@ export default function FinancesPage() {
                   return (
                     <div
                       key={inv.id}
-                      className="rounded-lg border bg-white p-4 space-y-3"
+                      className="rounded-lg border bg-card p-4 space-y-3"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -644,7 +644,7 @@ export default function FinancesPage() {
               {/* Desktop: table */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-zinc-50 border-y">
+                  <thead className="bg-muted/50 border-y">
                     <tr>
                       <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Invoice</th>
                       <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Client</th>
@@ -693,7 +693,7 @@ export default function FinancesPage() {
                       const isOverdue = new Date(inv.due_date) < new Date() && inv.status !== 'paid' && inv.status !== 'void' && inv.status !== 'draft'
 
                       return (
-                        <tr key={inv.id} className="border-b hover:bg-zinc-50/50 transition-colors">
+                        <tr key={inv.id} className="border-b hover:bg-muted/50 transition-colors">
                           <td className="px-4 py-3">
                             <span className="font-mono text-xs font-medium">{inv.invoice_number}</span>
                           </td>

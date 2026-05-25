@@ -83,7 +83,7 @@ export default function ProfilePage() {
         <CardContent>
           <form onSubmit={handleSave} className="space-y-4">
             <div className="flex items-center gap-4 mb-6">
-              <div className="h-16 w-16 shrink-0 rounded-full bg-zinc-200 flex items-center justify-center text-2xl font-semibold text-zinc-600">
+              <div className="h-16 w-16 shrink-0 rounded-full bg-muted flex items-center justify-center text-2xl font-semibold text-muted-foreground">
                 {fullName?.charAt(0) || '?'}
               </div>
               <div className="min-w-0">
@@ -116,7 +116,7 @@ export default function ProfilePage() {
                   type="email"
                   defaultValue={user?.email || ''}
                   disabled
-                  className="h-10 bg-zinc-50"
+                  className="h-10 bg-muted/50"
                 />
                 {!isOwner && (
                   <p className="text-xs text-muted-foreground">
@@ -144,7 +144,7 @@ export default function ProfilePage() {
                   id="role"
                   defaultValue={user?.role ? getRoleLabel(user.role) : ''}
                   disabled
-                  className="h-10 bg-zinc-50"
+                  className="h-10 bg-muted/50"
                 />
               </div>
             </div>

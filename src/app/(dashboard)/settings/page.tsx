@@ -101,11 +101,11 @@ export default function SettingsPage() {
         {visibleSections.map((section) => {
           const Icon = section.icon
           const cardInner = (
-            <Card className="hover:border-zinc-300 transition-colors cursor-pointer h-full min-h-[88px]">
+            <Card className="hover:border-zinc-300 transition-colors cursor-pointer h-full min-h-[88px] dark:hover:border-zinc-600">
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-zinc-100">
-                    <Icon className="h-5 w-5 text-zinc-600" />
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <Icon className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <CardTitle className="text-base flex items-center gap-2">
                     {section.title}

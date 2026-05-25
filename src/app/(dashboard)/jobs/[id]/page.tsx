@@ -71,23 +71,23 @@ interface LinkedEquipment {
 }
 
 const STATUS_CONFIG: Record<JobStatus, { label: string; className: string }> = {
-  scheduled: { label: 'Scheduled', className: 'bg-cyan-100 text-cyan-700' },
-  submitted: { label: 'Submitted', className: 'bg-blue-100 text-blue-700' },
-  ai_generating: { label: 'AI Processing', className: 'bg-purple-100 text-purple-700' },
-  pending_review: { label: 'Pending Review', className: 'bg-amber-100 text-amber-700' },
-  approved: { label: 'Approved', className: 'bg-green-100 text-green-700' },
-  sent: { label: 'Sent to Client', className: 'bg-teal-100 text-teal-700' },
-  revision_requested: { label: 'Revision Requested', className: 'bg-orange-100 text-orange-700' },
-  revised: { label: 'Revised', className: 'bg-indigo-100 text-indigo-700' },
-  rejected: { label: 'Rejected', className: 'bg-red-100 text-red-700' },
-  completed: { label: 'Completed', className: 'bg-emerald-100 text-emerald-700' },
-  cancelled: { label: 'Cancelled', className: 'bg-zinc-100 text-zinc-500' },
+  scheduled: { label: 'Scheduled', className: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300' },
+  submitted: { label: 'Submitted', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  ai_generating: { label: 'AI Processing', className: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' },
+  pending_review: { label: 'Pending Review', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  approved: { label: 'Approved', className: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+  sent: { label: 'Sent to Client', className: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300' },
+  revision_requested: { label: 'Revision Requested', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
+  revised: { label: 'Revised', className: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' },
+  rejected: { label: 'Rejected', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+  completed: { label: 'Completed', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  cancelled: { label: 'Cancelled', className: 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400' },
 }
 
 const PRIORITY_CONFIG: Record<JobPriority, { label: string; className: string }> = {
-  normal: { label: 'Normal', className: 'bg-zinc-100 text-zinc-600' },
-  urgent: { label: 'Urgent', className: 'bg-amber-100 text-amber-700' },
-  emergency: { label: 'Emergency', className: 'bg-red-100 text-red-700' },
+  normal: { label: 'Normal', className: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400' },
+  urgent: { label: 'Urgent', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  emergency: { label: 'Emergency', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
 }
 
 interface JobLineItemWithCatalog {
@@ -237,7 +237,7 @@ function ReportEditor({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
+      <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded-lg dark:text-amber-300 dark:bg-amber-500/10">
         <Info className="h-4 w-4 shrink-0" />
         <span>You&apos;re editing this report manually. Changes will be tracked.</span>
       </div>
@@ -394,7 +394,7 @@ function InvoiceEditor({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
+      <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded-lg dark:text-amber-300 dark:bg-amber-500/10">
         <Info className="h-4 w-4 shrink-0" />
         <span>You&apos;re editing this invoice manually. Changes will be tracked.</span>
       </div>
@@ -404,7 +404,7 @@ function InvoiceEditor({
         {lineItems.map((item, i) => (
           <div
             key={i}
-            className="grid grid-cols-2 md:grid-cols-12 gap-2 items-end relative border md:border-0 rounded-lg md:rounded-none p-3 md:p-0 bg-zinc-50/40 md:bg-transparent"
+            className="grid grid-cols-2 md:grid-cols-12 gap-2 items-end relative border md:border-0 rounded-lg md:rounded-none p-3 md:p-0 bg-muted/40 md:bg-transparent"
           >
             <div className="col-span-2 md:col-span-4 relative">
               <Label className="text-xs md:hidden">Service</Label>
@@ -417,13 +417,13 @@ function InvoiceEditor({
                 className="text-sm w-full"
               />
               {openDropdownIndex === i && services.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-48 overflow-auto">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-lg shadow-lg z-50 max-h-48 overflow-auto">
                   {getFilteredServices(i).map((service) => (
                     <button
                       key={service.id}
                       type="button"
                       onClick={() => selectService(i, service)}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-50 transition-colors border-b last:border-0"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors border-b last:border-0"
                     >
                       <div className="font-medium">{service.name}</div>
                       <div className="text-xs text-muted-foreground">
@@ -437,7 +437,7 @@ function InvoiceEditor({
                       setOpenDropdownIndex(null)
                       setServiceSearches({ ...serviceSearches, [i]: '' })
                     }}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50 transition-colors text-amber-700 font-medium border-t"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50 transition-colors text-amber-700 font-medium border-t dark:text-amber-300 dark:hover:bg-amber-500/10"
                   >
                     Custom Service
                   </button>
@@ -1085,13 +1085,13 @@ export default function JobDetailPage() {
 
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && (
-        <Card className="border-red-200 bg-red-50">
+        <Card className="border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10">
           <CardContent className="py-4">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0 dark:text-red-400" />
               <div className="flex-1">
-                <h3 className="font-semibold text-red-900">Delete this job?</h3>
-                <p className="text-sm text-red-700 mt-1">
+                <h3 className="font-semibold text-red-900 dark:text-red-200">Delete this job?</h3>
+                <p className="text-sm text-red-700 mt-1 dark:text-red-300">
                   This will cancel the job and void its associated invoice.
                   The invoice number will be preserved but marked as void.
                   This action cannot be undone.
@@ -1186,7 +1186,7 @@ export default function JobDetailPage() {
               {job.photos.map((url, idx) => (
                 <div
                   key={idx}
-                  className="aspect-square rounded-lg overflow-hidden border bg-zinc-100 cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
+                  className="aspect-square rounded-lg overflow-hidden border bg-muted cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
                   onClick={() => setLightboxPhoto(url)}
                 >
                   <img
@@ -1215,7 +1215,7 @@ export default function JobDetailPage() {
             {/* Desktop table */}
             <div className="hidden md:block border rounded-lg overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-zinc-50">
+                <thead className="bg-muted/50">
                   <tr>
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground">Service</th>
                     <th className="text-center px-3 py-2 font-medium text-muted-foreground">Qty</th>
@@ -1254,7 +1254,7 @@ export default function JobDetailPage() {
                 const price = li.unit_price || 0
                 const total = li.total_price || qty * price
                 return (
-                  <div key={idx} className="border rounded-lg p-3 bg-white">
+                  <div key={idx} className="border rounded-lg p-3 bg-card">
                     <div className="font-medium text-sm break-words">{name}</div>
                     {code && (
                       <div className="text-xs text-muted-foreground mt-0.5">{code}</div>
@@ -1314,12 +1314,12 @@ export default function JobDetailPage() {
 
       {/* AI Processing Status */}
       {job.status === 'ai_generating' && (
-        <Card className="border-purple-200 bg-purple-50">
+        <Card className="border-purple-200 bg-purple-50 dark:border-purple-500/30 dark:bg-purple-500/10">
           <CardContent className="flex items-center gap-3 py-6">
-            <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
+            <Loader2 className="h-5 w-5 animate-spin text-purple-600 dark:text-purple-400" />
             <div>
-              <p className="font-medium text-purple-700">AI is generating report & invoice...</p>
-              <p className="text-sm text-purple-600">This usually takes 10-30 seconds. Refresh to check.</p>
+              <p className="font-medium text-purple-700 dark:text-purple-300">AI is generating report & invoice...</p>
+              <p className="text-sm text-purple-600 dark:text-purple-400">This usually takes 10-30 seconds. Refresh to check.</p>
             </div>
           </CardContent>
         </Card>
@@ -1555,7 +1555,7 @@ export default function JobDetailPage() {
                     {/* Line items — desktop table */}
                     <div className="hidden md:block border rounded-lg overflow-hidden">
                       <table className="w-full text-sm">
-                        <thead className="bg-zinc-50">
+                        <thead className="bg-muted/50">
                           <tr>
                             <th className="text-left p-2 font-medium">Service</th>
                             <th className="text-center p-2 font-medium">Qty</th>
@@ -1569,9 +1569,9 @@ export default function JobDetailPage() {
                             const isAdjustment = total < 0 || ['DISC', 'SRCH', 'WAIV'].includes(String(item.code))
                             const isDiscount = total < 0
                             return (
-                              <tr key={i} className={`border-t ${isAdjustment ? 'bg-purple-50/50' : ''}`}>
+                              <tr key={i} className={`border-t ${isAdjustment ? 'bg-purple-50/50 dark:bg-purple-500/10' : ''}`}>
                                 <td className="p-2">
-                                  <div className={`font-medium break-words ${isDiscount ? 'text-purple-700' : ''}`}>
+                                  <div className={`font-medium break-words ${isDiscount ? 'text-purple-700 dark:text-purple-300' : ''}`}>
                                     {item.service as string}
                                   </div>
                                   {!isAdjustment && (
@@ -1580,7 +1580,7 @@ export default function JobDetailPage() {
                                 </td>
                                 <td className="p-2 text-center">{isAdjustment ? '' : (item.quantity as number)}</td>
                                 <td className="p-2 text-right">{isAdjustment ? '' : `$${Number(item.unit_price).toFixed(2)}`}</td>
-                                <td className={`p-2 text-right font-medium ${isDiscount ? 'text-red-600' : ''}`}>
+                                <td className={`p-2 text-right font-medium ${isDiscount ? 'text-red-600 dark:text-red-400' : ''}`}>
                                   {isDiscount ? `-$${Math.abs(total).toFixed(2)}` : `$${total.toFixed(2)}`}
                                 </td>
                               </tr>
@@ -1599,7 +1599,7 @@ export default function JobDetailPage() {
                         return (
                           <div
                             key={i}
-                            className={`border rounded-lg p-3 ${isAdjustment ? 'bg-purple-50/50 border-purple-200' : 'bg-white'}`}
+                            className={`border rounded-lg p-3 ${isAdjustment ? 'bg-purple-50/50 border-purple-200 dark:bg-purple-500/10 dark:border-purple-500/30' : 'bg-card'}`}
                           >
                             <div className={`font-medium text-sm break-words ${isDiscount ? 'text-purple-700' : ''}`}>
                               {item.service as string}
@@ -1645,7 +1645,7 @@ export default function JobDetailPage() {
 
                     {/* Thank you paragraph */}
                     {inv.thank_you && (
-                      <div className="bg-zinc-50 rounded-lg p-3 text-sm text-muted-foreground italic">
+                      <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground italic">
                         {inv.thank_you as string}
                       </div>
                     )}
@@ -1688,9 +1688,9 @@ export default function JobDetailPage() {
           </div>
 
           {showDownloadMenu && (
-            <div className="absolute top-full left-0 mt-1 bg-white border rounded-lg shadow-lg z-50 py-1 w-56">
+            <div className="absolute top-full left-0 mt-1 bg-popover border rounded-lg shadow-lg z-50 py-1 w-56">
               <button
-                className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-50 flex items-center gap-2"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
                 onClick={() => {
                   setShowDownloadMenu(false)
                   const dlData = {
@@ -1712,7 +1712,7 @@ export default function JobDetailPage() {
                 Download Invoice
               </button>
               <button
-                className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-50 flex items-center gap-2"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
                 onClick={async () => {
                   setShowDownloadMenu(false)
                   setDownloading(true)
@@ -1747,7 +1747,7 @@ export default function JobDetailPage() {
               </button>
               <div className="border-t my-1" />
               <button
-                className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-50 flex items-center gap-2"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
                 onClick={async () => {
                   setShowDownloadMenu(false)
                   setDownloading(true)
@@ -1790,35 +1790,35 @@ export default function JobDetailPage() {
 
       {/* Rejection / Revision notes */}
       {job.rejection_notes && (
-        <Card className="border-red-200 bg-red-50">
+        <Card className="border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10">
           <CardHeader>
-            <CardTitle className="text-sm text-red-700">Rejection Notes</CardTitle>
+            <CardTitle className="text-sm text-red-700 dark:text-red-300">Rejection Notes</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-red-600">{job.rejection_notes}</p>
+            <p className="text-sm text-red-600 dark:text-red-400">{job.rejection_notes}</p>
           </CardContent>
         </Card>
       )}
 
       {job.revision_request && (
-        <Card className="border-orange-200 bg-orange-50">
+        <Card className="border-orange-200 bg-orange-50 dark:border-orange-500/30 dark:bg-orange-500/10">
           <CardHeader>
-            <CardTitle className="text-sm text-orange-700">Revision Requested</CardTitle>
+            <CardTitle className="text-sm text-orange-700 dark:text-orange-300">Revision Requested</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-orange-600">{job.revision_request}</p>
+            <p className="text-sm text-orange-600 dark:text-orange-400">{job.revision_request}</p>
           </CardContent>
         </Card>
       )}
 
       {/* Sent confirmation */}
       {job.status === 'sent' && (
-        <Card className="border-teal-200 bg-teal-50">
+        <Card className="border-teal-200 bg-teal-50 dark:border-teal-500/30 dark:bg-teal-500/10">
           <CardContent className="flex items-center gap-3 py-6">
-            <CheckCircle2 className="h-5 w-5 text-teal-600" />
+            <CheckCircle2 className="h-5 w-5 text-teal-600 dark:text-teal-400" />
             <div>
-              <p className="font-medium text-teal-700">Report & invoice sent to client</p>
-              <p className="text-sm text-teal-600">
+              <p className="font-medium text-teal-700 dark:text-teal-300">Report & invoice sent to client</p>
+              <p className="text-sm text-teal-600 dark:text-teal-400">
                 Sent on {job.sent_at ? new Date(job.sent_at).toLocaleString() : 'N/A'}
                 {job.approver && ` — Approved by ${job.approver.full_name}`}
               </p>
@@ -1871,7 +1871,7 @@ export default function JobDetailPage() {
 
             {/* Revision form */}
             {showRevisionForm && (
-              <div className="space-y-2 p-3 border rounded-lg bg-orange-50">
+              <div className="space-y-2 p-3 border rounded-lg bg-orange-50 dark:bg-orange-500/10 dark:border-orange-500/30">
                 <Label>What needs to be revised?</Label>
                 <Textarea
                   value={revisionRequest}
@@ -1904,7 +1904,7 @@ export default function JobDetailPage() {
 
             {/* Reject form */}
             {showRejectForm && (
-              <div className="space-y-2 p-3 border rounded-lg bg-red-50">
+              <div className="space-y-2 p-3 border rounded-lg bg-red-50 dark:bg-red-500/10 dark:border-red-500/30">
                 <Label>Reason for rejection</Label>
                 <Textarea
                   value={rejectionNotes}

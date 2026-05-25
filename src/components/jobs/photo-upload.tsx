@@ -101,16 +101,16 @@ export function PhotoUpload({
           relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed
           px-6 py-8 cursor-pointer transition-colors
           ${isDragging
-            ? 'border-blue-500 bg-blue-50'
-            : 'border-zinc-300 bg-zinc-50 hover:border-zinc-400 hover:bg-zinc-100'
+            ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10'
+            : 'border-border bg-muted/40 hover:border-zinc-400 hover:bg-muted dark:hover:border-zinc-500'
           }
         `}
       >
-        <Upload className="h-8 w-8 text-zinc-400 mb-2" />
-        <p className="text-sm font-medium text-zinc-600">
+        <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+        <p className="text-sm font-medium text-foreground">
           Drop photos here or click to browse
         </p>
-        <p className="text-xs text-zinc-400 mt-1">
+        <p className="text-xs text-muted-foreground mt-1">
           JPG, PNG, WebP, HEIC — max {maxSizeMB}MB each — up to {maxPhotos} photos
         </p>
         <input
@@ -129,7 +129,7 @@ export function PhotoUpload({
           {photos.map((file, index) => (
             <div
               key={`${file.name}-${index}`}
-              className="relative group aspect-square rounded-lg overflow-hidden border bg-zinc-100"
+              className="relative group aspect-square rounded-lg overflow-hidden border bg-muted"
             >
               <img
                 src={URL.createObjectURL(file)}
@@ -156,7 +156,7 @@ export function PhotoUpload({
 
       {/* Photo count */}
       {photos.length > 0 && (
-        <div className="flex items-center justify-between text-xs text-zinc-500">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <ImageIcon className="h-3 w-3" />
             {photos.length} / {maxPhotos} photos

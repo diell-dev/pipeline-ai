@@ -311,15 +311,15 @@ export default function SchedulePage() {
         </div>
 
         {/* View tabs — hidden on mobile (list view is forced there) */}
-        <div className="hidden sm:flex items-center gap-1 rounded-lg border bg-white p-1">
+        <div className="hidden sm:flex items-center gap-1 rounded-lg border bg-card p-1">
           {(['day', 'week', 'month'] as ViewMode[]).map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
               className={`px-3 py-1 text-xs rounded-md transition-colors capitalize ${
                 view === v
-                  ? 'bg-zinc-900 text-white'
-                  : 'text-zinc-600 hover:bg-zinc-100'
+                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                  : 'text-muted-foreground hover:bg-muted'
               }`}
             >
               {v}
@@ -464,7 +464,7 @@ function MobileListView({
         })
         return (
           <div key={key}>
-            <h2 className="text-sm font-semibold mb-2 sticky top-0 bg-zinc-50 py-2 z-10 border-b">
+            <h2 className="text-sm font-semibold mb-2 sticky top-0 bg-background py-2 z-10 border-b">
               {dateLabel}
             </h2>
             <div className="space-y-2">
@@ -473,7 +473,7 @@ function MobileListView({
                 return (
                   <Card
                     key={job.id}
-                    className="cursor-pointer hover:shadow-md active:bg-zinc-50 transition-shadow min-h-[60px]"
+                    className="cursor-pointer hover:shadow-md active:bg-muted transition-shadow min-h-[60px]"
                     onClick={() => onSelect(job)}
                   >
                     <CardContent className="p-3">
@@ -555,11 +555,11 @@ function DayView({
             slotDate.setHours(hour, 0, 0, 0)
             return (
               <div key={hour} className="grid grid-cols-[80px_1fr] min-h-[64px]">
-                <div className="bg-zinc-50 px-3 py-2 text-xs text-muted-foreground border-r">
+                <div className="bg-muted/50 px-3 py-2 text-xs text-muted-foreground border-r">
                   {hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
                 </div>
                 <div
-                  className="p-2 hover:bg-zinc-50 cursor-pointer transition-colors"
+                  className="p-2 hover:bg-muted cursor-pointer transition-colors"
                   onClick={(e) => {
                     if (e.target === e.currentTarget) onSelectSlot(slotDate)
                   }}
@@ -774,7 +774,7 @@ function WeekView({
       <CardContent className="p-0 overflow-x-auto">
         <div className="min-w-[840px]">
           {/* Day header row: empty time-gutter cell + 7 day headers */}
-          <div className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b bg-zinc-50">
+          <div className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b bg-muted/50">
             <div className="border-r" />
             {days.map((day) => {
               const isToday = sameDay(day, today)
@@ -782,7 +782,7 @@ function WeekView({
                 <div
                   key={ymd(day)}
                   className={`px-2 py-2 text-center border-r last:border-r-0 ${
-                    isToday ? 'bg-zinc-900 text-white' : ''
+                    isToday ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900' : ''
                   }`}
                 >
                   <div className="text-[10px] uppercase tracking-wider opacity-70">
@@ -797,7 +797,7 @@ function WeekView({
           {/* All-day strip — one row per stacked all-day event, only rendered
               if at least one day has any */}
           {allDayRows > 0 && (
-            <div className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b bg-white">
+            <div className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b bg-card">
               <div className="border-r px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground flex items-start">
                 All-day
               </div>
@@ -842,7 +842,7 @@ function WeekView({
               style={{ height: WEEK_GRID_HEIGHT }}
             >
               {/* Hour gutter */}
-              <div className="border-r relative bg-white">
+              <div className="border-r relative bg-card">
                 {Array.from({ length: WEEK_GRID_HOURS }, (_, i) => {
                   const hour = WEEK_START_HOUR + i
                   return (
@@ -866,7 +866,7 @@ function WeekView({
                   <div
                     key={ymd(day)}
                     className={`border-r last:border-r-0 relative ${
-                      isToday ? 'bg-blue-50/30' : 'bg-white'
+                      isToday ? 'bg-blue-50/30 dark:bg-blue-500/10' : 'bg-card'
                     }`}
                   >
                     {/* Hour rows — clickable for quick-create */}
@@ -875,7 +875,7 @@ function WeekView({
                       return (
                         <div
                           key={hour}
-                          className="border-b hover:bg-zinc-50 cursor-pointer transition-colors"
+                          className="border-b hover:bg-muted cursor-pointer transition-colors"
                           style={{ height: WEEK_HOUR_HEIGHT }}
                           onClick={(e) => {
                             if (e.target !== e.currentTarget) return
@@ -986,7 +986,7 @@ function MonthView({
           {DAY_NAMES.map((d) => (
             <div
               key={d}
-              className="px-2 py-2 text-center text-[10px] uppercase tracking-wider text-muted-foreground bg-zinc-50 border-b"
+              className="px-2 py-2 text-center text-[10px] uppercase tracking-wider text-muted-foreground bg-muted/50 border-b"
             >
               {d}
             </div>
@@ -1001,8 +1001,8 @@ function MonthView({
             return (
               <div
                 key={ymd(day)}
-                className={`border-r border-b last:border-r-0 min-h-[100px] p-1 cursor-pointer hover:bg-zinc-50/50 transition-colors ${
-                  inMonth ? '' : 'bg-zinc-50/50 opacity-60'
+                className={`border-r border-b last:border-r-0 min-h-[100px] p-1 cursor-pointer hover:bg-muted/50 transition-colors ${
+                  inMonth ? '' : 'bg-muted/50 opacity-60'
                 }`}
                 onClick={(e) => {
                   if (e.target === e.currentTarget) {

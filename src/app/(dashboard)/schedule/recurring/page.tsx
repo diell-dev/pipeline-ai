@@ -450,7 +450,7 @@ export default function RecurringPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-10 w-10 sm:h-8 sm:w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          className="h-10 w-10 sm:h-8 sm:w-8 text-red-500 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-500/10"
                           title="End pattern"
                           onClick={() => endSchedule(s)}
                         >
@@ -546,8 +546,8 @@ export default function RecurringPage() {
                       onClick={() => toggleDay(idx)}
                       className={`min-w-[44px] h-10 px-3 text-xs rounded-md border transition-colors ${
                         form.day_of_week.includes(idx)
-                          ? 'bg-zinc-900 text-white border-zinc-900'
-                          : 'bg-white border-zinc-200 hover:bg-zinc-50'
+                          ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100'
+                          : 'bg-card border-border hover:bg-muted'
                       }`}
                     >
                       {name}
@@ -614,7 +614,7 @@ export default function RecurringPage() {
                   type="button"
                   onClick={() => setForm({ ...form, assignee_kind: 'tech' })}
                   className={`flex-1 h-10 px-3 text-xs rounded-md border ${
-                    form.assignee_kind === 'tech' ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white'
+                    form.assignee_kind === 'tech' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100' : 'bg-card'
                   }`}
                 >
                   Individual Tech
@@ -623,7 +623,7 @@ export default function RecurringPage() {
                   type="button"
                   onClick={() => setForm({ ...form, assignee_kind: 'crew' })}
                   className={`flex-1 h-10 px-3 text-xs rounded-md border ${
-                    form.assignee_kind === 'crew' ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white'
+                    form.assignee_kind === 'crew' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100' : 'bg-card'
                   }`}
                 >
                   Crew
@@ -663,7 +663,7 @@ export default function RecurringPage() {
                 {services.map((s) => (
                   <label
                     key={s.id}
-                    className="flex items-center gap-2 px-2 py-2 min-h-[40px] rounded hover:bg-zinc-50 cursor-pointer text-sm"
+                    className="flex items-center gap-2 px-2 py-2 min-h-[40px] rounded hover:bg-muted cursor-pointer text-sm"
                   >
                     <input
                       type="checkbox"

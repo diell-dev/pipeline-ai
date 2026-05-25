@@ -165,10 +165,10 @@ function dueChip(iso: string | null | undefined): { className: string; label: st
   today.setHours(0, 0, 0, 0)
   const days = Math.round((due - today.getTime()) / (1000 * 60 * 60 * 24))
   if (days < 0)
-    return { className: 'bg-red-100 text-red-700 border-red-200', label: `${Math.abs(days)}d overdue` }
+    return { className: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-500/30', label: `${Math.abs(days)}d overdue` }
   if (days <= 30)
-    return { className: 'bg-amber-100 text-amber-700 border-amber-200', label: `Due in ${days}d` }
-  return { className: 'bg-zinc-100 text-zinc-600 border-zinc-200', label: `Due in ${days}d` }
+    return { className: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-500/30', label: `Due in ${days}d` }
+  return { className: 'bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700', label: `Due in ${days}d` }
 }
 
 // ============================================================
@@ -339,15 +339,15 @@ export default function EquipmentDetailPage() {
               {category?.name || 'Equipment'}
             </h1>
             {equipment.status === 'replaced' && (
-              <Badge variant="outline" className="bg-zinc-100 text-zinc-600">Replaced</Badge>
+              <Badge variant="outline" className="bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">Replaced</Badge>
             )}
             {equipment.status === 'inactive' && (
-              <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200">
+              <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-500/30">
                 Inactive
               </Badge>
             )}
             {equipment.status === 'removed' && (
-              <Badge variant="outline" className="bg-red-100 text-red-700 border-red-200">
+              <Badge variant="outline" className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-500/30">
                 Removed
               </Badge>
             )}
@@ -423,13 +423,13 @@ export default function EquipmentDetailPage() {
 
       {/* Delete confirm */}
       {showDeleteConfirm && (
-        <Card className="border-red-200 bg-red-50">
+        <Card className="border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10">
           <CardContent className="py-4">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0 dark:text-red-400" />
               <div className="flex-1">
-                <h3 className="font-semibold text-red-900">Delete this equipment?</h3>
-                <p className="text-sm text-red-700 mt-1">
+                <h3 className="font-semibold text-red-900 dark:text-red-200">Delete this equipment?</h3>
+                <p className="text-sm text-red-700 mt-1 dark:text-red-300">
                   Service history will be preserved but the unit will no longer appear in lists.
                 </p>
                 <div className="flex gap-2 mt-3">
@@ -540,11 +540,11 @@ export default function EquipmentDetailPage() {
                     </div>
                   )}
                 {aiMetadata.recall_notice && (
-                  <div className="rounded-md border border-red-200 bg-red-50 p-3">
-                    <h4 className="font-medium text-red-700 mb-1 flex items-center gap-1">
+                  <div className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-500/30 dark:bg-red-500/10">
+                    <h4 className="font-medium text-red-700 mb-1 flex items-center gap-1 dark:text-red-300">
                       <AlertTriangle className="h-4 w-4" /> Recall notice
                     </h4>
-                    <p className="text-sm text-red-700">{String(aiMetadata.recall_notice)}</p>
+                    <p className="text-sm text-red-700 dark:text-red-300">{String(aiMetadata.recall_notice)}</p>
                   </div>
                 )}
                 {aiMetadata.lifespan_estimate && (
@@ -578,7 +578,7 @@ export default function EquipmentDetailPage() {
                   <button
                     type="button"
                     onClick={() => setLightbox(equipment.unit_photo_url!)}
-                    className="aspect-square rounded-lg overflow-hidden border bg-zinc-100 w-full"
+                    className="aspect-square rounded-lg overflow-hidden border bg-muted w-full"
                   >
                     <img
                       src={equipment.unit_photo_url}
@@ -594,7 +594,7 @@ export default function EquipmentDetailPage() {
                   <button
                     type="button"
                     onClick={() => setLightbox(equipment.data_plate_photo_url!)}
-                    className="aspect-square rounded-lg overflow-hidden border bg-zinc-100 w-full"
+                    className="aspect-square rounded-lg overflow-hidden border bg-muted w-full"
                   >
                     <img
                       src={equipment.data_plate_photo_url}
@@ -752,10 +752,10 @@ export default function EquipmentDetailPage() {
                             <span
                               className={`inline-block w-12 text-center rounded-full font-medium ${
                                 it.result === 'pass'
-                                  ? 'bg-emerald-100 text-emerald-700'
+                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
                                   : it.result === 'fail'
-                                  ? 'bg-red-100 text-red-700'
-                                  : 'bg-zinc-100 text-zinc-500'
+                                  ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                                  : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
                               }`}
                             >
                               {it.result?.toUpperCase() || 'N/A'}

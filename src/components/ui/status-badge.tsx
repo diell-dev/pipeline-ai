@@ -46,40 +46,42 @@ interface StatusStyle {
 }
 
 // Job statuses — mirrors JobStatus in types/database
+// Phase G: every entry pairs the light tint with a dark variant so the
+// light-100 backgrounds don't blow out against the zinc-950 page surface.
 const JOB_STATUSES: Record<string, StatusStyle> = {
-  scheduled:          { label: 'Scheduled',          className: 'bg-cyan-100 text-cyan-700' },
-  submitted:          { label: 'Submitted',          className: 'bg-blue-100 text-blue-700' },
-  ai_generating:      { label: 'AI Processing',      className: 'bg-purple-100 text-purple-700' },
-  pending_review:     { label: 'Pending Review',     className: 'bg-amber-100 text-amber-700' },
-  approved:           { label: 'Approved',           className: 'bg-green-100 text-green-700' },
-  sent:               { label: 'Sent to Client',     className: 'bg-teal-100 text-teal-700' },
-  revision_requested: { label: 'Revision Requested', className: 'bg-orange-100 text-orange-700' },
-  revised:            { label: 'Revised',            className: 'bg-indigo-100 text-indigo-700' },
-  rejected:           { label: 'Rejected',           className: 'bg-red-100 text-red-700' },
-  completed:          { label: 'Completed',          className: 'bg-emerald-100 text-emerald-700' },
-  cancelled:          { label: 'Cancelled',          className: 'bg-zinc-100 text-zinc-500' },
+  scheduled:          { label: 'Scheduled',          className: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300' },
+  submitted:          { label: 'Submitted',          className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  ai_generating:      { label: 'AI Processing',      className: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' },
+  pending_review:     { label: 'Pending Review',     className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  approved:           { label: 'Approved',           className: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+  sent:               { label: 'Sent to Client',     className: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300' },
+  revision_requested: { label: 'Revision Requested', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
+  revised:            { label: 'Revised',            className: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' },
+  rejected:           { label: 'Rejected',           className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+  completed:          { label: 'Completed',          className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  cancelled:          { label: 'Cancelled',          className: 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400' },
 }
 
 // Invoice statuses — mirrors InvoiceStatus in types/database
 const INVOICE_STATUSES: Record<string, StatusStyle> = {
-  draft:          { label: 'Draft',   className: 'bg-zinc-100 text-zinc-700' },
-  sent:           { label: 'Sent',    className: 'bg-blue-100 text-blue-700' },
-  paid:           { label: 'Paid',    className: 'bg-green-100 text-green-700' },
-  partially_paid: { label: 'Partial', className: 'bg-amber-100 text-amber-700' },
-  overdue:        { label: 'Overdue', className: 'bg-red-100 text-red-700' },
-  void:           { label: 'Void',    className: 'bg-zinc-100 text-zinc-500 line-through' },
+  draft:          { label: 'Draft',   className: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' },
+  sent:           { label: 'Sent',    className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  paid:           { label: 'Paid',    className: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+  partially_paid: { label: 'Partial', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  overdue:        { label: 'Overdue', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+  void:           { label: 'Void',    className: 'bg-zinc-100 text-zinc-500 line-through dark:bg-zinc-800 dark:text-zinc-400' },
 }
 
 // Proposal statuses
 const PROPOSAL_STATUSES: Record<string, StatusStyle> = {
-  draft:        { label: 'Draft',        className: 'bg-zinc-100 text-zinc-700' },
-  sent:         { label: 'Sent',         className: 'bg-blue-100 text-blue-700' },
-  viewed:       { label: 'Viewed',       className: 'bg-cyan-100 text-cyan-700' },
-  accepted:     { label: 'Accepted',     className: 'bg-green-100 text-green-700' },
-  signed:       { label: 'Signed',       className: 'bg-emerald-100 text-emerald-700' },
-  rejected:     { label: 'Rejected',     className: 'bg-red-100 text-red-700' },
-  expired:      { label: 'Expired',      className: 'bg-zinc-100 text-zinc-500' },
-  cancelled:    { label: 'Cancelled',    className: 'bg-zinc-100 text-zinc-500' },
+  draft:        { label: 'Draft',        className: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' },
+  sent:         { label: 'Sent',         className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  viewed:       { label: 'Viewed',       className: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300' },
+  accepted:     { label: 'Accepted',     className: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+  signed:       { label: 'Signed',       className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  rejected:     { label: 'Rejected',     className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+  expired:      { label: 'Expired',      className: 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400' },
+  cancelled:    { label: 'Cancelled',    className: 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400' },
 }
 
 const TYPE_MAP: Record<StatusType, Record<string, StatusStyle>> = {
@@ -98,7 +100,7 @@ export function StatusBadge({ status, type, className }: StatusBadgeProps) {
   if (!status) return null
   const style = TYPE_MAP[type][status] ?? {
     label: status.replace(/_/g, ' '),
-    className: 'bg-zinc-100 text-zinc-600',
+    className: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400',
   }
   return (
     <Badge variant="outline" className={cn(style.className, className)}>

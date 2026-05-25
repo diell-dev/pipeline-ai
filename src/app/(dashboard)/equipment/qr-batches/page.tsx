@@ -221,7 +221,7 @@ export default function QrBatchesPage() {
                     href={`/api/equipment/qr-batches/${b.id}/pdf`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-1.5 w-full h-10 rounded-md border bg-background text-sm font-medium text-blue-600 hover:bg-zinc-50"
+                    className="inline-flex items-center justify-center gap-1.5 w-full h-10 rounded-md border bg-background text-sm font-medium text-blue-600 hover:bg-muted dark:text-blue-400"
                   >
                     <Download className="h-4 w-4" /> Download PDF
                   </a>
@@ -234,7 +234,7 @@ export default function QrBatchesPage() {
           <Card className="hidden sm:block">
             <CardContent className="p-0 overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-zinc-50 border-b">
+                <thead className="bg-muted/50 border-b">
                   <tr>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Batch #</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Prefix</th>
@@ -246,7 +246,7 @@ export default function QrBatchesPage() {
                 </thead>
                 <tbody>
                   {batches.map((b) => (
-                    <tr key={b.id} className="border-t hover:bg-zinc-50">
+                    <tr key={b.id} className="border-t hover:bg-muted">
                       <td className="px-4 py-3 font-mono">{b.batch_number}</td>
                       <td className="px-4 py-3 font-mono">{b.prefix || '—'}</td>
                       <td className="px-4 py-3">{b.total_codes}</td>

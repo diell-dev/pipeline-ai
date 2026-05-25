@@ -410,7 +410,7 @@ export function ProposalForm({
                 return (
                   <label
                     key={opt}
-                    className="flex items-center gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer hover:bg-zinc-50"
+                    className="flex items-center gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer hover:bg-muted"
                   >
                     <Checkbox
                       checked={checked}
@@ -557,7 +557,7 @@ export function ProposalForm({
           </div>
 
           {/* Discount */}
-          <div className="border rounded-lg p-3 space-y-3 bg-zinc-50">
+          <div className="border rounded-lg p-3 space-y-3 bg-muted/50">
             <div className="flex items-center justify-between">
               <Label className="text-sm">Apply discount?</Label>
               <Switch

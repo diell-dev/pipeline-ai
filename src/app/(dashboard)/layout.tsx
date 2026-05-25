@@ -42,7 +42,7 @@ export default function DashboardLayout({
           <AppHeader />
           <main
             key={pathname}
-            className="page-fade-in flex-1 overflow-y-auto bg-zinc-50 pb-20 md:pb-0"
+            className="page-fade-in flex-1 overflow-y-auto bg-zinc-50 pb-20 md:pb-0 dark:bg-zinc-950"
           >
             {children}
           </main>

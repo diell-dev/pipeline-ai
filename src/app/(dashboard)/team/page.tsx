@@ -40,11 +40,11 @@ import {
 import type { User, UserRole } from '@/types/database'
 
 const ROLE_COLORS: Record<UserRole, string> = {
-  super_admin: 'bg-red-100 text-red-700',
-  owner: 'bg-blue-100 text-blue-700',
-  office_manager: 'bg-purple-100 text-purple-700',
-  field_tech: 'bg-green-100 text-green-700',
-  client: 'bg-zinc-100 text-zinc-700',
+  super_admin: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+  owner: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  office_manager: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+  field_tech: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+  client: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
 }
 
 export default function TeamPage() {
@@ -214,7 +214,7 @@ export default function TeamPage() {
                 <CardContent className="py-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-zinc-200 flex items-center justify-center text-sm font-semibold text-zinc-600 shrink-0">
+                      <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-sm font-semibold text-muted-foreground shrink-0">
                         {member.full_name?.charAt(0) || '?'}
                       </div>
                       <div className="min-w-0">
@@ -246,7 +246,7 @@ export default function TeamPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-500/10"
                         onClick={() => handleRemove(member)}
                         disabled={removingId === member.id}
                       >

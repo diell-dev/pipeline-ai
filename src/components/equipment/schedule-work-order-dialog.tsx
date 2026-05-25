@@ -90,23 +90,23 @@ const PRIORITIES: Array<{
   bg: string
   ring: string
 }> = [
-  { value: 'low', label: 'Low', bg: 'bg-zinc-100 text-zinc-700', ring: 'ring-zinc-400' },
+  { value: 'low', label: 'Low', bg: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300', ring: 'ring-zinc-400' },
   {
     value: 'normal',
     label: 'Normal',
-    bg: 'bg-blue-100 text-blue-700',
+    bg: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
     ring: 'ring-blue-500',
   },
   {
     value: 'high',
     label: 'High',
-    bg: 'bg-amber-100 text-amber-700',
+    bg: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
     ring: 'ring-amber-500',
   },
   {
     value: 'urgent',
     label: 'Urgent',
-    bg: 'bg-red-100 text-red-700',
+    bg: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
     ring: 'ring-red-600',
   },
 ]
@@ -354,8 +354,8 @@ export function ScheduleWorkOrderDialog({
                   onClick={() => setAssignmentType(opt)}
                   className={`rounded-md border px-3 py-2 text-sm capitalize transition ${
                     assignmentType === opt
-                      ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
-                      : 'border-zinc-200 hover:bg-zinc-50 text-zinc-700'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/60'
+                      : 'border-border hover:bg-muted text-foreground'
                   }`}
                 >
                   {opt === 'tech' ? 'A technician' : opt === 'crew' ? 'A crew' : 'Decide later'}
@@ -364,7 +364,7 @@ export function ScheduleWorkOrderDialog({
             </div>
 
             {assignmentType === 'unassigned' && (
-              <p className="text-xs text-zinc-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Unassigned work orders land in the dispatcher queue for someone to claim later.
               </p>
             )}
@@ -386,7 +386,7 @@ export function ScheduleWorkOrderDialog({
                   {techs.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
                       {t.full_name || 'Unnamed'}
-                      <span className="text-xs text-zinc-500 ml-2">
+                      <span className="text-xs text-muted-foreground ml-2">
                         ({t.role.replace(/_/g, ' ')})
                       </span>
                     </SelectItem>
@@ -419,7 +419,7 @@ export function ScheduleWorkOrderDialog({
             </Label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <Label htmlFor="sched-date" className="text-xs text-zinc-500">
+                <Label htmlFor="sched-date" className="text-xs text-muted-foreground">
                   Date
                 </Label>
                 <Input
@@ -431,7 +431,7 @@ export function ScheduleWorkOrderDialog({
                 />
               </div>
               <div>
-                <Label htmlFor="sched-time" className="text-xs text-zinc-500">
+                <Label htmlFor="sched-time" className="text-xs text-muted-foreground">
                   Start time
                 </Label>
                 <Input
@@ -442,7 +442,7 @@ export function ScheduleWorkOrderDialog({
                 />
               </div>
               <div>
-                <Label htmlFor="sched-duration" className="text-xs text-zinc-500">
+                <Label htmlFor="sched-duration" className="text-xs text-muted-foreground">
                   Duration
                 </Label>
                 <Select value={duration} onValueChange={(v) => setDuration(v || '60')}>
@@ -463,35 +463,35 @@ export function ScheduleWorkOrderDialog({
 
           {/* Availability — shown when a tech or crew is selected */}
           {((assignmentType === 'tech' && techId) || (assignmentType === 'crew' && crewId)) && (
-            <section className="rounded-md border border-zinc-200 bg-zinc-50 p-3">
-              <div className="text-xs font-medium text-zinc-700 mb-2 flex items-center gap-2">
+            <section className="rounded-md border border-border bg-muted/50 p-3">
+              <div className="text-xs font-medium text-foreground mb-2 flex items-center gap-2">
                 <CalIcon className="h-3.5 w-3.5" />
                 {assignmentType === 'tech' ? "Tech's schedule for " : "Crew's schedule for "}
                 {new Date(date + 'T00:00:00').toLocaleDateString()}
                 {loadingConflicts && (
-                  <Loader2 className="h-3 w-3 animate-spin text-zinc-500" />
+                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                 )}
               </div>
               {!loadingConflicts && conflicts && conflicts.length === 0 && (
-                <p className="text-xs text-emerald-700">
+                <p className="text-xs text-emerald-700 dark:text-emerald-300">
                   No other jobs scheduled for {assignmentType === 'tech' ? 'this technician' : 'this crew'} on this date.
                 </p>
               )}
               {!loadingConflicts && conflicts && conflicts.length > 0 && (
-                <ul className="space-y-1 text-xs text-zinc-700">
+                <ul className="space-y-1 text-xs text-foreground">
                   {conflicts.map((c) => {
                     const overlaps = conflictWarning?.some((w) => w.id === c.id)
                     return (
                       <li
                         key={c.id}
                         className={`flex items-center justify-between gap-3 rounded px-2 py-1 ${
-                          overlaps ? 'bg-red-100 text-red-800' : 'bg-white'
+                          overlaps ? 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-200' : 'bg-card'
                         }`}
                       >
                         <span className="font-medium">
                           {formatTime(c.scheduled_time)} – {formatTime(c.scheduled_end_time)}
                         </span>
-                        <span className="text-zinc-600 truncate">
+                        <span className="text-muted-foreground truncate">
                           {c.clients?.company_name || c.sites?.name || 'Unknown'}
                         </span>
                       </li>
@@ -575,7 +575,7 @@ export function ScheduleWorkOrderDialog({
               </Badge>
             )}
             {assignmentType === 'unassigned' && (
-              <Badge variant="outline" className="text-xs text-zinc-500">
+              <Badge variant="outline" className="text-xs text-muted-foreground">
                 Unassigned
               </Badge>
             )}

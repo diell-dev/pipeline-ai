@@ -258,7 +258,7 @@ export default function PaymentsSettingsPage() {
               <StatusRow
                 label="Account ID"
                 badge={
-                  <code className="text-xs bg-zinc-100 px-2 py-0.5 rounded">
+                  <code className="text-xs bg-muted px-2 py-0.5 rounded">
                     {state?.stripe_account_id}
                   </code>
                 }
@@ -266,13 +266,13 @@ export default function PaymentsSettingsPage() {
             </div>
 
             {state?.stripe_account_status === 'pending' && (
-              <div className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded px-3 py-2">
+              <div className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded px-3 py-2 dark:bg-amber-500/10 dark:border-amber-500/30 dark:text-amber-300">
                 Onboarding isn&apos;t finished. Click Connect again to resume,
                 then Refresh to update status here.
               </div>
             )}
             {state?.stripe_account_status === 'restricted' && (
-              <div className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded px-3 py-2">
+              <div className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded px-3 py-2 dark:bg-amber-500/10 dark:border-amber-500/30 dark:text-amber-300">
                 Stripe needs more information. Re-open onboarding from Stripe
                 or contact support.
               </div>
@@ -340,19 +340,19 @@ function StatusBadge({
 }) {
   if (status === 'active') {
     return (
-      <Badge className="bg-green-100 text-green-700 border-green-200">
+      <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-500/30">
         <CheckCircle2 className="h-3 w-3 mr-1" /> Active
       </Badge>
     )
   }
   if (status === 'restricted') {
-    return <Badge className="bg-red-100 text-red-700 border-red-200">Restricted</Badge>
+    return <Badge className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-500/30">Restricted</Badge>
   }
   if (status === 'disconnected') {
-    return <Badge className="bg-zinc-100 text-zinc-700">Disconnected</Badge>
+    return <Badge className="bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Disconnected</Badge>
   }
   return (
-    <Badge className="bg-amber-100 text-amber-700 border-amber-200">
+    <Badge className="bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-500/30">
       Pending verification
     </Badge>
   )
@@ -360,8 +360,8 @@ function StatusBadge({
 
 function EnabledBadge({ enabled }: { enabled: boolean | undefined }) {
   return enabled ? (
-    <Badge className="bg-green-100 text-green-700 border-green-200">Enabled</Badge>
+    <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-500/30">Enabled</Badge>
   ) : (
-    <Badge className="bg-zinc-100 text-zinc-700">Disabled</Badge>
+    <Badge className="bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Disabled</Badge>
   )
 }

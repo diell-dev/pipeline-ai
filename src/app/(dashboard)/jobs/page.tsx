@@ -34,25 +34,26 @@ import {
 } from 'lucide-react'
 import type { Job, JobStatus, JobPriority } from '@/types/database'
 
-// Status badge colors
+// Status badge colors — Phase G: paired light tints with dark variants so
+// the legacy inline map matches the StatusBadge component in dark mode.
 const STATUS_CONFIG: Record<JobStatus, { label: string; className: string }> = {
-  scheduled: { label: 'Scheduled', className: 'bg-cyan-100 text-cyan-700' },
-  submitted: { label: 'Submitted', className: 'bg-blue-100 text-blue-700' },
-  ai_generating: { label: 'AI Processing', className: 'bg-purple-100 text-purple-700' },
-  pending_review: { label: 'Pending Review', className: 'bg-amber-100 text-amber-700' },
-  approved: { label: 'Approved', className: 'bg-green-100 text-green-700' },
-  sent: { label: 'Sent to Client', className: 'bg-teal-100 text-teal-700' },
-  revision_requested: { label: 'Revision Requested', className: 'bg-orange-100 text-orange-700' },
-  revised: { label: 'Revised', className: 'bg-indigo-100 text-indigo-700' },
-  rejected: { label: 'Rejected', className: 'bg-red-100 text-red-700' },
-  completed: { label: 'Completed', className: 'bg-emerald-100 text-emerald-700' },
-  cancelled: { label: 'Cancelled', className: 'bg-zinc-100 text-zinc-500' },
+  scheduled: { label: 'Scheduled', className: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300' },
+  submitted: { label: 'Submitted', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  ai_generating: { label: 'AI Processing', className: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' },
+  pending_review: { label: 'Pending Review', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  approved: { label: 'Approved', className: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+  sent: { label: 'Sent to Client', className: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300' },
+  revision_requested: { label: 'Revision Requested', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
+  revised: { label: 'Revised', className: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' },
+  rejected: { label: 'Rejected', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+  completed: { label: 'Completed', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  cancelled: { label: 'Cancelled', className: 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400' },
 }
 
 const PRIORITY_CONFIG: Record<JobPriority, { label: string; className: string }> = {
-  normal: { label: 'Normal', className: 'bg-zinc-100 text-zinc-600' },
-  urgent: { label: 'Urgent', className: 'bg-amber-100 text-amber-700' },
-  emergency: { label: 'Emergency', className: 'bg-red-100 text-red-700' },
+  normal: { label: 'Normal', className: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400' },
+  urgent: { label: 'Urgent', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  emergency: { label: 'Emergency', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
 }
 
 interface JobWithRelations extends Job {
@@ -271,23 +272,23 @@ export default function JobsPage() {
         <button
           type="button"
           onClick={() => setFilter('pending_review')}
-          className="w-full text-left rounded-lg border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 hover:shadow-md transition-shadow group"
+          className="w-full text-left rounded-lg border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 hover:shadow-md transition-shadow group dark:border-amber-500/40 dark:from-amber-500/10 dark:to-amber-500/5"
         >
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-start sm:items-center gap-3">
-              <div className="rounded-full bg-amber-100 p-2 flex-shrink-0">
-                <AlertTriangle className="h-5 w-5 text-amber-700" />
+              <div className="rounded-full bg-amber-100 p-2 flex-shrink-0 dark:bg-amber-500/20">
+                <AlertTriangle className="h-5 w-5 text-amber-700 dark:text-amber-300" />
               </div>
               <div className="min-w-0">
-                <p className="font-semibold text-amber-900 text-sm sm:text-base">
+                <p className="font-semibold text-amber-900 text-sm sm:text-base dark:text-amber-200">
                   {counts.pending_review} {counts.pending_review === 1 ? 'job' : 'jobs'} waiting for your review
                 </p>
-                <p className="text-xs text-amber-800">
+                <p className="text-xs text-amber-800 dark:text-amber-300/80">
                   Approve and send to client, or request revisions.
                 </p>
               </div>
             </div>
-            <span className="flex items-center gap-1 text-sm font-medium text-amber-900 group-hover:translate-x-0.5 transition-transform pl-11 sm:pl-0 flex-shrink-0">
+            <span className="flex items-center gap-1 text-sm font-medium text-amber-900 group-hover:translate-x-0.5 transition-transform pl-11 sm:pl-0 flex-shrink-0 dark:text-amber-200">
               Review now <ArrowRight className="h-4 w-4" />
             </span>
           </div>
@@ -328,27 +329,27 @@ export default function JobsPage() {
           const baseClass = 'inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium border transition-all duration-150 motion-safe:active:scale-[0.97]'
           let toneClass = ''
           if (active) {
-            toneClass = 'bg-zinc-900 text-white border-zinc-900 hover:bg-zinc-800'
+            toneClass = 'bg-zinc-900 text-white border-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100 dark:hover:bg-zinc-200'
           } else {
             // All inactive chips share the same outlined look — only hover tints by tone
             const hoverByTone =
               tab.tone === 'attention' && count > 0
-                ? 'hover:bg-amber-50 hover:border-amber-300'
+                ? 'hover:bg-amber-50 hover:border-amber-300 dark:hover:bg-amber-500/10 dark:hover:border-amber-500/40'
                 : tab.tone === 'success'
-                  ? 'hover:bg-emerald-50 hover:border-emerald-200'
-                  : 'hover:bg-zinc-50'
-            toneClass = `bg-white text-zinc-700 border-zinc-200 ${hoverByTone}`
+                  ? 'hover:bg-emerald-50 hover:border-emerald-200 dark:hover:bg-emerald-500/10 dark:hover:border-emerald-500/40'
+                  : 'hover:bg-muted'
+            toneClass = `bg-card text-foreground border-border ${hoverByTone}`
           }
 
           // Count badge styling
           const badgeBaseClass = 'inline-flex items-center justify-center rounded-full px-1.5 min-w-[1.25rem] h-5 text-xs font-semibold'
           let badgeClass = ''
           if (active) {
-            badgeClass = 'bg-white/20 text-white'
+            badgeClass = 'bg-white/20 text-white dark:bg-zinc-900/20 dark:text-zinc-900'
           } else if (tab.tone === 'attention' && count > 0) {
-            badgeClass = 'bg-amber-100 text-amber-900'
+            badgeClass = 'bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-200'
           } else {
-            badgeClass = 'bg-zinc-100 text-zinc-600'
+            badgeClass = 'bg-muted text-muted-foreground'
           }
 
           return (
@@ -411,7 +412,7 @@ export default function JobsPage() {
                 key={job.id}
                 style={{ '--row-index': idx } as React.CSSProperties}
                 className={`row-stagger-up hover:shadow-md transition-shadow cursor-pointer ${
-                  sameAsPrev ? 'ml-4 border-l-2 border-l-zinc-200' : ''
+                  sameAsPrev ? 'ml-4 border-l-2 border-l-border' : ''
                 }`}
                 onClick={() => router.push(`/jobs/${job.id}`)}
               >

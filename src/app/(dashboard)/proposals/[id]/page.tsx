@@ -41,15 +41,15 @@ import type {
 } from '@/types/database'
 
 const STATUS_CONFIG: Record<ProposalStatus, { label: string; className: string }> = {
-  draft: { label: 'Draft', className: 'bg-zinc-100 text-zinc-700' },
-  pending_admin_approval: { label: 'Pending Approval', className: 'bg-amber-100 text-amber-700' },
-  admin_approved: { label: 'Admin Approved', className: 'bg-blue-100 text-blue-700' },
-  sent_to_client: { label: 'Sent to Client', className: 'bg-teal-100 text-teal-700' },
-  client_approved: { label: 'Client Signed', className: 'bg-green-100 text-green-700' },
-  client_rejected: { label: 'Client Rejected', className: 'bg-red-100 text-red-700' },
-  converted_to_job: { label: 'Converted to Job', className: 'bg-emerald-100 text-emerald-700' },
-  expired: { label: 'Expired', className: 'bg-zinc-100 text-zinc-500' },
-  cancelled: { label: 'Cancelled', className: 'bg-zinc-100 text-zinc-500' },
+  draft: { label: 'Draft', className: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' },
+  pending_admin_approval: { label: 'Pending Approval', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  admin_approved: { label: 'Admin Approved', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  sent_to_client: { label: 'Sent to Client', className: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300' },
+  client_approved: { label: 'Client Signed', className: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+  client_rejected: { label: 'Client Rejected', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+  converted_to_job: { label: 'Converted to Job', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  expired: { label: 'Expired', className: 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400' },
+  cancelled: { label: 'Cancelled', className: 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400' },
 }
 
 const fmtUSD = (n: number) =>
@@ -319,9 +319,9 @@ export default function ProposalDetailPage() {
       </div>
 
       {showDeleteConfirm && (
-        <Card className="border-red-200 bg-red-50">
+        <Card className="border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10">
           <CardContent className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-red-700">
+            <p className="text-sm text-red-700 dark:text-red-300">
               Soft-delete this proposal? You can recover it from the database.
             </p>
             <div className="flex flex-col sm:flex-row gap-2">
@@ -355,7 +355,7 @@ export default function ProposalDetailPage() {
           </CardHeader>
           <CardContent className="space-y-2 p-4 sm:p-6 pt-0 sm:pt-0">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <code className="flex-1 text-xs bg-zinc-50 rounded px-2 py-2 break-all">
+              <code className="flex-1 text-xs bg-muted rounded px-2 py-2 break-all">
                 {signUrl}
               </code>
               <div className="flex items-center gap-2 shrink-0">
@@ -400,7 +400,7 @@ export default function ProposalDetailPage() {
               <p className="text-muted-foreground text-xs mb-1">Measurements</p>
               <p className="whitespace-pre-wrap break-words">{proposal.measurements || '—'}</p>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border rounded-lg p-3 bg-zinc-50">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border rounded-lg p-3 bg-muted/50">
               <div>
                 <p className="text-[11px] uppercase text-muted-foreground">Hours</p>
                 <p className="font-semibold">{proposal.estimated_hours ?? '—'}</p>
@@ -492,7 +492,7 @@ export default function ProposalDetailPage() {
                 {/* Desktop: table */}
                 <div className="hidden sm:block border rounded-lg overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead className="bg-zinc-50">
+                    <thead className="bg-muted/50">
                       <tr>
                         <th className="text-left px-3 py-2 font-medium text-muted-foreground">Service</th>
                         <th className="text-center px-3 py-2 font-medium text-muted-foreground">Qty</th>
@@ -567,7 +567,7 @@ export default function ProposalDetailPage() {
                   <img
                     src={sig.signature_data}
                     alt="Signature"
-                    className="max-h-24 max-w-full bg-white border rounded"
+                    className="max-h-24 max-w-full bg-white border rounded dark:bg-zinc-50"
                   />
                 ) : (
                   <p className="font-serif italic text-lg break-words">{sig.signature_data}</p>

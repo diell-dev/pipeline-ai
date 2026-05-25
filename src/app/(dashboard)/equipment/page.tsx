@@ -99,18 +99,18 @@ function dueChip(days: number | null): { className: string; label: string } | nu
   if (days === null) return null
   if (days < 0) {
     return {
-      className: 'bg-red-100 text-red-700 border-red-200',
+      className: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-500/30',
       label: `${Math.abs(days)}d overdue`,
     }
   }
   if (days <= 30) {
     return {
-      className: 'bg-amber-100 text-amber-700 border-amber-200',
+      className: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-500/30',
       label: `Due in ${days}d`,
     }
   }
   return {
-    className: 'bg-zinc-100 text-zinc-600 border-zinc-200',
+    className: 'bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700',
     label: `Due in ${days}d`,
   }
 }
@@ -426,21 +426,21 @@ export default function EquipmentListPage() {
             'inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium border transition-colors'
           let toneClass = ''
           if (active) {
-            toneClass = 'bg-zinc-900 text-white border-zinc-900 hover:bg-zinc-800'
+            toneClass = 'bg-zinc-900 text-white border-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100 dark:hover:bg-zinc-200'
           } else if (tab.tone === 'danger' && tab.count > 0) {
-            toneClass = 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+            toneClass = 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-300 dark:border-red-500/30 dark:hover:bg-red-500/20'
           } else if (tab.tone === 'attention' && tab.count > 0) {
-            toneClass = 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
+            toneClass = 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30 dark:hover:bg-amber-500/20'
           } else {
-            toneClass = 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50'
+            toneClass = 'bg-card text-foreground border-border hover:bg-muted'
           }
           const badgeClass = active
-            ? 'bg-white/20 text-white'
+            ? 'bg-white/20 text-white dark:bg-zinc-900/20 dark:text-zinc-900'
             : tab.tone === 'danger' && tab.count > 0
-            ? 'bg-red-200 text-red-900'
+            ? 'bg-red-200 text-red-900 dark:bg-red-500/30 dark:text-red-200'
             : tab.tone === 'attention' && tab.count > 0
-            ? 'bg-amber-200 text-amber-900'
-            : 'bg-zinc-100 text-zinc-600'
+            ? 'bg-amber-200 text-amber-900 dark:bg-amber-500/30 dark:text-amber-200'
+            : 'bg-muted text-muted-foreground'
 
           return (
             <button
@@ -538,7 +538,7 @@ export default function EquipmentListPage() {
             <Card>
               <CardContent className="p-0 overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-zinc-50 border-b">
+                  <thead className="bg-muted/50 border-b">
                     <tr>
                       <th className="text-left px-4 py-3 font-medium text-muted-foreground">Category</th>
                       <th className="text-left px-4 py-3 font-medium text-muted-foreground">Location</th>
@@ -554,7 +554,7 @@ export default function EquipmentListPage() {
                       return (
                         <tr
                           key={eq.id}
-                          className="border-t hover:bg-zinc-50 cursor-pointer"
+                          className="border-t hover:bg-muted cursor-pointer"
                           onClick={() => router.push(`/equipment/${eq.id}`)}
                         >
                           <td className="px-4 py-3">

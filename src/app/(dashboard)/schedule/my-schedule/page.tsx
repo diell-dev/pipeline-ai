@@ -38,9 +38,9 @@ interface MyJob {
 }
 
 const PRIORITY_BADGE: Record<JobPriority, string> = {
-  normal: 'bg-zinc-100 text-zinc-600',
-  urgent: 'bg-amber-100 text-amber-700',
-  emergency: 'bg-red-100 text-red-700',
+  normal: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400',
+  urgent: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  emergency: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
 }
 
 function formatTime(iso: string | null): string {
@@ -176,7 +176,7 @@ export default function MySchedulePage() {
         <div className="space-y-6">
           {grouped.map((group) => (
             <section key={group.date}>
-              <h2 className="text-sm font-semibold mb-2 sticky top-0 bg-zinc-50 py-2 z-10 border-b">
+              <h2 className="text-sm font-semibold mb-2 sticky top-0 bg-background py-2 z-10 border-b">
                 {formatDateHeading(group.date)}
               </h2>
               <div className="space-y-3">

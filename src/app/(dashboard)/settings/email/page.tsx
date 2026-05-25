@@ -213,7 +213,7 @@ export default function EmailSettingsPage() {
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            To enable email sending, set the <code className="bg-zinc-100 px-1 rounded">RESEND_API_KEY</code> environment
+            To enable email sending, set the <code className="bg-muted px-1 rounded">RESEND_API_KEY</code> environment
             variable in your Vercel project settings. Get a free API key at{' '}
             <a href="https://resend.com" target="_blank" rel="noopener" className="text-blue-600 underline">
               resend.com

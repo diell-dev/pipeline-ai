@@ -259,10 +259,10 @@ export function InspectionChecklist({
                           : 'bg-zinc-700 text-white border-zinc-700'
                       const colorInactive =
                         opt === 'pass'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/30 dark:hover:bg-emerald-500/20'
                           : opt === 'fail'
-                          ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-                          : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:bg-zinc-100'
+                          ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-300 dark:border-red-500/30 dark:hover:bg-red-500/20'
+                          : 'bg-muted text-muted-foreground border-border hover:bg-muted/80 dark:hover:bg-muted/50'
                       return (
                         <button
                           key={opt}

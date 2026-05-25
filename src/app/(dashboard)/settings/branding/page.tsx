@@ -242,7 +242,7 @@ export default function BrandingSettingsPage() {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4">
                 <div
-                  className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border bg-white overflow-hidden"
+                  className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border bg-zinc-50 overflow-hidden dark:bg-zinc-900"
                   aria-label="Current logo preview"
                 >
                   {logoUrl && !logoBroken ? (

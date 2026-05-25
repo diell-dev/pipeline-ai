@@ -305,7 +305,7 @@ export default function CrewsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-10 w-10 sm:h-8 sm:w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          className="h-10 w-10 sm:h-8 sm:w-8 text-red-500 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-500/10"
                           onClick={() => handleDelete(crew)}
                         >
                           <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
@@ -405,7 +405,7 @@ export default function CrewsPage() {
                   users.map((u) => (
                     <label
                       key={u.id}
-                      className="flex items-center gap-2 px-2 py-2 min-h-[40px] rounded hover:bg-zinc-50 cursor-pointer"
+                      className="flex items-center gap-2 px-2 py-2 min-h-[40px] rounded hover:bg-muted cursor-pointer"
                     >
                       <input
                         type="checkbox"

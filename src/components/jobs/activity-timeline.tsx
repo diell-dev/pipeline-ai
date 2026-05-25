@@ -252,7 +252,7 @@ export function JobActivityTimeline({ jobId }: { jobId: string }) {
                       by {entry.userName}
                     </p>
                     {detail && (
-                      <p className="text-xs text-muted-foreground/80 mt-1 bg-zinc-50 px-2 py-1 rounded">
+                      <p className="text-xs text-muted-foreground/80 mt-1 bg-muted/50 px-2 py-1 rounded">
                         {detail}
                       </p>
                     )}

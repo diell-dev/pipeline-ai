@@ -30,15 +30,15 @@ import {
 import type { Proposal, ProposalStatus } from '@/types/database'
 
 const STATUS_CONFIG: Record<ProposalStatus, { label: string; className: string }> = {
-  draft: { label: 'Draft', className: 'bg-zinc-100 text-zinc-700' },
-  pending_admin_approval: { label: 'Pending Approval', className: 'bg-amber-100 text-amber-700' },
-  admin_approved: { label: 'Approved', className: 'bg-blue-100 text-blue-700' },
-  sent_to_client: { label: 'Sent to Client', className: 'bg-teal-100 text-teal-700' },
-  client_approved: { label: 'Client Signed', className: 'bg-green-100 text-green-700' },
-  client_rejected: { label: 'Client Rejected', className: 'bg-red-100 text-red-700' },
-  converted_to_job: { label: 'Converted', className: 'bg-emerald-100 text-emerald-700' },
-  expired: { label: 'Expired', className: 'bg-zinc-100 text-zinc-500' },
-  cancelled: { label: 'Cancelled', className: 'bg-zinc-100 text-zinc-500' },
+  draft: { label: 'Draft', className: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' },
+  pending_admin_approval: { label: 'Pending Approval', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  admin_approved: { label: 'Approved', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  sent_to_client: { label: 'Sent to Client', className: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300' },
+  client_approved: { label: 'Client Signed', className: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+  client_rejected: { label: 'Client Rejected', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+  converted_to_job: { label: 'Converted', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  expired: { label: 'Expired', className: 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400' },
+  cancelled: { label: 'Cancelled', className: 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400' },
 }
 
 interface ProposalWithRelations extends Proposal {
@@ -278,7 +278,7 @@ export default function ProposalsPage() {
                 <div
                   key={p.id}
                   style={{ '--row-index': idx } as React.CSSProperties}
-                  className="row-stagger-up rounded-lg border bg-white p-4 space-y-3 cursor-pointer"
+                  className="row-stagger-up rounded-lg border bg-card p-4 space-y-3 cursor-pointer"
                   onClick={() => router.push(`/proposals/${p.id}`)}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -325,9 +325,9 @@ export default function ProposalsPage() {
           </div>
 
           {/* Desktop: table */}
-          <div className="hidden md:block overflow-hidden border rounded-lg bg-white">
+          <div className="hidden md:block overflow-hidden border rounded-lg bg-card">
           <table className="w-full text-sm">
-            <thead className="bg-zinc-50 border-b">
+            <thead className="bg-muted/50 border-b">
               <tr>
                 <th className="text-left px-4 py-2 font-medium text-muted-foreground">Number</th>
                 <th className="text-left px-4 py-2 font-medium text-muted-foreground">Client</th>
@@ -344,7 +344,7 @@ export default function ProposalsPage() {
                 return (
                   <tr
                     key={p.id}
-                    className="border-b hover:bg-zinc-50 cursor-pointer"
+                    className="border-b hover:bg-muted cursor-pointer"
                     onClick={() => router.push(`/proposals/${p.id}`)}
                   >
                     <td className="px-4 py-3 font-mono text-xs">{p.proposal_number}</td>

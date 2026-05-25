@@ -111,7 +111,7 @@ function PillarEditor({
   onChange: (updated: { type: DocPillarType; alignment: DocPillarAlignment }) => void
 }) {
   return (
-    <div className="space-y-2 p-3 border rounded-lg bg-zinc-50/50">
+    <div className="space-y-2 p-3 border rounded-lg bg-muted/40">
       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
 
       {/* Type selector */}
@@ -125,8 +125,8 @@ function PillarEditor({
               onClick={() => onChange({ ...pillar, type: pt.value })}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
                 isActive
-                  ? 'bg-zinc-900 text-white'
-                  : 'bg-white border hover:bg-zinc-100 text-zinc-600'
+                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                  : 'bg-card border hover:bg-muted text-muted-foreground'
               }`}
             >
               <Icon className="h-3 w-3" />
@@ -147,8 +147,8 @@ function PillarEditor({
                 onClick={() => onChange({ ...pillar, alignment: a })}
                 className={`p-1.5 rounded transition-colors ${
                   pillar.alignment === a
-                    ? 'bg-zinc-900 text-white'
-                    : 'bg-white border hover:bg-zinc-100 text-zinc-500'
+                    ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                    : 'bg-card border hover:bg-muted text-muted-foreground'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -411,12 +411,12 @@ export default function CompanyProfilePage() {
           <div className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-6">
             <div className="shrink-0 self-start">
               {logoUrl ? (
-                <div className="h-24 w-24 rounded-lg border overflow-hidden bg-zinc-50">
+                <div className="h-24 w-24 rounded-lg border overflow-hidden bg-zinc-50 dark:bg-zinc-900">
                   <img src={logoUrl} alt="Company logo" className="h-full w-full object-contain" />
                 </div>
               ) : (
-                <div className="h-24 w-24 rounded-lg border-2 border-dashed bg-zinc-50 flex items-center justify-center">
-                  <ImageIcon className="h-8 w-8 text-zinc-300" />
+                <div className="h-24 w-24 rounded-lg border-2 border-dashed bg-zinc-50 flex items-center justify-center dark:bg-zinc-900">
+                  <ImageIcon className="h-8 w-8 text-zinc-300 dark:text-zinc-600" />
                 </div>
               )}
             </div>
@@ -538,10 +538,10 @@ export default function CompanyProfilePage() {
                 <button
                   key={theme.id}
                   onClick={() => setInvoiceTheme(theme.id)}
-                  className={`relative border-2 rounded-lg overflow-hidden transition-all text-left ${
+                  className={`relative border-2 rounded-lg overflow-hidden transition-all text-left bg-white ${
                     isSelected
                       ? 'border-blue-500 ring-2 ring-blue-200'
-                      : 'border-zinc-200 hover:border-zinc-300'
+                      : 'border-border hover:border-zinc-300 dark:hover:border-zinc-500'
                   }`}
                 >
                   {/* Mini preview */}
@@ -618,7 +618,7 @@ export default function CompanyProfilePage() {
           </div>
 
           {/* Preview */}
-          <div className="p-3 bg-zinc-50 rounded-lg border">
+          <div className="p-3 bg-muted/50 rounded-lg border">
             <p className="text-xs text-muted-foreground mb-1">Preview — next invoice will be:</p>
             <p className="font-mono text-sm font-semibold">
               {(invoicePrefix || 'NYSD').toUpperCase()}-{new Date().toISOString().slice(0, 10).replace(/-/g, '')}-{String(invoiceNextNumber).padStart(3, '0')}

@@ -9,7 +9,7 @@
  *
  * Color-coded by crew (or by tech if no crew).
  */
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
 import { hasPermission } from '@/lib/permissions'
@@ -590,16 +590,124 @@ function DayView({
 }
 
 // ============================================================
-// WeekView — 7 columns, day-summary layout
+// WeekView — real time-axis grid (8 columns: hour gutter + 7 days)
 //
-// UX-SWEEP-#4: this is intentionally a "7-day overview" rather than a real
-// time-axis week grid. Each column is a day-cell with an event-count chip in
-// the header so the view is visually distinct from Month view. Real
-// hours-of-day × 7 grid is future work — track in the comment below.
-// TODO(UX-SWEEP-#4): real time-axis grid pending. When built, lay out as
-// 8-column grid (hour gutter + 7 days), rows = hour buckets, jobs
-// absolutely-positioned by scheduled_time / estimated_duration_minutes.
+// Events are absolutely-positioned in each day column by scheduled_time
+// and either scheduled_end_time, estimated_duration_minutes, or a 60-min
+// fallback. Overlapping events are laid out side-by-side via a simple
+// column-packing algorithm. An all-day strip above the hour grid shows
+// jobs with no scheduled_time. A red "now" line tracks the current minute
+// when today is in view.
 // ============================================================
+const WEEK_START_HOUR = 6
+const WEEK_END_HOUR = 22 // exclusive upper bound for label loop; grid covers 06:00–22:00
+const WEEK_HOUR_HEIGHT = 48 // px — matches Tailwind h-12
+const WEEK_GRID_HOURS = WEEK_END_HOUR - WEEK_START_HOUR
+const WEEK_GRID_HEIGHT = WEEK_GRID_HOURS * WEEK_HOUR_HEIGHT
+const WEEK_FALLBACK_DURATION_MIN = 60
+
+interface PositionedJob {
+  job: ScheduleJob
+  startMin: number // minutes since midnight (local)
+  endMin: number
+  startClamped: boolean // event begins before WEEK_START_HOUR
+  endClamped: boolean // event ends after WEEK_END_HOUR
+  col: number
+  nCols: number
+}
+
+// Resolve a job's [startMin, endMin] in *local* minutes from midnight.
+// Returns null if the job is all-day (no scheduled_time).
+function resolveJobMinutes(job: ScheduleJob): { startMin: number; endMin: number } | null {
+  if (!job.scheduled_time) return null
+  const start = new Date(job.scheduled_time)
+  const startMin = start.getHours() * 60 + start.getMinutes()
+
+  let endMin: number
+  if (job.scheduled_end_time) {
+    const end = new Date(job.scheduled_end_time)
+    // Use local minutes since midnight of the *same* day as start. If end is
+    // on the following day, clamp to end-of-day (1440) so the event spans
+    // the rest of the visible grid rather than wrapping.
+    if (sameDay(start, end)) {
+      endMin = end.getHours() * 60 + end.getMinutes()
+    } else {
+      endMin = 24 * 60
+    }
+  } else if (job.estimated_duration_minutes && job.estimated_duration_minutes > 0) {
+    endMin = startMin + job.estimated_duration_minutes
+  } else {
+    endMin = startMin + WEEK_FALLBACK_DURATION_MIN
+  }
+  if (endMin <= startMin) endMin = startMin + 15 // guard against degenerate ranges
+  return { startMin, endMin }
+}
+
+// Column-pack a day's events: for each event, place it in the leftmost
+// column whose previous event ends ≤ this event's start. Then sweep groups
+// of overlapping events to assign each its column-count `nCols`.
+function layoutDayEvents(jobs: ScheduleJob[]): PositionedJob[] {
+  const timed: PositionedJob[] = []
+  for (const job of jobs) {
+    const minutes = resolveJobMinutes(job)
+    if (!minutes) continue
+    const { startMin, endMin } = minutes
+    timed.push({
+      job,
+      startMin,
+      endMin,
+      startClamped: startMin < WEEK_START_HOUR * 60,
+      endClamped: endMin > WEEK_END_HOUR * 60,
+      col: 0,
+      nCols: 1,
+    })
+  }
+  timed.sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin)
+
+  // Assign each event to the leftmost open column.
+  const colEnds: number[] = []
+  for (const ev of timed) {
+    let placed = false
+    for (let i = 0; i < colEnds.length; i++) {
+      if (colEnds[i] <= ev.startMin) {
+        ev.col = i
+        colEnds[i] = ev.endMin
+        placed = true
+        break
+      }
+    }
+    if (!placed) {
+      ev.col = colEnds.length
+      colEnds.push(ev.endMin)
+    }
+  }
+
+  // Walk again and tag each event with the width of the cluster it belongs
+  // to (max concurrent columns across its lifetime). Cluster = chain of
+  // events where each overlaps at least one other.
+  let i = 0
+  while (i < timed.length) {
+    let clusterEnd = timed[i].endMin
+    let j = i + 1
+    while (j < timed.length && timed[j].startMin < clusterEnd) {
+      clusterEnd = Math.max(clusterEnd, timed[j].endMin)
+      j++
+    }
+    let maxCol = 0
+    for (let k = i; k < j; k++) maxCol = Math.max(maxCol, timed[k].col)
+    const nCols = maxCol + 1
+    for (let k = i; k < j; k++) timed[k].nCols = nCols
+    i = j
+  }
+  return timed
+}
+
+function formatHourLabel(hour: number): string {
+  if (hour === 0) return '12 AM'
+  if (hour === 12) return '12 PM'
+  return hour > 12 ? `${hour - 12} PM` : `${hour} AM`
+}
+
 function WeekView({
   days,
   jobsByDate,
@@ -614,55 +722,94 @@ function WeekView({
   onSelectSlot: (date: Date) => void
 }) {
   const today = startOfDay(new Date())
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [now, setNow] = useState<Date>(() => new Date())
+
+  // Tick "now" every minute so the red indicator moves.
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(id)
+  }, [])
+
+  // On first mount (and when the visible week changes), scroll the grid so
+  // the most useful row is near the top: the current hour if today is in
+  // view, otherwise 8 AM.
+  const todayInView = days.some((d) => sameDay(d, today))
+  const firstDayKey = days[0] ? ymd(days[0]) : ''
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const targetHour = todayInView
+      ? Math.max(WEEK_START_HOUR, Math.min(WEEK_END_HOUR - 1, now.getHours()))
+      : 8
+    const top = Math.max(0, (targetHour - WEEK_START_HOUR) * WEEK_HOUR_HEIGHT - WEEK_HOUR_HEIGHT)
+    el.scrollTo({ top, behavior: 'auto' })
+    // We intentionally only re-run when the week or "today in view" changes
+    // — not every minute when `now` ticks, which would yank the user's scroll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstDayKey, todayInView])
+
+  // Per-day layout: timed events for the grid + all-day events for the strip.
+  const perDay = useMemo(() => {
+    return days.map((day) => {
+      const dayJobs = jobsByDate.get(ymd(day)) || []
+      const allDay = dayJobs.filter((j) => !j.scheduled_time)
+      const positioned = layoutDayEvents(dayJobs)
+      return { day, allDay, positioned }
+    })
+  }, [days, jobsByDate])
+
+  const allDayRows = Math.max(0, ...perDay.map((d) => d.allDay.length))
+
+  // Now indicator: only shown if today is in this week AND `now` falls
+  // inside the visible hour range.
+  const nowMin = now.getHours() * 60 + now.getMinutes()
+  const showNowLine =
+    todayInView && nowMin >= WEEK_START_HOUR * 60 && nowMin <= WEEK_END_HOUR * 60
+  const nowTopPx = ((nowMin - WEEK_START_HOUR * 60) / 60) * WEEK_HOUR_HEIGHT
+
   return (
     <Card>
       <CardContent className="p-0 overflow-x-auto">
-        <div className="grid grid-cols-7 min-w-[700px]">
-          {days.map((day) => {
-            const isToday = sameDay(day, today)
-            const dayJobs = jobsByDate.get(ymd(day)) || []
-            const count = dayJobs.length
-            return (
-              <div key={ymd(day)} className="border-r last:border-r-0">
+        <div className="min-w-[840px]">
+          {/* Day header row: empty time-gutter cell + 7 day headers */}
+          <div className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b bg-zinc-50">
+            <div className="border-r" />
+            {days.map((day) => {
+              const isToday = sameDay(day, today)
+              return (
                 <div
-                  className={`px-2 py-2 text-center border-b ${
-                    isToday ? 'bg-zinc-900 text-white' : 'bg-zinc-50'
+                  key={ymd(day)}
+                  className={`px-2 py-2 text-center border-r last:border-r-0 ${
+                    isToday ? 'bg-zinc-900 text-white' : ''
                   }`}
                 >
                   <div className="text-[10px] uppercase tracking-wider opacity-70">
                     {DAY_NAMES[day.getDay()]}
                   </div>
-                  <div className="flex items-center justify-center gap-1.5">
-                    <div className="text-sm font-semibold">{day.getDate()}</div>
-                    {/* UX-SWEEP-#4: event-count chip — makes it obvious this is a
-                        day-summary view, not a time grid */}
-                    {count > 0 && (
-                      <span
-                        className={`inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[10px] font-medium ${
-                          isToday
-                            ? 'bg-white/20 text-white'
-                            : 'bg-zinc-200 text-zinc-700'
-                        }`}
-                      >
-                        {count}
-                      </span>
-                    )}
-                  </div>
+                  <div className="text-sm font-semibold">{day.getDate()}</div>
                 </div>
+              )
+            })}
+          </div>
+
+          {/* All-day strip — one row per stacked all-day event, only rendered
+              if at least one day has any */}
+          {allDayRows > 0 && (
+            <div className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b bg-white">
+              <div className="border-r px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground flex items-start">
+                All-day
+              </div>
+              {perDay.map(({ day, allDay }) => (
                 <div
-                  className="min-h-[360px] p-1 space-y-1 cursor-pointer hover:bg-zinc-50/50 transition-colors"
-                  onClick={(e) => {
-                    if (e.target === e.currentTarget) {
-                      const slot = new Date(day)
-                      slot.setHours(9, 0, 0, 0)
-                      onSelectSlot(slot)
-                    }
-                  }}
+                  key={ymd(day)}
+                  className="border-r last:border-r-0 p-1 space-y-1"
+                  style={{ minHeight: allDayRows * 22 }}
                 >
-                  {dayJobs.map((job) => (
+                  {allDay.map((job) => (
                     <div
                       key={job.id}
-                      className="rounded px-1.5 py-1 text-[10px] cursor-pointer hover:opacity-90 transition-opacity"
+                      className="rounded px-1.5 py-0.5 text-[10px] cursor-pointer hover:opacity-90 transition-opacity truncate"
                       style={{
                         backgroundColor: getJobColor(job) + '20',
                         borderLeft: `3px solid ${getJobColor(job)}`,
@@ -671,23 +818,139 @@ function WeekView({
                         e.stopPropagation()
                         onSelectJob(job)
                       }}
+                      title={job.clients?.company_name || ''}
                     >
-                      <div className="flex items-baseline gap-1">
-                        {job.scheduled_time && (
-                          <span className="font-semibold">
-                            {formatTime(job.scheduled_time)}
-                          </span>
-                        )}
-                        <span className="font-medium truncate">
-                          {job.clients?.company_name}
-                        </span>
-                      </div>
+                      <span className="font-medium">
+                        {job.clients?.company_name || 'Untitled'}
+                      </span>
                     </div>
                   ))}
                 </div>
+              ))}
+            </div>
+          )}
+
+          {/* Hour grid — scrollable region */}
+          <div
+            ref={scrollRef}
+            className="overflow-y-auto"
+            style={{ maxHeight: WEEK_GRID_HEIGHT }}
+          >
+            <div
+              className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] relative"
+              style={{ height: WEEK_GRID_HEIGHT }}
+            >
+              {/* Hour gutter */}
+              <div className="border-r relative bg-white">
+                {Array.from({ length: WEEK_GRID_HOURS }, (_, i) => {
+                  const hour = WEEK_START_HOUR + i
+                  return (
+                    <div
+                      key={hour}
+                      className="border-b text-[10px] text-muted-foreground px-1 text-right"
+                      style={{ height: WEEK_HOUR_HEIGHT }}
+                    >
+                      <span className="relative -top-1.5 inline-block">
+                        {formatHourLabel(hour)}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
-            )
-          })}
+
+              {/* Day columns */}
+              {perDay.map(({ day, positioned }) => {
+                const isToday = sameDay(day, today)
+                return (
+                  <div
+                    key={ymd(day)}
+                    className={`border-r last:border-r-0 relative ${
+                      isToday ? 'bg-blue-50/30' : 'bg-white'
+                    }`}
+                  >
+                    {/* Hour rows — clickable for quick-create */}
+                    {Array.from({ length: WEEK_GRID_HOURS }, (_, i) => {
+                      const hour = WEEK_START_HOUR + i
+                      return (
+                        <div
+                          key={hour}
+                          className="border-b hover:bg-zinc-50 cursor-pointer transition-colors"
+                          style={{ height: WEEK_HOUR_HEIGHT }}
+                          onClick={(e) => {
+                            if (e.target !== e.currentTarget) return
+                            const slot = new Date(day)
+                            slot.setHours(hour, 0, 0, 0)
+                            onSelectSlot(slot)
+                          }}
+                        />
+                      )
+                    })}
+
+                    {/* Positioned events */}
+                    {positioned.map(
+                      ({ job, startMin, endMin, startClamped, endClamped, col, nCols }) => {
+                        const visStart = Math.max(startMin, WEEK_START_HOUR * 60)
+                        const visEnd = Math.min(endMin, WEEK_END_HOUR * 60)
+                        const top = ((visStart - WEEK_START_HOUR * 60) / 60) * WEEK_HOUR_HEIGHT
+                        const rawHeight = ((visEnd - visStart) / 60) * WEEK_HOUR_HEIGHT
+                        const height = Math.max(24, rawHeight)
+                        const widthPct = 100 / nCols
+                        const leftPct = (col * 100) / nCols
+                        const color = getJobColor(job)
+                        return (
+                          <button
+                            key={job.id}
+                            type="button"
+                            className="absolute overflow-hidden rounded text-left text-[10px] hover:opacity-90 transition-opacity focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                            style={{
+                              top,
+                              height,
+                              left: `calc(${leftPct}% + 1px)`,
+                              width: `calc(${widthPct}% - 5px)`,
+                              backgroundColor: color + '20',
+                              borderLeft: `2px solid ${color}`,
+                              // Dashed top/bottom hint for events that extend
+                              // beyond the visible hour range.
+                              borderTop: startClamped ? `1px dashed ${color}` : undefined,
+                              borderBottom: endClamped ? `1px dashed ${color}` : undefined,
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onSelectJob(job)
+                            }}
+                            title={`${job.clients?.company_name || ''} — ${
+                              job.sites?.address || job.sites?.name || ''
+                            }`}
+                          >
+                            <div className="px-1 py-0.5 leading-tight">
+                              <div className="font-semibold">
+                                {formatTime(job.scheduled_time)}
+                              </div>
+                              <div className="truncate">
+                                {job.clients?.company_name || 'Untitled'}
+                              </div>
+                            </div>
+                          </button>
+                        )
+                      }
+                    )}
+                  </div>
+                )
+              })}
+
+              {/* Now indicator — a thin red line spanning all 7 day columns,
+                  starting after the time gutter */}
+              {showNowLine && (
+                <div
+                  className="pointer-events-none absolute left-[56px] right-0 z-10 flex items-center"
+                  style={{ top: nowTopPx }}
+                >
+                  <div className="h-2 w-2 -ml-1 rounded-full bg-red-500" />
+                  <div className="h-px flex-1 bg-red-500" />
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>

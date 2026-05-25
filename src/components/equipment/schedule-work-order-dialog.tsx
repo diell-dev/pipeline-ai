@@ -23,6 +23,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -323,18 +324,23 @@ export function ScheduleWorkOrderDialog({
   // ── Render ──────────────────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <PlayCircle className="h-5 w-5" />
-            Schedule Work Order
+            Schedule work order
           </DialogTitle>
           <DialogDescription className="break-words">
-            For <span className="font-medium">{equipmentLabel}</span>
+            For <span className="font-medium text-foreground">{equipmentLabel}</span>
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form
+          onSubmit={handleSubmit}
+          id="schedule-work-order-form"
+          className="contents"
+        >
+          <DialogBody className="space-y-5">
           {/* Step 1 — Who */}
           <section className="space-y-2">
             <Label className="flex items-center gap-2 text-sm font-semibold">
@@ -574,6 +580,7 @@ export function ScheduleWorkOrderDialog({
               </Badge>
             )}
           </div>
+          </DialogBody>
 
           <DialogFooter>
             <Button

@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -467,14 +468,19 @@ export default function RecurringPage() {
 
       {/* Wizard Dialog */}
       <Dialog open={showWizard} onOpenChange={setShowWizard}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>New Recurring Schedule</DialogTitle>
+            <DialogTitle>New recurring schedule</DialogTitle>
             <DialogDescription>
               Set up an auto-recurring job. The system will create the actual job a few days before each occurrence.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form
+            onSubmit={handleSubmit}
+            id="recurring-wizard-form"
+            className="contents"
+          >
+          <DialogBody className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Client *</Label>
@@ -670,6 +676,7 @@ export default function RecurringPage() {
                 ))}
               </div>
             </div>
+            </DialogBody>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowWizard(false)}>
@@ -711,16 +718,20 @@ export default function RecurringPage() {
               auto-created before that date.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="pause-until">Pause until</Label>
-            <Input
-              id="pause-until"
-              type="date"
-              value={pauseUntilDate}
-              min={new Date().toISOString().slice(0, 10)}
-              onChange={(e) => setPauseUntilDate(e.target.value)}
-            />
-          </div>
+          <DialogBody>
+            <div className="space-y-1.5">
+              <Label htmlFor="pause-until" required>
+                Pause until
+              </Label>
+              <Input
+                id="pause-until"
+                type="date"
+                value={pauseUntilDate}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setPauseUntilDate(e.target.value)}
+              />
+            </div>
+          </DialogBody>
           <DialogFooter>
             <Button
               type="button"

@@ -19,6 +19,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { SkeletonList } from '@/components/ui/skeleton'
+import { KPICard } from '@/components/ui/kpi-card'
+import { PageHeader } from '@/components/ui/page-header'
 import { toast } from 'sonner'
 import {
   DollarSign,
@@ -332,76 +334,81 @@ export default function FinancesPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Finances</h1>
-        <p className="text-muted-foreground text-sm">
-          Revenue tracking, payment status, and financial overview.
-        </p>
-      </div>
+      <PageHeader
+        title="Finances"
+        subtitle="Revenue tracking, payment status, and financial overview."
+      />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center gap-2 text-muted-foreground mb-1">
-              <TrendingUp className="h-4 w-4" />
-              <span className="text-xs font-medium">Revenue This Month</span>
-            </div>
-            <p className="text-2xl font-bold">
-              ${(stats?.revenueThisMonth || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </p>
-            {revenueChange !== null && (
-              <p className={`text-xs mt-1 ${revenueChangeColor}`}>
-                {revenueChange >= 0 ? '+' : ''}{revenueChange}% vs last month
-              </p>
-            )}
-          </CardContent>
-        </Card>
+      {/* KPI Cards — Phase C shared KPICard */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <KPICard
+          icon={TrendingUp}
+          label="Revenue this month"
+          value={`$${(stats?.revenueThisMonth || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+          helper={
+            revenueChange !== null ? (
+              <span className={revenueChangeColor}>
+                {revenueChange >= 0 ? '+' : ''}
+                {revenueChange}% vs last month
+              </span>
+            ) : undefined
+          }
+          trend={
+            revenueChange !== null
+              ? {
+                  value: `${Math.abs(revenueChange)}%`,
+                  direction:
+                    revenueChange > 0 ? 'up' : revenueChange < 0 ? 'down' : 'flat',
+                }
+              : undefined
+          }
+        />
 
-        <Card>
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center gap-2 text-muted-foreground mb-1">
-              <Clock className="h-4 w-4" />
-              <span className="text-xs font-medium">Outstanding</span>
-            </div>
-            <p className="text-2xl font-bold text-amber-600">
-              ${(stats?.outstanding || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {stats?.unpaidCount || 0} unpaid invoice{(stats?.unpaidCount || 0) !== 1 ? 's' : ''}
-            </p>
-          </CardContent>
-        </Card>
+        <KPICard
+          icon={Clock}
+          label="Outstanding"
+          value={
+            <span className="text-amber-600">
+              ${(stats?.outstanding || 0).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+              })}
+            </span>
+          }
+          helper={`${stats?.unpaidCount || 0} unpaid invoice${
+            (stats?.unpaidCount || 0) !== 1 ? 's' : ''
+          }`}
+        />
 
-        <Card>
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center gap-2 text-muted-foreground mb-1">
-              <CheckCircle2 className="h-4 w-4" />
-              <span className="text-xs font-medium">Collected</span>
-            </div>
-            <p className="text-2xl font-bold text-green-600">
-              ${(stats?.collected || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {stats?.paidCount || 0} paid invoice{(stats?.paidCount || 0) !== 1 ? 's' : ''}
-            </p>
-          </CardContent>
-        </Card>
+        <KPICard
+          icon={CheckCircle2}
+          label="Collected"
+          value={
+            <span className="text-emerald-600">
+              ${(stats?.collected || 0).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+              })}
+            </span>
+          }
+          helper={`${stats?.paidCount || 0} paid invoice${
+            (stats?.paidCount || 0) !== 1 ? 's' : ''
+          }`}
+        />
 
-        <Card className={stats?.overdue ? 'border-red-200 bg-red-50/30' : ''}>
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center gap-2 text-muted-foreground mb-1">
-              <AlertTriangle className="h-4 w-4" />
-              <span className="text-xs font-medium">Overdue</span>
-            </div>
-            <p className={`text-2xl font-bold ${stats?.overdue ? 'text-red-600' : ''}`}>
-              ${(stats?.overdue || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {stats?.overdueCount || 0} overdue invoice{(stats?.overdueCount || 0) !== 1 ? 's' : ''}
-            </p>
-          </CardContent>
-        </Card>
+        <KPICard
+          icon={AlertTriangle}
+          label="Overdue"
+          value={
+            <span className={stats?.overdue ? 'text-red-600' : ''}>
+              ${(stats?.overdue || 0).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+              })}
+            </span>
+          }
+          helper={`${stats?.overdueCount || 0} overdue invoice${
+            (stats?.overdueCount || 0) !== 1 ? 's' : ''
+          }`}
+          className={stats?.overdue ? 'ring-red-200' : undefined}
+        />
       </div>
 
       {/* Filters */}

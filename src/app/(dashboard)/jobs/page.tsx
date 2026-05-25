@@ -18,6 +18,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { SkeletonList } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '@/components/ui/page-header'
 import {
   ClipboardList,
   Plus,
@@ -191,24 +193,26 @@ export default function JobsPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header — stacks on mobile, side-by-side on sm+ */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-            {canViewAll ? 'All Jobs' : 'My Jobs'}
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            {canViewAll
-              ? 'Manage field service jobs, submissions, and approvals.'
-              : 'Your submitted jobs and their current status.'}
-          </p>
-        </div>
-        {canCreate && (
-          <Button variant="brand" onClick={() => router.push('/jobs/new')} className="w-full sm:w-auto">
-            <Plus className="mr-2 h-4 w-4" />
-            New Job
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title={canViewAll ? 'All Jobs' : 'My Jobs'}
+        subtitle={
+          canViewAll
+            ? 'Manage field service jobs, submissions, and approvals.'
+            : 'Your submitted jobs and their current status.'
+        }
+        actions={
+          canCreate && (
+            <Button
+              variant="brand"
+              onClick={() => router.push('/jobs/new')}
+              className="w-full sm:w-auto"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              New Job
+            </Button>
+          )
+        }
+      />
 
       {/* Filters row: Client dropdown + Status tabs */}
       <div className="flex flex-wrap items-center gap-4">
@@ -371,25 +375,23 @@ export default function JobsPage() {
 
       {/* Empty state */}
       {!loading && jobs.length === 0 && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <ClipboardList className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-semibold mb-1">
-              {filter !== 'all' ? 'No jobs with this status' : 'No jobs yet'}
-            </h3>
-            <p className="text-sm text-muted-foreground text-center max-w-md">
-              {canCreate
-                ? 'Click "New Job" to submit your first field service job.'
-                : 'Jobs will appear here once submitted.'}
-            </p>
-            {canCreate && (
-              <Button className="mt-4" onClick={() => router.push('/jobs/new')}>
+        <EmptyState
+          icon={ClipboardList}
+          title={filter !== 'all' ? 'No jobs with this status' : 'No jobs yet'}
+          description={
+            canCreate
+              ? 'Click "New Job" to submit your first field service job.'
+              : 'Jobs will appear here once submitted.'
+          }
+          action={
+            canCreate && (
+              <Button onClick={() => router.push('/jobs/new')}>
                 <Plus className="mr-2 h-4 w-4" />
-                Submit First Job
+                Submit first job
               </Button>
-            )}
-          </CardContent>
-        </Card>
+            )
+          }
+        />
       )}
 
       {/* Job list

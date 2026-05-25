@@ -14,6 +14,7 @@
 import { useEffect, useState } from 'react'
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -159,7 +160,7 @@ export function AddChildEquipmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Add sub-unit</DialogTitle>
           <DialogDescription>
@@ -169,96 +170,110 @@ export function AddChildEquipmentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSave} className="space-y-4">
-          {/* Read-only context */}
-          <div className="rounded-md border bg-muted/40 p-3 text-sm space-y-1">
-            <p>
-              <span className="text-muted-foreground">Parent: </span>
-              <span className="font-medium break-words">{parentLabel}</span>
-            </p>
-            {siteName && (
+        <form
+          onSubmit={handleSave}
+          id="add-child-equipment-form"
+          className="contents"
+        >
+          <DialogBody className="space-y-5">
+            {/* Read-only context */}
+            <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm space-y-1">
               <p>
-                <span className="text-muted-foreground">Site: </span>
-                <span className="break-words">{siteName}</span>
+                <span className="text-muted-foreground">Parent: </span>
+                <span className="font-medium break-words">{parentLabel}</span>
               </p>
-            )}
-          </div>
-
-          <div>
-            <Label htmlFor="child_category">
-              Category <span className="text-red-600">*</span>
-            </Label>
-            <Select
-              value={form.category_id}
-              onValueChange={(v) => setForm({ ...form, category_id: v || '' })}
-            >
-              <SelectTrigger id="child_category">
-                <SelectValue
-                  placeholder={categoriesLoading ? 'Loading…' : 'Pick a category'}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.icon ? `${c.icon} ` : ''}
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="child_unit_number">Unit number</Label>
-              <Input
-                id="child_unit_number"
-                value={form.unit_number}
-                onChange={(e) => setForm({ ...form, unit_number: e.target.value })}
-                placeholder="e.g. Compressor #2"
-              />
+              {siteName && (
+                <p>
+                  <span className="text-muted-foreground">Site: </span>
+                  <span className="break-words">{siteName}</span>
+                </p>
+              )}
             </div>
-            <div>
-              <Label htmlFor="child_common_area_name">Common area name</Label>
-              <Input
-                id="child_common_area_name"
-                value={form.common_area_name}
-                onChange={(e) =>
-                  setForm({ ...form, common_area_name: e.target.value })
+
+            <div className="space-y-1.5">
+              <Label htmlFor="child_category" required>
+                Category
+              </Label>
+              <Select
+                value={form.category_id}
+                onValueChange={(v) =>
+                  setForm({ ...form, category_id: v || '' })
                 }
-                placeholder="e.g. Inside chiller"
-              />
+              >
+                <SelectTrigger id="child_category">
+                  <SelectValue
+                    placeholder={
+                      categoriesLoading ? 'Loading…' : 'Pick a category'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.icon ? `${c.icon} ` : ''}
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="child_make">Make</Label>
-              <Input
-                id="child_make"
-                value={form.make}
-                onChange={(e) => setForm({ ...form, make: e.target.value })}
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="child_unit_number">Unit number</Label>
+                <Input
+                  id="child_unit_number"
+                  value={form.unit_number}
+                  onChange={(e) =>
+                    setForm({ ...form, unit_number: e.target.value })
+                  }
+                  placeholder="e.g. Compressor #2"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="child_common_area_name">Common area name</Label>
+                <Input
+                  id="child_common_area_name"
+                  value={form.common_area_name}
+                  onChange={(e) =>
+                    setForm({ ...form, common_area_name: e.target.value })
+                  }
+                  placeholder="e.g. Inside chiller"
+                />
+              </div>
             </div>
-            <div>
-              <Label htmlFor="child_model">Model</Label>
-              <Input
-                id="child_model"
-                value={form.model}
-                onChange={(e) => setForm({ ...form, model: e.target.value })}
-              />
-            </div>
-          </div>
 
-          <div>
-            <Label htmlFor="child_serial">Serial number</Label>
-            <Input
-              id="child_serial"
-              value={form.serial_number}
-              onChange={(e) => setForm({ ...form, serial_number: e.target.value })}
-              className="font-mono"
-            />
-          </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="child_make">Make</Label>
+                <Input
+                  id="child_make"
+                  value={form.make}
+                  onChange={(e) => setForm({ ...form, make: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="child_model">Model</Label>
+                <Input
+                  id="child_model"
+                  value={form.model}
+                  onChange={(e) => setForm({ ...form, model: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="child_serial">Serial number</Label>
+              <Input
+                id="child_serial"
+                value={form.serial_number}
+                onChange={(e) =>
+                  setForm({ ...form, serial_number: e.target.value })
+                }
+                className="font-mono"
+              />
+            </div>
+          </DialogBody>
 
           <DialogFooter>
             <Button

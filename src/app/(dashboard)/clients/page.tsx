@@ -27,6 +27,8 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { SkeletonList } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '@/components/ui/page-header'
 import { Building2, Plus, Loader2, Search, Phone, Mail, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Client, ClientType, PaymentTerms, ServiceContractType } from '@/types/database'
@@ -158,22 +160,22 @@ export default function ClientsPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Clients</h1>
-          <p className="text-muted-foreground text-sm">
-            {canCreate
-              ? 'Manage client accounts, contacts, and sites.'
-              : 'View client information.'}
-          </p>
-        </div>
-        {canCreate && (
-          <Button onClick={() => setShowAddDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Client
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Clients"
+        subtitle={
+          canCreate
+            ? 'Manage client accounts, contacts, and sites.'
+            : 'View client information.'
+        }
+        actions={
+          canCreate && (
+            <Button onClick={() => setShowAddDialog(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Client
+            </Button>
+          )
+        }
+      />
 
       {/* Search */}
       <div className="relative max-w-md">
@@ -189,30 +191,27 @@ export default function ClientsPage() {
       {/* Loading — content-shaped skeleton instead of a centered spinner */}
       {loading && <SkeletonList rows={6} />}
 
-      {/* Empty state — UX-SWEEP-#23: match the /proposals empty-state pattern
-          (icon + heading + helper + CTA). Only show CTA when not just a search miss. */}
+      {/* Empty state — UX-SWEEP-#23 / Phase C: shared EmptyState component */}
       {!loading && filtered.length === 0 && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Building2 className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-semibold mb-1">
-              {search ? 'No matching clients' : 'No clients yet'}
-            </h3>
-            <p className="text-sm text-muted-foreground text-center max-w-md">
-              {search
-                ? 'Try a different search term, or clear the search to see all clients.'
-                : canCreate
-                  ? 'Add your first client to start tracking sites, equipment, and jobs.'
-                  : 'No clients have been added yet.'}
-            </p>
-            {!search && canCreate && (
-              <Button className="mt-4" onClick={() => setShowAddDialog(true)}>
+        <EmptyState
+          icon={Building2}
+          title={search ? 'No matching clients' : 'No clients yet'}
+          description={
+            search
+              ? 'Try a different search term, or clear the search to see all clients.'
+              : canCreate
+                ? 'Add your first client to start tracking sites, equipment, and jobs.'
+                : 'No clients have been added yet.'
+          }
+          action={
+            !search && canCreate ? (
+              <Button onClick={() => setShowAddDialog(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Client
               </Button>
-            )}
-          </CardContent>
-        </Card>
+            ) : undefined
+          }
+        />
       )}
 
       {/* Client list */}

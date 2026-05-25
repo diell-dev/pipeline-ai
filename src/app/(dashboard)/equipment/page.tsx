@@ -18,6 +18,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
 import { hasPermission, type Permission } from '@/lib/permissions'
 import { Card, CardContent } from '@/components/ui/card'
+import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -273,35 +275,33 @@ export default function EquipmentListPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Equipment</h1>
-          <p className="text-muted-foreground text-sm">
-            HVAC and mechanical assets registered across your client sites.
-          </p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          {canManageBatches && (
-            <Button
-              variant="outline"
-              className="min-h-10 w-full sm:w-auto"
-              onClick={() => router.push('/equipment/qr-batches')}
-            >
-              <QrCode className="mr-2 h-4 w-4" />
-              QR Batches
-            </Button>
-          )}
-          {canRegister && (
-            <Button
-              className="min-h-10 w-full sm:w-auto"
-              onClick={() => router.push('/equipment/scan')}
-            >
-              <ScanLine className="mr-2 h-4 w-4" />
-              Scan
-            </Button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title="Equipment"
+        subtitle="HVAC and mechanical assets registered across your client sites."
+        actions={
+          <>
+            {canManageBatches && (
+              <Button
+                variant="outline"
+                className="min-h-10 w-full sm:w-auto"
+                onClick={() => router.push('/equipment/qr-batches')}
+              >
+                <QrCode className="mr-2 h-4 w-4" />
+                QR Batches
+              </Button>
+            )}
+            {canRegister && (
+              <Button
+                className="min-h-10 w-full sm:w-auto"
+                onClick={() => router.push('/equipment/scan')}
+              >
+                <ScanLine className="mr-2 h-4 w-4" />
+                Scan
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {/* Filter row */}
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
@@ -468,23 +468,23 @@ export default function EquipmentListPage() {
 
       {/* Empty */}
       {!loading && filteredEquipment.length === 0 && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Wrench className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-semibold mb-1">No equipment yet</h3>
-            <p className="text-sm text-muted-foreground text-center max-w-md">
-              {canRegister
-                ? 'Scan a QR sticker from a unit to register your first piece of equipment.'
-                : 'Equipment will appear here once your techs register units in the field.'}
-            </p>
-            {canRegister && (
-              <Button className="mt-4" onClick={() => router.push('/equipment/scan')}>
+        <EmptyState
+          icon={Wrench}
+          title="No equipment yet"
+          description={
+            canRegister
+              ? 'Scan a QR sticker from a unit to register your first piece of equipment.'
+              : 'Equipment will appear here once your techs register units in the field.'
+          }
+          action={
+            canRegister && (
+              <Button onClick={() => router.push('/equipment/scan')}>
                 <Plus className="mr-2 h-4 w-4" />
-                Scan to Register
+                Scan to register
               </Button>
-            )}
-          </CardContent>
-        </Card>
+            )
+          }
+        />
       )}
 
       {/* Mobile cards (default) / Desktop table (lg+) */}

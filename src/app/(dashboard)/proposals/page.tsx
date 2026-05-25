@@ -13,11 +13,12 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
 import { hasPermission } from '@/lib/permissions'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { SkeletonList } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '@/components/ui/page-header'
 import {
   FileSignature,
   Plus,
@@ -128,22 +129,18 @@ export default function ProposalsPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            {canViewAll ? 'Proposals & Estimates' : 'My Proposals'}
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            First-visit estimates that turn into jobs once signed.
-          </p>
-        </div>
-        {canCreate && (
-          <Button variant="brand" onClick={() => router.push('/proposals/new')}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Proposal
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title={canViewAll ? 'Proposals & Estimates' : 'My Proposals'}
+        subtitle="First-visit estimates that turn into jobs once signed."
+        actions={
+          canCreate && (
+            <Button variant="brand" onClick={() => router.push('/proposals/new')}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Proposal
+            </Button>
+          )
+        }
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
@@ -248,25 +245,27 @@ export default function ProposalsPage() {
       {loading && <SkeletonList rows={5} />}
 
       {!loading && proposals.length === 0 && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <FileSignature className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-semibold mb-1">
-              {statusFilter !== 'all' ? 'No proposals with this status' : 'No proposals yet'}
-            </h3>
-            <p className="text-sm text-muted-foreground text-center max-w-md">
-              {canCreate
-                ? 'Create a first-visit estimate that the client can review and sign online.'
-                : 'Proposals will appear here once created.'}
-            </p>
-            {canCreate && (
-              <Button className="mt-4" onClick={() => router.push('/proposals/new')}>
+        <EmptyState
+          icon={FileSignature}
+          title={
+            statusFilter !== 'all'
+              ? 'No proposals with this status'
+              : 'No proposals yet'
+          }
+          description={
+            canCreate
+              ? 'Create a first-visit estimate that the client can review and sign online.'
+              : 'Proposals will appear here once created.'
+          }
+          action={
+            canCreate && (
+              <Button onClick={() => router.push('/proposals/new')}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Proposal
               </Button>
-            )}
-          </CardContent>
-        </Card>
+            )
+          }
+        />
       )}
 
       {!loading && proposals.length > 0 && (

@@ -13,6 +13,10 @@
  *   >
  *     <Button>Mark Paid</Button>
  *   </MarkPaidDialog>
+ *
+ * Phase C polish: uses DialogBody + sticky DialogFooter so the action row
+ * stays visible while the user scrolls a longer form (notes textarea), and
+ * required-field markers come from the shared <Label required> primitive.
  */
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
@@ -20,6 +24,7 @@ import { Loader2, CheckCircle2 } from 'lucide-react'
 
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -30,6 +35,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 type PaymentMethod = 'check' | 'ach' | 'wire' | 'credit_card' | 'cash' | 'other'
 
@@ -154,130 +166,146 @@ export function MarkPaidDialog({ invoice, onSuccess, children }: MarkPaidDialogP
       </span>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-green-600" />
-            Mark Invoice Paid
-          </DialogTitle>
-          <DialogDescription>
-            {invoice.invoice_number ? (
-              <>
-                Record a payment for invoice{' '}
-                <span className="font-mono font-medium">
-                  {invoice.invoice_number}
-                </span>
-                .
-              </>
-            ) : (
-              'Record a payment for this invoice.'
-            )}
-          </DialogDescription>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Paid date */}
-          <div className="space-y-2">
-            <Label htmlFor="paid_date">Payment Date *</Label>
-            <Input
-              id="paid_date"
-              type="date"
-              value={paidDate}
-              onChange={(e) => setPaidDate(e.target.value)}
-              required
-            />
-          </div>
-
-          {/* Paid amount */}
-          <div className="space-y-2">
-            <Label htmlFor="paid_amount">Amount Paid *</Label>
-            <Input
-              id="paid_amount"
-              type="number"
-              inputMode="decimal"
-              min="0.01"
-              step="0.01"
-              value={paidAmount}
-              onChange={(e) => setPaidAmount(e.target.value)}
-              required
-            />
-            <p className="text-xs text-muted-foreground">
-              Invoice total:{' '}
-              <span className="font-medium">
-                ${invoice.total_amount.toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                })}
-              </span>
-              . If less than the total, the invoice will be marked partially paid.
-            </p>
-          </div>
-
-          {/* Payment method */}
-          <div className="space-y-2">
-            <Label htmlFor="payment_method">Payment Method *</Label>
-            <select
-              id="payment_method"
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-              className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              {PAYMENT_METHOD_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Reference number — only for check/wire */}
-          {showReference && (
-            <div className="space-y-2">
-              <Label htmlFor="reference_number">{referenceLabel}</Label>
-              <Input
-                id="reference_number"
-                type="text"
-                value={referenceNumber}
-                onChange={(e) => setReferenceNumber(e.target.value)}
-                placeholder={referencePlaceholder}
-              />
-            </div>
-          )}
-
-          {/* Notes */}
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notes (optional)</Label>
-            <Textarea
-              id="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Anything else worth noting about this payment..."
-              rows={3}
-            />
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={submitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? (
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              Mark invoice paid
+            </DialogTitle>
+            <DialogDescription>
+              {invoice.invoice_number ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
+                  Record a payment for invoice{' '}
+                  <span className="font-mono font-medium">
+                    {invoice.invoice_number}
+                  </span>
+                  .
                 </>
               ) : (
-                <>
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                  Mark Paid
-                </>
+                'Record a payment for this invoice.'
               )}
-            </Button>
-          </DialogFooter>
-        </form>
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={handleSubmit}
+            id="mark-paid-form"
+            className="contents"
+          >
+            <DialogBody className="space-y-4">
+              {/* Payment date + amount as a pair */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="paid_date" required>
+                    Payment date
+                  </Label>
+                  <Input
+                    id="paid_date"
+                    type="date"
+                    value={paidDate}
+                    onChange={(e) => setPaidDate(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="paid_amount" required>
+                    Amount paid
+                  </Label>
+                  <Input
+                    id="paid_amount"
+                    type="number"
+                    inputMode="decimal"
+                    min="0.01"
+                    step="0.01"
+                    value={paidAmount}
+                    onChange={(e) => setPaidAmount(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-1">
+                Invoice total:{' '}
+                <span className="font-medium text-foreground">
+                  ${invoice.total_amount.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                  })}
+                </span>
+                . If less than the total, the invoice will be marked partially paid.
+              </p>
+
+              {/* Payment method */}
+              <div className="space-y-1.5">
+                <Label htmlFor="payment_method" required>
+                  Payment method
+                </Label>
+                <Select
+                  value={paymentMethod}
+                  onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}
+                >
+                  <SelectTrigger id="payment_method">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAYMENT_METHOD_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Reference number — only for check/wire */}
+              {showReference && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="reference_number">{referenceLabel}</Label>
+                  <Input
+                    id="reference_number"
+                    type="text"
+                    value={referenceNumber}
+                    onChange={(e) => setReferenceNumber(e.target.value)}
+                    placeholder={referencePlaceholder}
+                  />
+                </div>
+              )}
+
+              {/* Notes */}
+              <div className="space-y-1.5">
+                <Label htmlFor="notes">Notes</Label>
+                <Textarea
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Anything else worth noting about this payment…"
+                  rows={3}
+                />
+              </div>
+            </DialogBody>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Mark paid
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </>

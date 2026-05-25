@@ -9,6 +9,11 @@
  * required to create a usable client. Optional fields like billing
  * address, service contract type, and notes can be filled in later
  * from the dedicated Clients page.
+ *
+ * Phase C polish: switched native <select> to the shared <Select> for
+ * visual consistency with the rest of the form, grouped fields into
+ * "About the client" and "Primary contact" sections, and migrated to
+ * DialogBody + sticky DialogFooter.
  */
 import { useEffect, useState } from 'react'
 import { createClient as createSupabaseClient } from '@/lib/supabase/client'
@@ -18,12 +23,20 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Client, ClientType, PaymentTerms } from '@/types/database'
@@ -35,6 +48,14 @@ interface AddClientDialogProps {
   defaultName?: string
   /** Called with the freshly inserted client row on success. */
   onCreated: (client: Client) => void
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      {children}
+    </h3>
+  )
 }
 
 export function AddClientDialog({
@@ -124,105 +145,143 @@ export function AddClientDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Add New Client</DialogTitle>
+          <DialogTitle>Add new client</DialogTitle>
           <DialogDescription>
-            Quick-add a client. You can fill in billing address, sites, and notes later from the Clients page.
+            Quick-add a client. You can fill in billing address, sites, and
+            notes later from the Clients page.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="ac_company_name">Company Name *</Label>
-              <Input
-                id="ac_company_name"
-                value={formData.company_name}
-                onChange={(e) =>
-                  setFormData({ ...formData, company_name: e.target.value })
-                }
-                placeholder="e.g. ABC Property Management"
-                required
-                autoFocus
-                className="h-10"
-              />
-            </div>
+        <form
+          onSubmit={handleSubmit}
+          id="add-client-form"
+          className="contents"
+        >
+          <DialogBody className="space-y-6">
+            <section className="space-y-3">
+              <SectionLabel>About the client</SectionLabel>
+              <div className="space-y-1.5">
+                <Label htmlFor="ac_company_name" required>
+                  Company name
+                </Label>
+                <Input
+                  id="ac_company_name"
+                  value={formData.company_name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, company_name: e.target.value })
+                  }
+                  placeholder="e.g. ABC Property Management"
+                  required
+                  autoFocus
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="ac_client_type">Client Type</Label>
-              <select
-                id="ac_client_type"
-                value={formData.client_type}
-                onChange={(e) =>
-                  setFormData({ ...formData, client_type: e.target.value as ClientType })
-                }
-                className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                <option value="residential">Residential</option>
-                <option value="commercial">Commercial</option>
-                <option value="property_mgmt">Property Management</option>
-                <option value="landlord">Landlord</option>
-                <option value="contractor">Contractor</option>
-              </select>
-            </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="ac_client_type">Client type</Label>
+                  <Select
+                    value={formData.client_type}
+                    onValueChange={(v) =>
+                      setFormData({
+                        ...formData,
+                        client_type: v as ClientType,
+                      })
+                    }
+                  >
+                    <SelectTrigger id="ac_client_type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="residential">Residential</SelectItem>
+                      <SelectItem value="commercial">Commercial</SelectItem>
+                      <SelectItem value="property_mgmt">
+                        Property Management
+                      </SelectItem>
+                      <SelectItem value="landlord">Landlord</SelectItem>
+                      <SelectItem value="contractor">Contractor</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="ac_payment_terms">Payment Terms</Label>
-              <select
-                id="ac_payment_terms"
-                value={formData.payment_terms}
-                onChange={(e) =>
-                  setFormData({ ...formData, payment_terms: e.target.value as PaymentTerms })
-                }
-                className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                <option value="on_receipt">On Receipt</option>
-                <option value="net_15">Net 15</option>
-                <option value="net_30">Net 30</option>
-                <option value="net_60">Net 60</option>
-              </select>
-            </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="ac_payment_terms">Payment terms</Label>
+                  <Select
+                    value={formData.payment_terms}
+                    onValueChange={(v) =>
+                      setFormData({
+                        ...formData,
+                        payment_terms: v as PaymentTerms,
+                      })
+                    }
+                  >
+                    <SelectTrigger id="ac_payment_terms">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="on_receipt">On Receipt</SelectItem>
+                      <SelectItem value="net_15">Net 15</SelectItem>
+                      <SelectItem value="net_30">Net 30</SelectItem>
+                      <SelectItem value="net_60">Net 60</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </section>
 
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="ac_primary_contact_name">Primary Contact Name *</Label>
-              <Input
-                id="ac_primary_contact_name"
-                value={formData.primary_contact_name}
-                onChange={(e) =>
-                  setFormData({ ...formData, primary_contact_name: e.target.value })
-                }
-                placeholder="John Smith"
-                required
-                className="h-10"
-              />
-            </div>
+            <section className="space-y-3">
+              <SectionLabel>Primary contact</SectionLabel>
+              <div className="space-y-1.5">
+                <Label htmlFor="ac_primary_contact_name" required>
+                  Contact name
+                </Label>
+                <Input
+                  id="ac_primary_contact_name"
+                  value={formData.primary_contact_name}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      primary_contact_name: e.target.value,
+                    })
+                  }
+                  placeholder="John Smith"
+                  required
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="ac_primary_contact_phone">Phone</Label>
-              <Input
-                id="ac_primary_contact_phone"
-                type="tel"
-                value={formData.primary_contact_phone}
-                onChange={(e) =>
-                  setFormData({ ...formData, primary_contact_phone: e.target.value })
-                }
-                placeholder="(555) 123-4567"
-                className="h-10"
-              />
-            </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="ac_primary_contact_phone">Phone</Label>
+                  <Input
+                    id="ac_primary_contact_phone"
+                    type="tel"
+                    value={formData.primary_contact_phone}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        primary_contact_phone: e.target.value,
+                      })
+                    }
+                    placeholder="(555) 123-4567"
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="ac_primary_contact_email">Email</Label>
-              <Input
-                id="ac_primary_contact_email"
-                type="email"
-                value={formData.primary_contact_email}
-                onChange={(e) =>
-                  setFormData({ ...formData, primary_contact_email: e.target.value })
-                }
-                placeholder="john@example.com"
-                className="h-10"
-              />
-            </div>
-          </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="ac_primary_contact_email">Email</Label>
+                  <Input
+                    id="ac_primary_contact_email"
+                    type="email"
+                    value={formData.primary_contact_email}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        primary_contact_email: e.target.value,
+                      })
+                    }
+                    placeholder="john@example.com"
+                  />
+                </div>
+              </div>
+            </section>
+          </DialogBody>
 
           <DialogFooter>
             <Button
@@ -237,10 +296,10 @@ export function AddClientDialog({
               {saving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
+                  Saving…
                 </>
               ) : (
-                'Add Client'
+                'Add client'
               )}
             </Button>
           </DialogFooter>

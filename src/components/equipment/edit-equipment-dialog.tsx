@@ -8,10 +8,22 @@
  *
  * Pre-fills from the current equipment row. The list of fields here MUST
  * match the EDITABLE_FIELDS whitelist on the API route.
+ *
+ * Phase C polish:
+ *  - Fields grouped into labeled sections (Identification → Classification →
+ *    Details → Dates → Service → Notes) instead of a flat 13-input wall.
+ *  - DialogBody + sticky DialogFooter so Cancel / Save are always reachable
+ *    on long forms, even on phones.
+ *  - Required fields use the new <Label required> indicator.
+ *  - Helper text trimmed (e.g. removed the cycle-prevention paragraph on
+ *    the parent picker — it's an edge-case detail that hurts scan-ability).
+ *  - Section subheaders use a quiet, uppercase tracking treatment so the
+ *    user reads them as structure, not content.
  */
 import { useEffect, useMemo, useState } from 'react'
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -102,6 +114,19 @@ function over(s: string, max: number): boolean {
 
 function lenError(s: string, max: number): string {
   return `Max ${max} characters (you've written ${s.length})`
+}
+
+/**
+ * Lightweight section header used inside the dialog body. Keeps the
+ * vertical rhythm: group fields tightly (`gap-3`) within a section,
+ * larger gaps (`gap-6`) between sections, subheaders sit just above.
+ */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      {children}
+    </h3>
+  )
 }
 
 export function EditEquipmentDialog({
@@ -391,245 +416,297 @@ export function EditEquipmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Edit Equipment</DialogTitle>
+          <DialogTitle>Edit equipment</DialogTitle>
           <DialogDescription>
-            Update the equipment&apos;s details. Only changed fields are saved.
+            Update this unit&apos;s details. Only changed fields are saved.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSave} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="unit_number">Unit number</Label>
-              <Input
-                id="unit_number"
-                value={form.unit_number}
-                onChange={(e) => setForm({ ...form, unit_number: e.target.value })}
-                placeholder="e.g. 3A"
-              />
-              {overFlags.unit_number && (
-                <p className="text-xs text-red-600 mt-1">
-                  {lenError(form.unit_number, STRING_MAX)}
-                </p>
-              )}
-            </div>
-            <div>
-              <Label htmlFor="common_area_name">Common area name</Label>
-              <Input
-                id="common_area_name"
-                value={form.common_area_name}
-                onChange={(e) =>
-                  setForm({ ...form, common_area_name: e.target.value })
-                }
-                placeholder="e.g. Roof, Boiler room"
-              />
-              {overFlags.common_area_name && (
-                <p className="text-xs text-red-600 mt-1">
-                  {lenError(form.common_area_name, STRING_MAX)}
-                </p>
-              )}
-            </div>
-          </div>
+        <form
+          onSubmit={handleSave}
+          id="edit-equipment-form"
+          className="contents"
+        >
+          <DialogBody className="space-y-6">
+            {/* ── Identification ───────────────────────────────────── */}
+            <section className="space-y-3">
+              <SectionLabel>Identification</SectionLabel>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="unit_number">Unit number</Label>
+                  <Input
+                    id="unit_number"
+                    value={form.unit_number}
+                    onChange={(e) =>
+                      setForm({ ...form, unit_number: e.target.value })
+                    }
+                    placeholder="e.g. 3A"
+                    aria-invalid={overFlags.unit_number || undefined}
+                  />
+                  {overFlags.unit_number && (
+                    <p className="text-xs text-destructive">
+                      {lenError(form.unit_number, STRING_MAX)}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="common_area_name">Common area name</Label>
+                  <Input
+                    id="common_area_name"
+                    value={form.common_area_name}
+                    onChange={(e) =>
+                      setForm({ ...form, common_area_name: e.target.value })
+                    }
+                    placeholder="e.g. Roof, Boiler room"
+                    aria-invalid={overFlags.common_area_name || undefined}
+                  />
+                  {overFlags.common_area_name && (
+                    <p className="text-xs text-destructive">
+                      {lenError(form.common_area_name, STRING_MAX)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
 
-          {/* Category picker — always available. */}
-          <div>
-            <Label htmlFor="category_id">Equipment type</Label>
-            <Select
-              value={form.category_id || ''}
-              onValueChange={(v) =>
-                setForm({ ...form, category_id: v || '' })
-              }
-            >
-              <SelectTrigger id="category_id">
-                <SelectValue
-                  placeholder={
-                    categoryOptions.length === 0
-                      ? 'Loading types…'
-                      : 'Pick a type'
+            {/* ── Classification ──────────────────────────────────── */}
+            <section className="space-y-3">
+              <SectionLabel>Classification</SectionLabel>
+              <div className="space-y-1.5">
+                <Label htmlFor="category_id">Equipment type</Label>
+                <Select
+                  value={form.category_id || ''}
+                  onValueChange={(v) =>
+                    setForm({ ...form, category_id: v || '' })
                   }
                 >
-                  {selectedCategoryLabel}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {categoryOptions.map((o) => (
-                  <SelectItem key={o.id} value={o.id}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                  <SelectTrigger id="category_id">
+                    <SelectValue
+                      placeholder={
+                        categoryOptions.length === 0
+                          ? 'Loading types…'
+                          : 'Pick a type'
+                      }
+                    >
+                      {selectedCategoryLabel}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categoryOptions.map((o) => (
+                      <SelectItem key={o.id} value={o.id}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          {/* Parent equipment picker — only when we know the site. */}
-          {equipment.site_id && (
-            <div>
-              <Label htmlFor="parent_equipment_id">Part of (parent unit)</Label>
-              <Select
-                value={form.parent_equipment_id || NO_PARENT}
-                onValueChange={(v) =>
-                  setForm({
-                    ...form,
-                    parent_equipment_id: !v || v === NO_PARENT ? '' : v,
-                  })
-                }
-              >
-                <SelectTrigger id="parent_equipment_id">
-                  <SelectValue
-                    placeholder={parentLoading ? 'Loading…' : 'None (top-level unit)'}
+              {equipment.site_id && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="parent_equipment_id">
+                    Part of (parent unit)
+                  </Label>
+                  <Select
+                    value={form.parent_equipment_id || NO_PARENT}
+                    onValueChange={(v) =>
+                      setForm({
+                        ...form,
+                        parent_equipment_id:
+                          !v || v === NO_PARENT ? '' : v,
+                      })
+                    }
                   >
-                    {selectedParentLabel}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_PARENT}>None (top-level unit)</SelectItem>
-                  {parentOptions.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Only equipment at the same site is shown. Descendants of this
-                unit are excluded to prevent cycles.
-              </p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="make">Make</Label>
-              <Input
-                id="make"
-                value={form.make}
-                onChange={(e) => setForm({ ...form, make: e.target.value })}
-                placeholder="e.g. Carrier"
-              />
-              {overFlags.make && (
-                <p className="text-xs text-red-600 mt-1">
-                  {lenError(form.make, STRING_MAX)}
-                </p>
+                    <SelectTrigger id="parent_equipment_id">
+                      <SelectValue
+                        placeholder={
+                          parentLoading ? 'Loading…' : 'None (top-level unit)'
+                        }
+                      >
+                        {selectedParentLabel}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_PARENT}>
+                        None (top-level unit)
+                      </SelectItem>
+                      {parentOptions.map((o) => (
+                        <SelectItem key={o.id} value={o.id}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
-            </div>
-            <div>
-              <Label htmlFor="model">Model</Label>
-              <Input
-                id="model"
-                value={form.model}
-                onChange={(e) => setForm({ ...form, model: e.target.value })}
-              />
-              {overFlags.model && (
-                <p className="text-xs text-red-600 mt-1">
-                  {lenError(form.model, STRING_MAX)}
-                </p>
-              )}
-            </div>
-          </div>
+            </section>
 
-          <div>
-            <Label htmlFor="serial_number">Serial number</Label>
-            <Input
-              id="serial_number"
-              value={form.serial_number}
-              onChange={(e) => setForm({ ...form, serial_number: e.target.value })}
-              className="font-mono"
-            />
-            {overFlags.serial_number && (
-              <p className="text-xs text-red-600 mt-1">
-                {lenError(form.serial_number, STRING_MAX)}
-              </p>
-            )}
-          </div>
+            {/* ── Details ─────────────────────────────────────────── */}
+            <section className="space-y-3">
+              <SectionLabel>Details</SectionLabel>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="make">Make</Label>
+                  <Input
+                    id="make"
+                    value={form.make}
+                    onChange={(e) => setForm({ ...form, make: e.target.value })}
+                    placeholder="e.g. Carrier"
+                    aria-invalid={overFlags.make || undefined}
+                  />
+                  {overFlags.make && (
+                    <p className="text-xs text-destructive">
+                      {lenError(form.make, STRING_MAX)}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="model">Model</Label>
+                  <Input
+                    id="model"
+                    value={form.model}
+                    onChange={(e) => setForm({ ...form, model: e.target.value })}
+                    aria-invalid={overFlags.model || undefined}
+                  />
+                  {overFlags.model && (
+                    <p className="text-xs text-destructive">
+                      {lenError(form.model, STRING_MAX)}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="serial_number">Serial number</Label>
+                <Input
+                  id="serial_number"
+                  value={form.serial_number}
+                  onChange={(e) =>
+                    setForm({ ...form, serial_number: e.target.value })
+                  }
+                  className="font-mono"
+                  aria-invalid={overFlags.serial_number || undefined}
+                />
+                {overFlags.serial_number && (
+                  <p className="text-xs text-destructive">
+                    {lenError(form.serial_number, STRING_MAX)}
+                  </p>
+                )}
+              </div>
+            </section>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <Label htmlFor="manufacture_date">Manufactured</Label>
-              <Input
-                id="manufacture_date"
-                type="date"
-                value={form.manufacture_date}
-                onChange={(e) =>
-                  setForm({ ...form, manufacture_date: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="installed_date">Installed</Label>
-              <Input
-                id="installed_date"
-                type="date"
-                value={form.installed_date}
-                onChange={(e) =>
-                  setForm({ ...form, installed_date: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="next_service_due_date">Next service due</Label>
-              <Input
-                id="next_service_due_date"
-                type="date"
-                value={form.next_service_due_date}
-                onChange={(e) =>
-                  setForm({ ...form, next_service_due_date: e.target.value })
-                }
-              />
-            </div>
-          </div>
+            {/* ── Dates ────────────────────────────────────────────── */}
+            <section className="space-y-3">
+              <SectionLabel>Dates</SectionLabel>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="manufacture_date">Manufactured</Label>
+                  <Input
+                    id="manufacture_date"
+                    type="date"
+                    value={form.manufacture_date}
+                    onChange={(e) =>
+                      setForm({ ...form, manufacture_date: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="installed_date">Installed</Label>
+                  <Input
+                    id="installed_date"
+                    type="date"
+                    value={form.installed_date}
+                    onChange={(e) =>
+                      setForm({ ...form, installed_date: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="next_service_due_date">Next service due</Label>
+                  <Input
+                    id="next_service_due_date"
+                    type="date"
+                    value={form.next_service_due_date}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        next_service_due_date: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            </section>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="service_interval_months">Service interval (months)</Label>
-              <Input
-                id="service_interval_months"
-                type="number"
-                min={0}
-                max={240}
-                value={form.service_interval_months}
-                onChange={(e) =>
-                  setForm({ ...form, service_interval_months: e.target.value })
-                }
-                placeholder="e.g. 6"
-              />
-            </div>
-            <div>
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={form.status}
-                onValueChange={(v) => setForm({ ...form, status: v || 'active' })}
-              >
-                <SelectTrigger id="status">
-                  <SelectValue placeholder="Select a status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+            {/* ── Service ──────────────────────────────────────────── */}
+            <section className="space-y-3">
+              <SectionLabel>Service</SectionLabel>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="service_interval_months">
+                    Service interval (months)
+                  </Label>
+                  <Input
+                    id="service_interval_months"
+                    type="number"
+                    min={0}
+                    max={240}
+                    value={form.service_interval_months}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        service_interval_months: e.target.value,
+                      })
+                    }
+                    placeholder="e.g. 6"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="status">Status</Label>
+                  <Select
+                    value={form.status}
+                    onValueChange={(v) =>
+                      setForm({ ...form, status: v || 'active' })
+                    }
+                  >
+                    <SelectTrigger id="status">
+                      <SelectValue placeholder="Select a status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATUS_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </section>
 
-          <div>
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              rows={4}
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              placeholder="Anything the next tech should know about this unit…"
-            />
-            {overFlags.notes && (
-              <p className="text-xs text-red-600 mt-1">
-                {lenError(form.notes, NOTES_MAX)}
-              </p>
-            )}
-          </div>
+            {/* ── Notes ────────────────────────────────────────────── */}
+            <section className="space-y-3">
+              <SectionLabel>Notes</SectionLabel>
+              <div className="space-y-1.5">
+                <Label htmlFor="notes" className="sr-only">
+                  Notes
+                </Label>
+                <Textarea
+                  id="notes"
+                  rows={4}
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  placeholder="Anything the next tech should know about this unit…"
+                  aria-invalid={overFlags.notes || undefined}
+                />
+                {overFlags.notes && (
+                  <p className="text-xs text-destructive">
+                    {lenError(form.notes, NOTES_MAX)}
+                  </p>
+                )}
+              </div>
+            </section>
+          </DialogBody>
 
           <DialogFooter>
             <Button

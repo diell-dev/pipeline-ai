@@ -14,7 +14,6 @@ import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
 import { hasPermission } from '@/lib/permissions'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -28,6 +27,8 @@ import {
 } from '@/components/ui/dialog'
 import { MarkPaidDialog } from '@/components/invoices/mark-paid-dialog'
 import { SkeletonList } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '@/components/ui/page-header'
 import { toast } from 'sonner'
 import {
   FileText,
@@ -248,12 +249,10 @@ export default function InvoicesPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Invoices</h1>
-        <p className="text-muted-foreground">
-          Track invoices, payment status, and outstanding balances.
-        </p>
-      </div>
+      <PageHeader
+        title="Invoices"
+        subtitle="Track invoices, payment status, and outstanding balances."
+      />
 
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -322,17 +321,15 @@ export default function InvoicesPage() {
       {loading ? (
         <SkeletonList rows={6} />
       ) : invoices.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <FileText className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-semibold mb-1">No invoices yet</h3>
-            <p className="text-sm text-muted-foreground text-center max-w-md">
-              {selectedClientId
-                ? 'No invoices found for this client.'
-                : "Invoices are automatically generated when jobs are approved. They'll appear here once you start processing jobs."}
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={FileText}
+          title={selectedClientId ? 'No invoices for this client' : 'No invoices yet'}
+          description={
+            selectedClientId
+              ? 'Try a different client or clear the filter.'
+              : "Invoices are automatically generated when jobs are approved. They'll appear here once you start processing jobs."
+          }
+        />
       ) : (
         <>
           {/* Mobile: card list */}

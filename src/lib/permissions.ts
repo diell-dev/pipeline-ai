@@ -119,10 +119,9 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'users:view', 'users:manage', 'users:invite',
     'settings:view', 'settings:manage',
     'documents:view_own', 'documents:view_all',
-    // Equipment module hidden from owners until ready for tenant rollout.
-    // To re-enable, add: 'equipment:view', 'equipment:register', 'equipment:edit',
-    // 'equipment:delete', 'equipment:manage_qr_batches', 'service_requests:view',
-    // 'service_requests:manage'
+    'equipment:view', 'equipment:register', 'equipment:edit', 'equipment:delete',
+    'equipment:manage_qr_batches',
+    'service_requests:view', 'service_requests:manage',
   ],
 
   office_manager: [
@@ -140,7 +139,9 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'users:view',
     'settings:view',
     'documents:view_own', 'documents:view_all',
-    // Equipment module hidden until tenant rollout.
+    'equipment:view', 'equipment:register', 'equipment:edit',
+    'equipment:manage_qr_batches',
+    'service_requests:view', 'service_requests:manage',
   ],
 
   field_tech: [
@@ -150,7 +151,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'sites:view', 'sites:create', // can add new sites in the field
     'services:view',
     'documents:view_own',
-    // Equipment module hidden until tenant rollout.
+    'equipment:view', 'equipment:register', 'equipment:edit',
+    'service_requests:view',
   ],
 
   client: [

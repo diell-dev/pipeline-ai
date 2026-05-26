@@ -654,6 +654,35 @@ export interface EquipmentScan {
   action: EquipmentScanAction
   ip_address: string | null
   user_agent: string | null
+  // ── AI learning-loop capture columns (migration 014) ──
+  /** Raw AI extraction output (per-field { value, source_text, confidence }). */
+  ai_extraction: Record<string, unknown> | null
+  /** What the human accepted/typed in the confirmation UI (ground truth). */
+  confirmed_extraction: Record<string, unknown> | null
+  /** Per-field diff: { field: { was_corrected, ai_value, human_value, ai_confidence } }. */
+  field_corrections: Record<string, unknown> | null
+  /** Supabase Storage URL of the data-plate photo for this scan. */
+  photo_url: string | null
+}
+
+/** Per-field diff entry stored inside EquipmentScan.field_corrections. */
+export interface FieldCorrection {
+  was_corrected: boolean
+  ai_value: string | null
+  human_value: string | null
+  ai_confidence: 'high' | 'medium' | 'low' | null
+}
+
+/** Cross-org catalog of known (brand, model) HVAC equipment (migration 014). */
+export interface EquipmentCatalog {
+  id: string
+  brand: string
+  model: string
+  confirmed_count: number
+  common_values: Record<string, unknown>
+  ai_metadata: Record<string, unknown> | null
+  first_confirmed_at: string
+  last_confirmed_at: string
 }
 
 export interface EquipmentJob {

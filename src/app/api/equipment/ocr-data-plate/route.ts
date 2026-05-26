@@ -3,9 +3,33 @@
  *
  * Body: { photo_base64: string, mime_type: string }
  *
- * Sends the photo to Claude's vision model and returns the parsed make/model/
- * serial. No DB write — the UI uses the response to pre-fill the registration
- * form, and the user confirms before submitting.
+ * Sends the photo to Claude's vision model and returns the parsed extraction.
+ * No DB write — the UI uses the response to drive the confirmation flow, and
+ * the user confirms before /api/equipment/register persists.
+ *
+ * Response shape (200):
+ * {
+ *   // ── Structured extraction (new API; preferred by the confirmation UI) ──
+ *   extraction: {
+ *     brand:            { value, source_text, confidence },
+ *     model:            { value, source_text, confidence },
+ *     serial:           { value, source_text, confidence },
+ *     manufacture_date: { value, source_text, confidence, decoded_from, notes }
+ *   },
+ *   raw_text: string,                          // verbatim transcription of the plate
+ *
+ *   // ── Legacy flat aliases (kept so the existing scan page still works) ──
+ *   make:   string | null,                     // alias of extraction.brand.value
+ *   model:  string | null,                     // alias of extraction.model.value
+ *   serial: string | null                      // alias of extraction.serial.value
+ * }
+ *
+ * Confidence values:  'high' | 'medium' | 'low'
+ * decoded_from:       'plate' (printed MFG date) | 'serial' (decoder cookbook) | null
+ *
+ * IMPORTANT for the confirmation UI: ALWAYS pass the full `extraction` object
+ * back to /api/equipment/register as the `ai_extraction` field so the AI
+ * learning loop gets a complete training row.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { getApiUser } from '@/lib/api-auth'
@@ -54,5 +78,17 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  return NextResponse.json(result)
+  return NextResponse.json({
+    extraction: {
+      brand: result.brand,
+      model: result.model,
+      serial: result.serial,
+      manufacture_date: result.manufacture_date,
+    },
+    raw_text: result.raw_text,
+    // Legacy flat aliases for the existing scan page until Agent Y migrates it
+    make: result.brand.value ?? null,
+    model: result.model.value ?? null,
+    serial: result.serial.value ?? null,
+  })
 }

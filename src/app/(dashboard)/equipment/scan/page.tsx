@@ -38,6 +38,13 @@ import {
   ArrowLeft,
 } from 'lucide-react'
 import type { Site } from '@/types/database'
+import { ExtractionConfirmStep } from '@/components/equipment/extraction-confirm-step'
+import {
+  normaliseExtractionResponse,
+  type StructuredDataPlateExtraction,
+  type ConfirmedExtractionValues,
+  type CorrectedFieldsMap,
+} from '@/types/data-plate-extraction'
 
 interface EquipmentCategory {
   id: string
@@ -96,8 +103,20 @@ export default function EquipmentScanPage() {
   const [make, setMake] = useState('')
   const [model, setModel] = useState('')
   const [serial, setSerial] = useState('')
+  const [manufactureDate, setManufactureDate] = useState<string | null>(null)
   const [parents, setParents] = useState<ParentEquipmentOption[]>([])
   const [parentEquipmentId, setParentEquipmentId] = useState('')
+
+  // ===== Stage 2.5: Confirm extraction =====
+  // After OCR returns, we show the ExtractionConfirmStep takeover so the tech
+  // can review each field with confidence indicators. We hold on to both the
+  // raw AI extraction AND the per-field correction flags so the register POST
+  // can log them for the learning loop (see AI_LEARNING_LOOP.md).
+  const [aiExtraction, setAiExtraction] =
+    useState<StructuredDataPlateExtraction | null>(null)
+  const [correctedFields, setCorrectedFields] =
+    useState<CorrectedFieldsMap | null>(null)
+  const [confirming, setConfirming] = useState(false)
 
   // ===== Load categories =====
   useEffect(() => {
@@ -424,15 +443,35 @@ export default function EquipmentScanPage() {
       })
       if (res.ok) {
         const json = await res.json()
-        const gotSomething = json.make || json.model || json.serial
-        // Always update if we got a value — re-uploading a photo should
-        // replace previous OCR results, even if the field is currently filled.
-        if (json.make) setMake(json.make)
-        if (json.model) setModel(json.model)
-        if (json.serial) setSerial(json.serial)
+        // Normalise to the structured schema. Works with both Agent X's new
+        // shape (per-field { value, source_text, confidence }) and the
+        // legacy flat shape ({ make, model, serial }) so the UI doesn't
+        // break during the rollout.
+        const structured = normaliseExtractionResponse(json)
+        const gotSomething =
+          structured.brand.value ||
+          structured.model.value ||
+          structured.serial.value ||
+          structured.manufacture_date.value
+
+        // Pre-fill the underlying form fields too — if the tech taps "Skip
+        // this photo" from the confirm step, these values still flow into
+        // the standard register form so nothing's lost.
+        if (structured.brand.value) setMake(structured.brand.value)
+        if (structured.model.value) setModel(structured.model.value)
+        if (structured.serial.value) setSerial(structured.serial.value)
+        if (structured.manufacture_date.value) {
+          setManufactureDate(structured.manufacture_date.value)
+        }
+
+        // Hand the raw AI extraction to the confirm step. It owns the local
+        // edit buffer + computes correction flags on save.
+        setAiExtraction(structured)
         if (gotSomething) {
-          toast.success('Data plate read — review the prefilled fields')
+          setConfirming(true)
         } else {
+          // Nothing extracted — skip the confirm step, surface a toast,
+          // and let the user fill the legacy form fields by hand.
           toast.info('No text recognised on the plate. Try a closer, sharper photo or fill in the fields manually.')
         }
       } else {
@@ -496,7 +535,22 @@ export default function EquipmentScanPage() {
   }
 
   // ===== Submit registration =====
-  async function handleSubmitRegister(e: React.FormEvent) {
+  /**
+   * Submit the register form. Accepts optional overrides for the data-plate
+   * fields and correction flags so the confirm step can pass freshly-confirmed
+   * values WITHOUT waiting for React's state batching to flush (otherwise we
+   * could POST the previous make/model/serial values).
+   */
+  async function handleSubmitRegister(
+    e: React.FormEvent,
+    overrides?: {
+      make?: string | null
+      model?: string | null
+      serial?: string | null
+      manufactureDate?: string | null
+      correctedFields?: CorrectedFieldsMap | null
+    }
+  ) {
     e.preventDefault()
     if (!scannedCode) return
     if (!siteId) {
@@ -515,6 +569,23 @@ export default function EquipmentScanPage() {
       toast.error('Pick an equipment category')
       return
     }
+
+    // Resolve final field values: overrides win over state, state wins over null.
+    const finalMake =
+      overrides?.make !== undefined ? overrides.make ?? '' : make
+    const finalModel =
+      overrides?.model !== undefined ? overrides.model ?? '' : model
+    const finalSerial =
+      overrides?.serial !== undefined ? overrides.serial ?? '' : serial
+    const finalManufactureDate =
+      overrides?.manufactureDate !== undefined
+        ? overrides.manufactureDate
+        : manufactureDate
+    const finalCorrected =
+      overrides?.correctedFields !== undefined
+        ? overrides.correctedFields
+        : correctedFields
+
     setRegistering(true)
     try {
       const res = await fetch('/api/equipment/register', {
@@ -526,12 +597,32 @@ export default function EquipmentScanPage() {
           category_id: categoryId,
           unit_number: unitMode === 'unit' ? unitNumber.trim() : null,
           common_area_name: unitMode === 'common' ? commonAreaName.trim() : null,
-          make: make.trim() || null,
-          model: model.trim() || null,
-          serial_number: serial.trim() || null,
+          // Legacy flat fields — preserved so the register endpoint stays
+          // backward-compatible. These now reflect the tech's CONFIRMED
+          // values (post-edit), not the raw AI guesses.
+          make: finalMake.trim() || null,
+          model: finalModel.trim() || null,
+          serial_number: finalSerial.trim() || null,
+          manufacture_date: finalManufactureDate || null,
           unit_photo_url: unitPhotoUrl,
           data_plate_photo_url: dataPlatePhotoUrl,
           parent_equipment_id: parentEquipmentId || null,
+          // ----- Learning-loop payload (Agent X reads these on /register) -----
+          // The full structured AI extraction (with confidence + source quotes)
+          ai_extraction: aiExtraction,
+          // The tech's confirmed values, keyed by field. Mirrors `make`/`model`/
+          // `serial_number`/`manufacture_date` above but in the structured form
+          // so the audit query doesn't have to re-derive it.
+          confirmed_extraction: aiExtraction
+            ? ({
+                brand: finalMake.trim() || null,
+                model: finalModel.trim() || null,
+                serial: finalSerial.trim() || null,
+                manufacture_date: finalManufactureDate || null,
+              } satisfies ConfirmedExtractionValues)
+            : null,
+          // Per-field flag: did the tech change the AI's value?
+          corrected_fields: finalCorrected,
         }),
       })
       if (!res.ok) {
@@ -549,6 +640,97 @@ export default function EquipmentScanPage() {
     } finally {
       setRegistering(false)
     }
+  }
+
+  // ===== Confirm-extraction step handlers =====
+
+  /**
+   * Tech taps "Save and register" inside the confirm step.
+   *
+   * Order of operations:
+   *   1. Validate the prerequisite registration fields are filled. The confirm
+   *      step is a takeover, so missing site/category/unit must surface as a
+   *      toast + send the user back to the form.
+   *   2. Persist the tech's confirmed values into the underlying form state
+   *      (make/model/serial/manufactureDate) so the existing register POST
+   *      picks them up.
+   *   3. Store correction flags for the learning loop.
+   *   4. Close the confirm card and submit the register form programmatically.
+   */
+  function handleConfirmExtraction(args: {
+    confirmedValues: ConfirmedExtractionValues
+    correctedFields: CorrectedFieldsMap
+  }) {
+    // Validate upstream fields first — otherwise the POST will 400 and we'd
+    // lose the user's just-confirmed edits.
+    if (!siteId) {
+      toast.error('Pick a client + site before saving')
+      setConfirming(false)
+      return
+    }
+    if (!categoryId) {
+      toast.error('Pick an equipment category before saving')
+      setConfirming(false)
+      return
+    }
+    if (unitMode === 'unit' && !unitNumber.trim()) {
+      toast.error('Enter a unit number before saving')
+      setConfirming(false)
+      return
+    }
+    if (unitMode === 'common' && !commonAreaName.trim()) {
+      toast.error('Enter a common area name before saving')
+      setConfirming(false)
+      return
+    }
+
+    // Persist into form state so a follow-up "Back" + visible form shows the
+    // tech's edits.
+    setMake(args.confirmedValues.brand ?? '')
+    setModel(args.confirmedValues.model ?? '')
+    setSerial(args.confirmedValues.serial ?? '')
+    setManufactureDate(args.confirmedValues.manufacture_date)
+    setCorrectedFields(args.correctedFields)
+    setConfirming(false)
+
+    // Submit immediately, passing the just-confirmed values as overrides so
+    // we don't depend on React's state batching to flush before the POST.
+    void handleSubmitRegister(
+      { preventDefault: () => {} } as React.FormEvent,
+      {
+        make: args.confirmedValues.brand,
+        model: args.confirmedValues.model,
+        serial: args.confirmedValues.serial,
+        manufactureDate: args.confirmedValues.manufacture_date,
+        correctedFields: args.correctedFields,
+      }
+    )
+  }
+
+  /**
+   * Re-shoot — close the confirm card, clear the photo + AI extraction,
+   * and trigger the hidden data-plate file input. The new photo flows back
+   * through handleDataPlatePhotoChange → runOcr → confirming === true.
+   */
+  function handleReshoot() {
+    setConfirming(false)
+    setAiExtraction(null)
+    setCorrectedFields(null)
+    setDataPlatePhotoUrl(null)
+    // Defer one tick so the input mounts in the empty-state branch.
+    setTimeout(() => {
+      const input = document.getElementById(
+        'data-plate-input'
+      ) as HTMLInputElement | null
+      input?.click()
+    }, 0)
+  }
+
+  /** Skip — clear the AI extraction + return to the standard form fields. */
+  function handleSkipExtraction() {
+    setConfirming(false)
+    setAiExtraction(null)
+    setCorrectedFields(null)
   }
 
   // ============================================================
@@ -650,8 +832,25 @@ export default function EquipmentScanPage() {
         </Card>
       )}
 
+      {/* ===== Stage 2.5: Confirm extraction (takeover) =====
+          Renders INSTEAD of the Stage 2 form once OCR returns a structured
+          extraction. The confirm step owns the per-field review UI; on
+          "Save and register" it writes the confirmed values into the form
+          state and triggers the register POST. */}
+      {needsRegister && confirming && aiExtraction && (
+        <ExtractionConfirmStep
+          extraction={aiExtraction}
+          photoUrl={dataPlatePhotoUrl}
+          onReshoot={handleReshoot}
+          onSkip={handleSkipExtraction}
+          onConfirm={handleConfirmExtraction}
+          onBack={() => setConfirming(false)}
+          saving={registering}
+        />
+      )}
+
       {/* ===== Stage 2: Register ===== */}
-      {needsRegister && (
+      {needsRegister && !confirming && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
@@ -839,6 +1038,7 @@ export default function EquipmentScanPage() {
                         </>
                       )}
                       <input
+                        id="data-plate-input"
                         type="file"
                         accept="image/*"
                         capture="environment"
@@ -854,6 +1054,18 @@ export default function EquipmentScanPage() {
                   </p>
                 )}
               </div>
+
+              {/* If the tech tapped "Back" from the confirm step, the AI
+                  extraction is still in memory — let them jump back in. */}
+              {aiExtraction && !confirming && (
+                <button
+                  type="button"
+                  onClick={() => setConfirming(true)}
+                  className="w-full text-xs text-foreground/80 underline underline-offset-2 hover:text-foreground"
+                >
+                  Re-open AI review for these fields
+                </button>
+              )}
 
               {/* Make/model/serial — prefilled by OCR but editable */}
               <div className="grid grid-cols-2 gap-2">

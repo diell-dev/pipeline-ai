@@ -7,6 +7,15 @@
  *
  * If make + model are present we kick off an AI manufacturer lookup
  * fire-and-forget so the user isn't blocked on a slow Claude call.
+ *
+ * AI learning-loop capture (migration 014): the body may include
+ *   - ai_extraction        — the raw structured output from /ocr-data-plate
+ *   - confirmed_extraction — what the human typed into the confirmation UI
+ *   - field_corrections    — per-field diff produced by the confirmation UI
+ *                            ({ field: { was_corrected, ai_value, human_value, ai_confidence } })
+ * When provided, these are written to a fresh equipment_scans row with
+ * action='register'. We also upsert an equipment_catalog row keyed by
+ * (brand, model) so the catalog grows automatically.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
@@ -20,6 +29,17 @@ function cleanString(value: unknown, max = 200): string | null {
   const trimmed = value.trim()
   if (!trimmed) return null
   return trimmed.slice(0, max)
+}
+
+/** Defensive copy: only keep values whose shape matches a small JSON-like type. */
+function cleanJsonObject(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  try {
+    // Round-trip through JSON to drop any non-serialisable values (Dates, fns, …).
+    return JSON.parse(JSON.stringify(value)) as Record<string, unknown>
+  } catch {
+    return null
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -100,6 +120,12 @@ export async function POST(request: NextRequest) {
   const make = cleanString(body.make, 80)
   const model = cleanString(body.model, 80)
   const serial = cleanString(body.serial_number, 80)
+  const dataPlatePhotoUrl = cleanString(body.data_plate_photo_url, 500)
+
+  // AI learning-loop payload (all optional)
+  const aiExtraction = cleanJsonObject(body.ai_extraction)
+  const confirmedExtraction = cleanJsonObject(body.confirmed_extraction)
+  const fieldCorrections = cleanJsonObject(body.field_corrections)
 
   const insertPayload = {
     organization_id: auth.organizationId,
@@ -112,7 +138,7 @@ export async function POST(request: NextRequest) {
     make,
     model,
     serial_number: serial,
-    data_plate_photo_url: cleanString(body.data_plate_photo_url, 500),
+    data_plate_photo_url: dataPlatePhotoUrl,
     unit_photo_url: cleanString(body.unit_photo_url, 500),
     notes: cleanString(body.notes, 2000),
     service_interval_months: category.default_service_interval_months,
@@ -162,7 +188,64 @@ export async function POST(request: NextRequest) {
     metadata: { qr_code: qrCode, category_id: categoryId, site_id: siteId },
   })
 
-  // 6. Fire-and-forget AI lookup if we have enough metadata
+  // 6. Insert an equipment_scans row dedicated to this registration with the
+  //    full AI learning-loop payload. Separate from the audit-view scan that
+  //    /api/equipment/by-qr writes — that one fires on every lookup; THIS one
+  //    fires once, at the moment of confirmation, and is the training row.
+  //    Best-effort: failure here doesn't fail the registration.
+  if (aiExtraction || confirmedExtraction || fieldCorrections || dataPlatePhotoUrl) {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null
+    const ua = request.headers.get('user-agent')?.slice(0, 500) || null
+    const { error: scanErr } = await supabase.from('equipment_scans').insert({
+      equipment_id: equipment.id,
+      qr_code: qrCode,
+      scanned_by: auth.userId,
+      action: 'register',
+      ip_address: ip,
+      user_agent: ua,
+      ai_extraction: aiExtraction,
+      confirmed_extraction: confirmedExtraction,
+      field_corrections: fieldCorrections,
+      photo_url: dataPlatePhotoUrl,
+    })
+    if (scanErr) {
+      console.error('failed to write learning-loop scan row:', scanErr.message)
+    }
+  }
+
+  // 7. Upsert equipment_catalog (brand, model). Counts and last-seen tick up
+  //    on every confirmation; common_values stays {} until later passes add
+  //    secondary fields like voltage/refrigerant. Best-effort: failure here
+  //    doesn't fail the registration.
+  if (make && model) {
+    try {
+      const { data: existing } = await supabase
+        .from('equipment_catalog')
+        .select('id, confirmed_count')
+        .eq('brand', make)
+        .eq('model', model)
+        .maybeSingle()
+      if (existing) {
+        await supabase
+          .from('equipment_catalog')
+          .update({
+            confirmed_count: (existing.confirmed_count ?? 0) + 1,
+            last_confirmed_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id)
+      } else {
+        await supabase.from('equipment_catalog').insert({
+          brand: make,
+          model: model,
+          confirmed_count: 1,
+        })
+      }
+    } catch (err) {
+      console.error('equipment_catalog upsert failed:', err)
+    }
+  }
+
+  // 8. Fire-and-forget AI manufacturer lookup if we have enough metadata
   if (make && model) {
     void (async () => {
       try {
@@ -198,6 +281,26 @@ export async function POST(request: NextRequest) {
             },
           })
           .eq('id', equipment.id)
+
+        // Mirror the manufacturer metadata into the catalog row so future scans
+        // of the same model don't need to re-query Claude for lifecycle data.
+        await supabase
+          .from('equipment_catalog')
+          .update({
+            ai_metadata: {
+              manufacture_date: info.manufacture_date,
+              recommended_service_interval_months: info.recommended_service_interval_months,
+              common_failure_modes: info.common_failure_modes,
+              replacement_part_skus: info.replacement_part_skus,
+              is_discontinued: info.is_discontinued,
+              recall_notice: info.recall_notice,
+              useful_life_years_estimate: info.useful_life_years_estimate,
+              generated_at: new Date().toISOString(),
+              model_version: 'claude-sonnet-4-6',
+            },
+          })
+          .eq('brand', make)
+          .eq('model', model)
       } catch (err) {
         console.error('background AI lookup failed:', err)
       }

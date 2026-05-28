@@ -51,7 +51,12 @@ function brandFamily(brand: string): string | null {
     ['trane', ['trane', 'american standard', 'oxbox', 'ameristar']],
     ['lennox', ['lennox', 'aireflo', 'aire flo', 'armstrong', 'ducane', 'airease', 'aire ease']],
     ['york', ['york', 'luxaire', 'coleman', 'champion', 'johnson controls']],
-    ['goodman', ['goodman', 'amana', 'daikin']],
+    // Daikin sells through two corporate entities — Daikin Industries, LTD. (Japan
+    // parent, units often built in Thailand or PRC) and Daikin Manufacturing Company,
+    // L.P. (US subsidiary, units typically assembled in USA). Both use identical
+    // YYMM serial prefixes and YYYY.M printed plate dates, so both alias into the
+    // goodman family decoder.
+    ['goodman', ['goodman', 'amana', 'daikin', 'daikin industries', 'daikin manufacturing']],
     ['rheem', ['rheem', 'ruud', 'weather king', 'weatherking', 'richmond']],
     ['mitsubishi', ['mitsubishi']],
     ['lg', ['lg']],
@@ -257,11 +262,45 @@ function decodeRheem(serial: string): SerialDecodeResult {
   return { manufacture_date: iso, confidence: 'high', method: `rheem-family WWYY: week ${week} of ${year}`, brand_key: 'rheem' }
 }
 
+/** Mitsubishi older-format month code: 1-9 = Jan-Sep, X = Oct, Y = Nov, Z = Dec. */
+function mitsubishiOldMonthCode(ch: string): number | null {
+  if (ch >= '1' && ch <= '9') return parseInt(ch, 10)
+  if (ch === 'X') return 10
+  if (ch === 'Y') return 11
+  if (ch === 'Z') return 12
+  return null
+}
+
 function decodeMitsubishi(serial: string): SerialDecodeResult {
-  // Modern (2010+): first 2 digits = year (full 4-digit interpreted via decade rule).
-  // Older: char 1 = year-digit (DECADE AMBIGUOUS), char 2 = month code (1-9=Jan-Sep, X=Oct, Y=Nov, Z=Dec).
+  // Older format pattern: <digit><Z|Y|X|1-9><alpha><digits> (e.g. 4ZU01001A).
+  //   char 1 = year-units digit (DECADE AMBIGUOUS — could be 200X, 201X, or 202X)
+  //   char 2 = month code (1-9 = Jan-Sep, X = Oct, Y = Nov, Z = Dec)
+  //   char 3 = factory/line letter
+  //   followed by digits and an optional trailing letter
+  // Modern format: 6+ digits where first 2 digits encode YY.
   const s = clean(serial)
-  // Try modern first
+
+  // Detect the older format FIRST — it would otherwise be misclassified.
+  const older = s.match(/^(\d)([1-9XYZ])[A-Z]\d/)
+  if (older) {
+    const unitsDigit = older[1]
+    const monthCode = older[2]
+    const month = mitsubishiOldMonthCode(monthCode)
+    const monthName = month != null
+      ? ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][month]
+      : monthCode
+    return {
+      manufacture_date: null,
+      confidence: 'low',
+      method:
+        `Decade-ambiguous Mitsubishi format. Year-units digit = ${unitsDigit}, month = ${monthCode} (${monthName}). ` +
+        `Could be 200${unitsDigit}, 201${unitsDigit}, or 202${unitsDigit}. Disambiguate by refrigerant: ` +
+        `R-22 → 200${unitsDigit}, R-410A → 201${unitsDigit} or 202${unitsDigit}, R-32 or R-454B → 202${unitsDigit}.`,
+      brand_key: 'mitsubishi',
+    }
+  }
+
+  // Modern (2010+): first 2 digits = year (full 4-digit interpreted via decade rule).
   const modern = s.match(/^(\d{2})/)
   if (modern) {
     const yy = parseInt(modern[1], 10)
@@ -277,10 +316,11 @@ function decodeMitsubishi(serial: string): SerialDecodeResult {
       }
     }
   }
+
   return {
     manufacture_date: null,
     confidence: 'low',
-    method: 'mitsubishi: decade-ambiguous older format; refrigerant tiebreaker required (R-22 → pre-2010, R-410A → 2010-2024, R-454B/R-32 → 2025+)',
+    method: 'mitsubishi: serial did not match known modern or older format',
     brand_key: 'mitsubishi',
   }
 }

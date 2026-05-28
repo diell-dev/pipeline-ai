@@ -18,7 +18,14 @@
  * AND `confirmed_extraction` (what the human typed). See AI_LEARNING_LOOP.md.
  */
 import Anthropic from '@anthropic-ai/sdk'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { decodeSerial } from './equipment-serial-decoder'
+import {
+  DATA_PLATE_EXAMPLES,
+  EXTRACTION_FEW_SHOT_FILENAMES,
+  getExampleByFilename,
+} from './data-plate-examples'
 import {
   validateModel,
   validateSerial,
@@ -165,28 +172,106 @@ const EXTRACTION_TOOL: Anthropic.Tool = {
  * logo/header text; Pass 2 applies the brand-specific cookbook to decode the
  * manufacture date. Critical rules at the bottom enforce "do not invent text".
  *
- * TODO: when reference plate photos are available, add 6-10 few-shot examples
- * here grouped by brand (Daikin YYYY.M format, Carrier WWYY, Trane YYWWD,
- * Lennox month-letter, York L#L#, Rheem WWYY, Mitsubishi modern, Bradford
- * White ANSI cross-reference). Adding them is a one-line config change —
- * see EXTRACTION_FEW_SHOTS below.
+ * Few-shot examples are loaded lazily from `public/data-plate-examples/` —
+ * see `EXTRACTION_FEW_SHOT_FILENAMES` in data-plate-examples.ts.
  */
-const EXTRACTION_FEW_SHOTS: Array<{
-  brand: string
+
+interface FewShotImage {
+  filename: string
   imageBase64: string
-  mimeType: string
-  example: string
-}> = []
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
+  exampleNarration: string
+}
+
+let CACHED_FEW_SHOTS: FewShotImage[] | null = null
+
+/**
+ * Read the few-shot images from disk and cache them for the lifetime of the
+ * server process. Each image is converted to base64 and paired with a
+ * human-written narration that explains the correct extraction (or, for the
+ * camera-overlay anti-example, explains what NOT to do).
+ *
+ * Returns an empty array (and logs a warning) if any file is missing or the
+ * runtime can't read disk — we'd rather degrade to zero-shot than crash.
+ */
+function loadFewShots(): FewShotImage[] {
+  if (CACHED_FEW_SHOTS) return CACHED_FEW_SHOTS
+
+  const shots: FewShotImage[] = []
+  // Resolve relative to CWD (Next.js runs from the project root in both dev
+  // and build). `public/` is the standard static-asset root.
+  const baseDir = join(process.cwd(), 'public', 'data-plate-examples')
+
+  for (const filename of EXTRACTION_FEW_SHOT_FILENAMES) {
+    const example = getExampleByFilename(filename)
+    if (!example) {
+      console.warn(`loadFewShots: no ground-truth entry for ${filename} — skipping`)
+      continue
+    }
+
+    let imageBuf: Buffer
+    try {
+      imageBuf = readFileSync(join(baseDir, filename))
+    } catch (err) {
+      console.warn(`loadFewShots: failed to read ${filename}:`, err)
+      continue
+    }
+
+    shots.push({
+      filename,
+      imageBase64: imageBuf.toString('base64'),
+      mimeType: 'image/jpeg',
+      exampleNarration: example.is_anti_example
+        ? `ANTI-EXAMPLE — DO NOT REPEAT THE MISTAKE THIS WARNS AGAINST. The photo above shows a Fujitsu data plate, but a phone camera / field-service app has BURNED a timestamp + location overlay into the bottom-right of the photo: "Mar 10, 2026 14:00:01 / 1117 Fulton Street / Brooklyn / Kings County / New York". That overlay text is NOT on the metal plate — it was added by the camera AFTER the shot. The correct extraction is: { brand: "Fujitsu" (high), model: "AOU45RLXFZ" (high), serial: "LYN014684" (high), manufacture_date: { value: null, confidence: "low", decoded_from: null, notes: "Fujitsu does not encode date in serial — look up via fujitsugeneral.com warranty portal or call (866) 952-8324." } }. The "Mar 10, 2026" string MUST NEVER appear as the manufacture_date value, source_text, or notes. Camera timestamps, install dates, EXIF watermarks, and location overlays are NEVER the manufacture date.`
+        : `Correct extraction for the photo above: { brand: ${JSON.stringify(
+            example.brand
+          )} (high), model: ${JSON.stringify(example.model)} (high), serial: ${JSON.stringify(
+            example.serial
+          )} (high), manufacture_date: { value: ${JSON.stringify(
+            example.manufacture_date
+          )}, confidence: ${
+            example.manufacture_date ? '"high"' : '"low"'
+          }, decoded_from: ${
+            example.manufacture_date ? '"plate"' : 'null'
+          }, notes: ${JSON.stringify(example.notes)} } }`,
+    })
+  }
+
+  CACHED_FEW_SHOTS = shots
+  return shots
+}
+
+/**
+ * Test/debug helper: clear the in-memory few-shot cache. Used by the smoke
+ * test so a fresh process always reloads the images.
+ */
+export function clearFewShotCache(): void {
+  CACHED_FEW_SHOTS = null
+}
+
+/** Exposed for tests / debugging — does NOT trigger disk reads. */
+export const FEW_SHOT_FILENAMES = EXTRACTION_FEW_SHOT_FILENAMES
+/** Exposed for tests / debugging. */
+export const ALL_DATA_PLATE_EXAMPLES = DATA_PLATE_EXAMPLES
 
 const EXTRACTION_PROMPT = `You are an expert HVAC data-plate reader for US service technicians. Your job is to read the equipment nameplate in the image and extract the brand, model, serial, and manufacture date — nothing more (other fields will come later).
+
+## CAMERA TIMESTAMP / OVERLAY WARNING (READ FIRST)
+
+Phone cameras and field-service apps sometimes burn a timestamp + location overlay into the image (e.g. "Mar 10, 2026 14:00:01 / 1117 Fulton Street / Brooklyn"). This text is OVERLAID on the photo by the camera AFTER the photo was taken. It is NEVER the manufacture date. The manufacture date appears on the metal/sticker plate itself, near a label like "MFG DATE", "MFG. DATE", "D.O.M.", "MFR DATE", "DATE MADE", or "DATE OF MFR." If the only date visible in the image is a camera/app overlay timestamp (usually in the bottom-right corner, in white or yellow sans-serif text, sometimes alongside an address or GPS coordinates), the manufacture date is null. Likewise, install dates, EXIF watermarks, and service-tag dates are NOT manufacture dates.
 
 ## Pass 1 — IDENTIFY THE BRAND FIRST
 
 Before extracting any other field, look at the logo/header text on the plate and identify the manufacturer brand. The brand is the visible logo or the largest/topmost brand name (e.g. "Carrier", "Trane", "Lennox") — NOT the parent corporation (e.g. NOT "Johnson Controls" if the logo says "York"). If the brand is illegible, return null with low confidence.
 
+Brand aliases to normalise:
+- "Daikin Industries, LTD." (Japan parent, units often built in Thailand or PRC) AND "Daikin Manufacturing Company, L.P." (US subsidiary, units assembled in USA) → both map to brand = "Daikin". Same decoder rules apply to both: YYYY.M stamped MFG date and YYMM serial prefix.
+- "Mitsubishi Electric" / "MITSUBISHI ELECTRIC CORPORATION" → "Mitsubishi"
+- "Fujitsu General Limited" / "Fujitsu General" → "Fujitsu"
+
 ## Pass 2 — APPLY THE PER-BRAND DATE-DECODER COOKBOOK
 
-Once you've identified the brand, use the rules below to decode the manufacture date from the serial number. If the plate also prints a "MFG. DATE" / "DATE OF MFR" / "MM/YYYY" value, PREFER the printed date and set decoded_from='plate'. Otherwise apply the cookbook rule for that brand and set decoded_from='serial'.
+Once you've identified the brand, use the rules below to decode the manufacture date from the serial number. If the plate also prints a "MFG. DATE" / "DATE OF MFR" / "MM/YYYY" / "YYYY.M" value, PREFER the printed plate date and set decoded_from='plate'. Otherwise apply the cookbook rule for that brand and set decoded_from='serial'.
 
 \`\`\`
 Carrier / Bryant / Payne / Heil / Tempstar / Day & Night / Comfortmaker:
@@ -206,10 +291,16 @@ York / Luxaire / Coleman / Champion (Johnson Controls):
   - Post-2004: format L#L#NNNNNN where char 2 = decade-digit, char 3 = month letter, char 4 = year-units digit
   - Example: W1G7XXXXXX = July 2017
 
-Goodman / Amana (HVAC) / Daikin US:
+Goodman / Amana (HVAC) / Daikin (both Daikin Industries LTD. and Daikin Manufacturing Company L.P.):
   - 10-char, leading YYMM
   - Example: 9901XXXXXX = January 1999, 2306A123456 = June 2023
-  - Daikin ALSO prints "MFG. DATE YYYY.M" on the data plate (decimal-separated). Prefer this if both present.
+  - Daikin ALSO prints "MFG. DATE YYYY.M" on the data plate (decimal-separated, e.g.
+    "2018.12" = December 2018). Prefer the printed plate date if both are present.
+  - Both Daikin corporate entities use the SAME format — do not branch on which legal
+    entity is named on the plate. Verified examples: REYQ168TATJU serial 1812238102 →
+    Dec 2018 (Daikin Manufacturing Company L.P., USA-assembled VRV); CTXS07LVJU
+    serial E043020 with stamped "2016.10" → Oct 2016 (Daikin Industries LTD,
+    Thailand-built fan coil).
 
 Rheem / Ruud / Weather King / Richmond:
   - First 2 digits after letter prefix = week, next 2 = year
@@ -217,17 +308,31 @@ Rheem / Ruud / Weather King / Richmond:
 
 Mitsubishi Electric (mini-splits):
   - Modern (2010+): first 2 digits = year
-  - Older: char 1 = year-digit (DECADE AMBIGUOUS), char 2 = month code (1-9=Jan-Sep, X=Oct, Y=Nov, Z=Dec)
-  - When ambiguous: use refrigerant type as tiebreaker (R-22 → pre-2010, R-410A → 2010-2024, R-454B/R-32 → 2025+)
+  - Older format (pattern: <digit><Z|Y|X|1-9><alpha><digits>, e.g. 4ZU01001A):
+      char 1 = year-units digit (DECADE AMBIGUOUS — could be 200X, 201X, or 202X)
+      char 2 = month code: 1-9 = Jan-Sep, X = Oct, Y = Nov, Z = Dec
+      Example: 4ZU01001A → year-units 4, month Z (Dec) → December 2004 OR 2014 OR 2024
+  - When decade-ambiguous, return manufacture_date.value = null, confidence = 'low',
+    and notes = "Decade-ambiguous Mitsubishi format. Year-units digit = X, month = Y.
+    Could be 200X, 201X, or 202X. Disambiguate by refrigerant: R-22 → 200X, R-410A → 201X
+    or 202X, R-32 or R-454B → 202X." (substituting actual digit/month). The frontend
+    confirmation UI will surface this to the tech for disambiguation.
 
 LG:
   - char 1 = country letter, then Y-MM (year digit + 2-digit month)
-  - DECADE AMBIGUOUS: same fallback as Mitsubishi
+  - DECADE AMBIGUOUS: same refrigerant tiebreaker as Mitsubishi older format
 
 Fujitsu General:
-  - Serial begins with E, R, or T + 6 digits
-  - DOES NOT encode manufacture date
-  - Return null with confidence=low and note "lookup required via Fujitsu warranty portal"
+  - Serial format: 3-letter alpha prefix + 6 digits (verified examples: LWN007884,
+    MXA143571, LYN014684, MXA250569). Other Fujitsu product lines may use different
+    prefixes but the pattern is consistently 3 letters + 6 digits.
+  - The date is NOT encoded in the serial.
+  - Always set manufacture_date.value = null, confidence = 'low', decoded_from = null,
+    and notes = "Fujitsu does not encode date in serial — look up via fujitsugeneral.com
+    warranty portal or call (866) 952-8324."
+  - Even if a "Mar 10, 2026" or similar date appears in the photo, do NOT treat it as
+    the manufacture date — it is almost certainly a camera-app timestamp overlay (see
+    the warning at the top of this prompt).
 
 Bosch / Buderus:
   - 2010+: chars 5-7 of serial encode YYM (year + month) regardless of dashes
@@ -307,17 +412,30 @@ export async function extractDataPlate(
   type TextBlock = { type: 'text'; text: string }
   const userContent: Array<ImageBlock | TextBlock> = []
 
-  // Few-shot images (currently empty — see TODO above EXTRACTION_FEW_SHOTS).
-  for (const shot of EXTRACTION_FEW_SHOTS) {
+  const fewShots = loadFewShots()
+  if (fewShots.length > 0) {
     userContent.push({
-      type: 'image',
-      source: {
-        type: 'base64',
-        media_type: shot.mimeType as ImageBlock['source']['media_type'],
-        data: shot.imageBase64,
-      },
+      type: 'text',
+      text: 'Here are real data-plate photos with the correct extraction for each. Study them carefully before extracting the new image at the end — pay particular attention to the camera-overlay anti-example.',
     })
-    userContent.push({ type: 'text', text: `Example (${shot.brand}): ${shot.example}` })
+    fewShots.forEach((shot, i) => {
+      userContent.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: shot.mimeType,
+          data: shot.imageBase64,
+        },
+      })
+      userContent.push({
+        type: 'text',
+        text: `Example ${i + 1} of ${fewShots.length} (${shot.filename}): ${shot.exampleNarration}`,
+      })
+    })
+    userContent.push({
+      type: 'text',
+      text: 'End of examples. The next image is the one you must extract now — apply the lessons above:',
+    })
   }
 
   userContent.push({

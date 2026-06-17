@@ -73,6 +73,22 @@
   --color-border-default: var(--border-default);
   --color-border-strong: var(--border-strong);
   --color-border-subtle: var(--border-subtle);
+
+  /* ────────────────────────────────────────────────────────────────
+   * Motion easing utilities (Emil Kowalski playbook).
+   *
+   * Tailwind v4 reads `--ease-*` entries here and emits matching
+   * `ease-*` utilities. The three custom curves below are deliberately
+   * stronger than CSS built-ins — pair with `transition-transform` or
+   * `transition-opacity`, never `transition-all`.
+   *
+   *   ease-out-strong    — taps, dropdowns, popover entrances
+   *   ease-in-out-strong — on-screen movement that lands and stays
+   *   ease-drawer        — iOS-style drawer/sheet pulls
+   * ──────────────────────────────────────────────────────────────── */
+  --ease-out-strong: var(--ease-out-strong);
+  --ease-in-out-strong: var(--ease-in-out-strong);
+  --ease-drawer: var(--ease-drawer);
 }
 
 :root {

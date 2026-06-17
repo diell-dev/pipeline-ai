@@ -53,6 +53,7 @@ import { downloadInvoicePdf, downloadReportPdf, downloadBothAsZip } from '@/lib/
 import { JobActivityTimeline } from '@/components/jobs/activity-timeline'
 import { InspectionChecklist, type Inspection } from '@/components/equipment/inspection-checklist'
 import type { Job, JobStatus, JobPriority } from '@/types/database'
+import { useSwipeBack } from '@/hooks/use-swipe-back'
 
 // Equipment shape we render in the linked-equipment section. Loose because
 // the backend agent is still finalising the types in database.ts.
@@ -540,6 +541,10 @@ export default function JobDetailPage() {
   const { user, organization } = useAuthStore()
   const jobId = params.id as string
 
+  // M2.5 — iOS-style swipe-back. Attached to the page's outermost wrapper
+  // below. Skipped on desktop and on touches that start on form elements.
+  const swipeBackRef = useSwipeBack<HTMLDivElement>()
+
   const canApprove = user?.role ? hasPermission(user.role, 'jobs:approve') : false
   const canReject = user?.role ? hasPermission(user.role, 'jobs:reject') : false
   const canEdit = user?.role ? hasPermission(user.role, 'jobs:edit_all') : false
@@ -984,7 +989,10 @@ export default function JobDetailPage() {
   const invoiceWasEdited = invoiceMeta?.manually_edited === true
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+    <div
+      ref={swipeBackRef}
+      className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6 will-change-transform"
+    >
       {/* Header — stacks on mobile */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="flex items-start gap-2 sm:gap-3 min-w-0">

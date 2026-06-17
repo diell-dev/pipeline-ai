@@ -18,6 +18,7 @@
  */
 import { useEffect } from 'react'
 import { Toaster } from '@/components/ui/sonner'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { ThemeProvider } from '@/components/theme/theme-provider'
 import { useAuthStore } from '@/stores/auth-store'
 import { useThemeBrand } from '@/hooks/use-theme-brand'
@@ -99,8 +100,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeProvider>
-      {children}
-      <Toaster position="top-right" richColors />
+      {/* M3: mounted once at the root so every <Tooltip /> in the app shares
+       * the same skip-delay group. First tooltip waits 500ms; subsequent
+       * tooltips within 1.5s open instantly. Defaults live in
+       * TooltipProvider's signature — overriding them is per call-site only. */}
+      <TooltipProvider>
+        {children}
+        <Toaster position="top-right" richColors />
+      </TooltipProvider>
     </ThemeProvider>
   )
 }

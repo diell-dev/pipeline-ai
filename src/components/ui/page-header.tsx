@@ -60,7 +60,9 @@ export function PageHeader({
                   {crumb.href && !isLast ? (
                     <Link
                       href={crumb.href}
-                      className="hover:text-foreground transition-colors"
+                      // M3: explicit color-only transition + strong ease-out
+                      // so the breadcrumb hover settles cleanly.
+                      className="transition-[color] duration-150 ease-out-strong hover:text-foreground"
                     >
                       {crumb.label}
                     </Link>

@@ -415,7 +415,13 @@ export function EditEquipmentDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      // M2.2 — long-form drawer opens at 85% height with the option to
+      // expand to full-screen or peek at 40%. Ignored on desktop.
+      snapPoints={[0.4, 0.85, 1]}
+    >
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Edit equipment</DialogTitle>

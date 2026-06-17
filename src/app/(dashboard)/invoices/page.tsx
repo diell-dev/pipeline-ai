@@ -9,7 +9,7 @@
  * - Searchable client filter dropdown
  * - Status badges (paid, unpaid, overdue, etc.)
  */
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
@@ -29,6 +29,8 @@ import { MarkPaidDialog } from '@/components/invoices/mark-paid-dialog'
 import { SkeletonList } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
+import { SwipeableRow, type SwipeAction } from '@/components/ui/swipeable-row'
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { toast } from 'sonner'
 import {
   FileText,
@@ -91,6 +93,10 @@ export default function InvoicesPage() {
 
   const [voidingId, setVoidingId] = useState<string | null>(null)
   const [confirmVoidId, setConfirmVoidId] = useState<string | null>(null)
+  // M4.6 — swipe-action target for Mark Paid. MarkPaidDialog wraps a
+  // trigger child; to open it from a swipe we keep a ref to the per-row
+  // trigger button and synthesize a click on it.
+  const markPaidTriggers = useRef<Record<string, HTMLButtonElement | null>>({})
 
   // Filter
   const clientIdFromParam = searchParams.get('client')
@@ -173,6 +179,11 @@ export default function InvoicesPage() {
     loadInvoices()
   }, [loadInvoices])
 
+  // M4.5 — pull-to-refresh on the same loader. Touch-only.
+  const { PullIndicator: InvoicesPullIndicator } = usePullToRefresh({
+    onRefresh: loadInvoices,
+  })
+
   // Filtered client list for dropdown
   const filteredClients = useMemo(() => {
     if (!clientSearch.trim()) return clients
@@ -248,7 +259,9 @@ export default function InvoicesPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="relative p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+      {/* M4.5 — pull-to-refresh; renders nothing on desktop */}
+      <InvoicesPullIndicator />
       <PageHeader
         title="Invoices"
         subtitle="Track invoices, payment status, and outstanding balances."
@@ -343,9 +356,35 @@ export default function InvoicesPage() {
                 (canMarkPaid && MARK_PAID_STATUSES.includes(inv.status)) ||
                 (canDeleteInvoice && inv.status !== 'void' && inv.status !== 'paid')
 
+              // M4.6 — swipe-left to reveal Mark Paid + Delete. We only
+              // populate the destructive Delete action when the user has
+              // the perm AND the invoice isn't already settled — mirrors
+              // the inline button visibility rules.
+              const swipeActions: SwipeAction[] = []
+              if (canMarkPaid && MARK_PAID_STATUSES.includes(inv.status)) {
+                swipeActions.push({
+                  label: 'Mark Paid',
+                  color: 'bg-green-600 hover:bg-green-700',
+                  onClick: () => {
+                    // Defer to the existing MarkPaidDialog by clicking its
+                    // hidden per-row trigger. Keeps validation + form
+                    // behavior identical between swipe and tap.
+                    markPaidTriggers.current[inv.id]?.click()
+                  },
+                })
+              }
+              if (canDeleteInvoice && inv.status !== 'void' && inv.status !== 'paid') {
+                swipeActions.push({
+                  label: 'Delete',
+                  color: 'bg-red-600 hover:bg-red-700',
+                  destructive: true,
+                  onClick: () => setConfirmVoidId(inv.id),
+                })
+              }
+
               return (
+                <SwipeableRow key={inv.id} rightActions={swipeActions} className="rounded-lg">
                 <div
-                  key={inv.id}
                   style={{ '--row-index': idx } as React.CSSProperties}
                   className="row-stagger-up rounded-lg border bg-card p-4 space-y-3"
                   onClick={() => {
@@ -405,6 +444,11 @@ export default function InvoicesPage() {
                             size="sm"
                             variant="outline"
                             className="flex-1 h-10 text-green-700 hover:text-green-800 hover:bg-green-50 dark:text-green-400 dark:hover:text-green-300 dark:hover:bg-green-500/10"
+                            // M4.6 — ref captured so the swipe-action handler
+                            // can re-fire the same trigger.
+                            ref={(el) => {
+                              markPaidTriggers.current[inv.id] = el
+                            }}
                           >
                             <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
                             Mark Paid
@@ -425,6 +469,7 @@ export default function InvoicesPage() {
                     </div>
                   )}
                 </div>
+                </SwipeableRow>
               )
             })}
           </div>

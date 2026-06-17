@@ -4,14 +4,31 @@ import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * TooltipProvider — Emil's skip-delay pattern (M3).
+ *
+ * First tooltip waits 500ms so accidental hovers don't fire it.
+ * Subsequent tooltips within `timeout` (1500ms) of the last close open
+ * INSTANTLY — once a user has demonstrated they're exploring tooltips,
+ * make the rest free. This is what makes tooltip rows on a toolbar feel
+ * "alive" instead of laggy.
+ *
+ * Base UI uses `delay` (open delay) / `closeDelay` / `timeout`
+ * (skip-delay window). Radix uses `delayDuration` / `skipDelayDuration` —
+ * the concept is identical, only the prop names differ.
+ */
 function TooltipProvider({
-  delay = 0,
+  delay = 500,
+  closeDelay = 0,
+  timeout = 1500,
   ...props
 }: TooltipPrimitive.Provider.Props) {
   return (
     <TooltipPrimitive.Provider
       data-slot="tooltip-provider"
       delay={delay}
+      closeDelay={closeDelay}
+      timeout={timeout}
       {...props}
     />
   )
@@ -47,10 +64,14 @@ function TooltipContent({
         sideOffset={sideOffset}
         className="isolate z-50"
       >
+        {/* M3: grows from the trigger via Base UI's --transform-origin var.
+            150ms ease-out-strong sits squarely in Emil's tooltip budget
+            (125-200ms) and never crosses into "sluggish" territory.
+            zoom-in-95 keeps a non-zero start scale. */}
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
           className={cn(
-            "z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-xs text-background has-data-[slot=kbd]:pr-1.5 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-sm data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+            "z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-xs text-background duration-150 ease-out-strong has-data-[slot=kbd]:pr-1.5 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-sm data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
             className
           )}
           {...props}

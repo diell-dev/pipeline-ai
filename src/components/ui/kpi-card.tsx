@@ -115,10 +115,15 @@ export function KPICard({
 }: KPICardProps) {
   const interactive = typeof onClick === 'function'
 
+  // M3: hover lift only fires on hover-capable devices. On touch screens
+  // any `hover:` rule triggers on first tap → false-positive shadow flash
+  // before the click handler runs. The `[@media(hover:hover)…]` arbitrary
+  // variant gates the hover styling to mice / trackpads only. Transition
+  // is shadow-only with the strong ease-out curve (175ms, mid-range).
   const cardClass = cn(
-    'transition-shadow',
+    'transition-[box-shadow,transform] duration-150 ease-out-strong',
     interactive &&
-      'cursor-pointer hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring outline-none',
+      'cursor-pointer focus-visible:ring-2 focus-visible:ring-ring outline-none [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-md motion-safe:active:scale-[0.995]',
     className
   )
 

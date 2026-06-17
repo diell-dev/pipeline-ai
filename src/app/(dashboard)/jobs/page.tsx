@@ -9,7 +9,7 @@
  *
  * Links to /jobs/new for job creation.
  */
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
@@ -20,6 +20,8 @@ import { Badge } from '@/components/ui/badge'
 import { SkeletonList } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
+import { SwipeableRow } from '@/components/ui/swipeable-row'
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import {
   ClipboardList,
   Plus,
@@ -31,6 +33,7 @@ import {
   Building2,
   CheckCircle2,
   ArrowRight,
+  CalendarClock,
 } from 'lucide-react'
 import type { Job, JobStatus, JobPriority } from '@/types/database'
 
@@ -112,54 +115,68 @@ export default function JobsPage() {
     loadClients()
   }, [organization, isSuperAdmin])
 
-  useEffect(() => {
+  // M4.5 — extracted into a useCallback so the pull-to-refresh handler
+  // can re-run the exact same load. The original effect still drives the
+  // initial fetch + reload on filter change.
+  const loadJobs = useCallback(async () => {
     if (!organization || !user) return
+    setLoading(true)
+    const supabase = createClient()
 
-    async function loadJobs() {
-      setLoading(true)
-      const supabase = createClient()
+    let query = supabase
+      .from('jobs')
+      .select(`
+        *,
+        clients:client_id ( company_name ),
+        sites:site_id ( name, address ),
+        submitter:submitted_by ( full_name )
+      `)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
 
-      let query = supabase
-        .from('jobs')
-        .select(`
-          *,
-          clients:client_id ( company_name ),
-          sites:site_id ( name, address ),
-          submitter:submitted_by ( full_name )
-        `)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-
-      if (!isSuperAdmin) {
-        query = query.eq('organization_id', organization!.id)
-      }
-      // Field techs only see their own jobs
-      if (!canViewAll) {
-        query = query.eq('submitted_by', user!.id)
-      }
-
-      // Client filter from query param
-      if (clientFilter) {
-        query = query.eq('client_id', clientFilter)
-      }
-
-      // Status filter
-      if (filter !== 'all') {
-        query = query.eq('status', filter)
-      }
-
-      const { data, error } = await query.limit(50)
-
-      if (error) {
-        console.error('Failed to load jobs:', error.message)
-      } else {
-        setJobs((data as JobWithRelations[]) || [])
-      }
-      setLoading(false)
+    if (!isSuperAdmin) {
+      query = query.eq('organization_id', organization!.id)
+    }
+    // Field techs only see their own jobs
+    if (!canViewAll) {
+      query = query.eq('submitted_by', user!.id)
     }
 
-    loadJobs()
+    // Client filter from query param
+    if (clientFilter) {
+      query = query.eq('client_id', clientFilter)
+    }
+
+    // Status filter
+    if (filter !== 'all') {
+      query = query.eq('status', filter)
+    }
+
+    const { data, error } = await query.limit(50)
+
+    if (error) {
+      console.error('Failed to load jobs:', error.message)
+    } else {
+      setJobs((data as JobWithRelations[]) || [])
+    }
+    setLoading(false)
   }, [organization, user, canViewAll, isSuperAdmin, filter, clientFilter])
+
+  useEffect(() => {
+    // M4.5 — narrow disable: the load function intentionally flips
+    // `loading` synchronously so the skeleton appears immediately when
+    // filters change. The lint rule's general advice ("subscribe instead
+    // of setState in effect") doesn't apply to one-shot data fetches.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadJobs()
+  }, [loadJobs])
+
+  // M4.5 — pull-to-refresh wired to the same loadJobs callback. Hook is
+  // touch-only and listens on window scroll, so attaching the ref isn't
+  // strictly necessary, but it lets us scope the indicator visually.
+  const { PullIndicator: JobsPullIndicator } = usePullToRefresh({
+    onRefresh: loadJobs,
+  })
 
   // Load per-status counts (separate query, ignores the status filter so all pills get counts)
   useEffect(() => {
@@ -192,7 +209,9 @@ export default function JobsPage() {
   }, [organization, user, canViewAll, isSuperAdmin, clientFilter, jobs])
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="relative p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+      {/* M4.5 — pull-to-refresh indicator (touch-only; renders nothing on desktop) */}
+      <JobsPullIndicator />
       {/* Header — stacks on mobile, side-by-side on sm+ */}
       <PageHeader
         title={canViewAll ? 'All Jobs' : 'My Jobs'}
@@ -407,13 +426,32 @@ export default function JobsPage() {
             const priorityConf = PRIORITY_CONFIG[job.priority]
             const prev = idx > 0 ? jobs[idx - 1] : null
             const sameAsPrev = !!prev && prev.client_id === job.client_id
+            // M4.6 — swipe-left actions for mobile. We always pass these in;
+            // SwipeableRow short-circuits to a plain wrapper on non-touch
+            // devices, so desktop behavior is unchanged.
+            const rowActions = [
+              {
+                label: 'View',
+                icon: Eye,
+                color: 'bg-zinc-600 hover:bg-zinc-700',
+                onClick: () => router.push(`/jobs/${job.id}`),
+              },
+              {
+                label: 'Reschedule',
+                icon: CalendarClock,
+                color: 'bg-blue-600 hover:bg-blue-700',
+                onClick: () => router.push(`/jobs/${job.id}?action=reschedule`),
+              },
+            ]
             return (
-              <Card
+              <SwipeableRow
                 key={job.id}
+                rightActions={rowActions}
+                className={sameAsPrev ? 'ml-4 border-l-2 border-l-border rounded-xl' : ''}
+              >
+              <Card
                 style={{ '--row-index': idx } as React.CSSProperties}
-                className={`row-stagger-up hover:shadow-md transition-shadow cursor-pointer ${
-                  sameAsPrev ? 'ml-4 border-l-2 border-l-border' : ''
-                }`}
+                className="row-stagger-up hover:shadow-md transition-shadow cursor-pointer"
                 onClick={() => router.push(`/jobs/${job.id}`)}
               >
                 <CardContent className="flex items-center justify-between py-4">
@@ -476,6 +514,7 @@ export default function JobsPage() {
                   </Button>
                 </CardContent>
               </Card>
+              </SwipeableRow>
             )
           })}
         </div>

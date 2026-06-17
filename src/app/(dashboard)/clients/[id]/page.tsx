@@ -44,6 +44,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import type { Client, Site, SiteType, PipeMaterial, DrainType, InvoiceStatus } from '@/types/database'
+import { useSwipeBack } from '@/hooks/use-swipe-back'
 
 const SITE_TYPE_LABELS: Record<SiteType, string> = {
   residential: 'Residential',
@@ -69,6 +70,9 @@ export default function ClientDetailPage() {
   const router = useRouter()
   const { user } = useAuthStore()
   const clientId = params.id as string
+
+  // M2.5 — iOS swipe-back. Attached to the page wrapper below.
+  const swipeBackRef = useSwipeBack<HTMLDivElement>()
 
   const canEditClient = user?.role ? hasPermission(user.role, 'clients:edit') : false
   const canCreateSite = user?.role ? hasPermission(user.role, 'sites:create') : false
@@ -265,7 +269,10 @@ export default function ClientDetailPage() {
   if (!client) return null
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+    <div
+      ref={swipeBackRef}
+      className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6 will-change-transform"
+    >
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => router.push('/clients')}>

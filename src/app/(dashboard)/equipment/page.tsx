@@ -11,7 +11,7 @@
  *   - equipment:register          — can scan & register new equipment (Scan button)
  *   - equipment:manage_qr_batches — can generate sticker batches (QR button)
  */
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -24,9 +24,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { SkeletonList } from '@/components/ui/skeleton'
+import { SwipeableRow } from '@/components/ui/swipeable-row'
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import {
   Building2,
   ChevronDown,
+  ClipboardList,
+  Edit,
   MapPin,
   Plus,
   QrCode,
@@ -207,34 +211,39 @@ export default function EquipmentListPage() {
   }, [organization, supabase, isSuperAdmin])
 
   // ---- Load equipment when filters change ----
-  useEffect(() => {
+  // M4.5 — useCallback so pull-to-refresh can reuse the same fetch.
+  const loadEquipment = useCallback(async () => {
     if (!organization) return
-
-    async function loadEquipment() {
-      setLoading(true)
-      const params = new URLSearchParams()
-      if (siteFilter) params.set('site_id', siteFilter)
-      if (categoryFilter) params.set('category_id', categoryFilter)
-      if (search.trim()) params.set('search', search.trim())
-      try {
-        const res = await fetch(`/api/equipment?${params.toString()}`, { cache: 'no-store' })
-        if (!res.ok) {
-          console.error('Equipment fetch failed', res.status)
-          setEquipment([])
-        } else {
-          const data = await res.json()
-          setEquipment((data.equipment || []) as EquipmentRow[])
-        }
-      } catch (err) {
-        console.error('Equipment fetch error', err)
+    setLoading(true)
+    const params = new URLSearchParams()
+    if (siteFilter) params.set('site_id', siteFilter)
+    if (categoryFilter) params.set('category_id', categoryFilter)
+    if (search.trim()) params.set('search', search.trim())
+    try {
+      const res = await fetch(`/api/equipment?${params.toString()}`, { cache: 'no-store' })
+      if (!res.ok) {
+        console.error('Equipment fetch failed', res.status)
         setEquipment([])
-      } finally {
-        setLoading(false)
+      } else {
+        const data = await res.json()
+        setEquipment((data.equipment || []) as EquipmentRow[])
       }
+    } catch (err) {
+      console.error('Equipment fetch error', err)
+      setEquipment([])
+    } finally {
+      setLoading(false)
     }
-
-    loadEquipment()
   }, [organization, siteFilter, categoryFilter, search])
+
+  useEffect(() => {
+    loadEquipment()
+  }, [loadEquipment])
+
+  // M4.5 — pull-to-refresh on the equipment list (touch-only)
+  const { PullIndicator: EquipmentPullIndicator } = usePullToRefresh({
+    onRefresh: loadEquipment,
+  })
 
   // ---- Derived counts for status pills ----
   const counts = useMemo(() => {
@@ -273,7 +282,9 @@ export default function EquipmentListPage() {
   ]
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="relative p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+      {/* M4.5 — pull-to-refresh indicator (touch-only) */}
+      <EquipmentPullIndicator />
       {/* Header */}
       <PageHeader
         title="Equipment"
@@ -496,9 +507,30 @@ export default function EquipmentListPage() {
               const d = daysUntil(eq.next_service_due_date)
               const chip = dueChip(d)
               const makeModel = [eq.make, eq.model].filter(Boolean).join(' ') || 'No make/model'
+              // M4.6 — swipe-left actions. "Start Work Order" navigates to
+              // job creation pre-filled with this equipment + site. "Edit"
+              // navigates to the equipment detail's edit pane (handled there).
+              const swipeActions = [
+                {
+                  label: 'Work Order',
+                  icon: ClipboardList,
+                  color: 'bg-blue-600 hover:bg-blue-700',
+                  onClick: () => {
+                    const params = new URLSearchParams({ equipment_id: eq.id })
+                    if (eq.site_id) params.set('site_id', eq.site_id)
+                    router.push(`/jobs/new?${params.toString()}`)
+                  },
+                },
+                {
+                  label: 'Edit',
+                  icon: Edit,
+                  color: 'bg-zinc-700 hover:bg-zinc-800',
+                  onClick: () => router.push(`/equipment/${eq.id}?edit=1`),
+                },
+              ]
               return (
+                <SwipeableRow key={eq.id} rightActions={swipeActions} className="rounded-xl">
                 <Card
-                  key={eq.id}
                   style={{ '--row-index': idx } as React.CSSProperties}
                   className="row-stagger-up cursor-pointer hover:shadow-md transition-shadow"
                   onClick={() => router.push(`/equipment/${eq.id}`)}
@@ -529,6 +561,7 @@ export default function EquipmentListPage() {
                     </div>
                   </CardContent>
                 </Card>
+                </SwipeableRow>
               )
             })}
           </div>

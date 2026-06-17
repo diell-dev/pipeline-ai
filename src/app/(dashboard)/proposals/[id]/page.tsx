@@ -39,6 +39,7 @@ import type {
   ProposalSignature,
   ProposalMaterial,
 } from '@/types/database'
+import { useSwipeBack } from '@/hooks/use-swipe-back'
 
 const STATUS_CONFIG: Record<ProposalStatus, { label: string; className: string }> = {
   draft: { label: 'Draft', className: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' },
@@ -68,6 +69,9 @@ export default function ProposalDetailPage() {
   const router = useRouter()
   const { user } = useAuthStore()
   const id = params.id as string
+
+  // M2.5 — iOS swipe-back. Attached to the page wrapper below.
+  const swipeBackRef = useSwipeBack<HTMLDivElement>()
 
   const canApprove = user?.role ? hasPermission(user.role, 'proposals:approve') : false
   const canSend = user?.role ? hasPermission(user.role, 'proposals:send') : false
@@ -225,7 +229,10 @@ export default function ProposalDetailPage() {
   const canEditDraft = ['draft', 'pending_admin_approval'].includes(proposal.status) && (isCreator || canApprove)
 
   return (
-    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
+    <div
+      ref={swipeBackRef}
+      className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6 will-change-transform"
+    >
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex items-start gap-3 min-w-0">

@@ -7,9 +7,10 @@
  * - Field Tech: read-only list
  * - Links to client detail page for sites management
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { useAuthStore } from '@/stores/auth-store'
 import { hasPermission } from '@/lib/permissions'
 import { Card, CardContent } from '@/components/ui/card'
@@ -66,32 +67,37 @@ export default function ClientsPage() {
     notes: '',
   })
 
-  useEffect(() => {
+  // M4.5 — useCallback so pull-to-refresh can reuse the loader.
+  const loadClients = useCallback(async () => {
     if (!organization) return
+    setLoading(true)
+    const supabase = createClient()
 
-    async function loadClients() {
-      setLoading(true)
-      const supabase = createClient()
+    let q = supabase
+      .from('clients')
+      .select('*')
+      .is('deleted_at', null)
+      .order('company_name')
+    if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
+    const { data, error } = await q
 
-      let q = supabase
-        .from('clients')
-        .select('*')
-        .is('deleted_at', null)
-        .order('company_name')
-      if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
-      const { data, error } = await q
-
-      if (error) {
-        console.error('Failed to load clients:', error.message)
-        toast.error('Failed to load clients')
-      } else {
-        setClients(data || [])
-      }
-      setLoading(false)
+    if (error) {
+      console.error('Failed to load clients:', error.message)
+      toast.error('Failed to load clients')
+    } else {
+      setClients(data || [])
     }
-
-    loadClients()
+    setLoading(false)
   }, [organization, isSuperAdmin])
+
+  useEffect(() => {
+    loadClients()
+  }, [loadClients])
+
+  // M4.5 — pull-to-refresh (touch-only, renders nothing on desktop).
+  const { PullIndicator: ClientsPullIndicator } = usePullToRefresh({
+    onRefresh: loadClients,
+  })
 
   // Filter by search
   const filtered = clients.filter(
@@ -158,7 +164,9 @@ export default function ClientsPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="relative p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+      {/* M4.5 — pull-to-refresh indicator (touch-only) */}
+      <ClientsPullIndicator />
       {/* Header */}
       <PageHeader
         title="Clients"

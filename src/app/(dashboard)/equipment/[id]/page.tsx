@@ -47,6 +47,7 @@ import {
   AlertTriangle,
   Layers,
 } from 'lucide-react'
+import { useSwipeBack } from '@/hooks/use-swipe-back'
 
 // ============================================================
 // Types — loose since the backend agent is still finalising
@@ -180,6 +181,9 @@ export default function EquipmentDetailPage() {
   const router = useRouter()
   const { user } = useAuthStore()
   const equipmentId = params.id as string
+
+  // M2.5 — iOS swipe-back. Attached to the page wrapper below.
+  const swipeBackRef = useSwipeBack<HTMLDivElement>()
 
   const canEdit = user?.role ? hasPermission(user.role, 'equipment:edit' as Permission) : false
   const canDelete = user?.role ? hasPermission(user.role, 'equipment:delete' as Permission) : false
@@ -321,7 +325,10 @@ export default function EquipmentDetailPage() {
   const unitLabel = equipment.unit_number || equipment.common_area_name || 'No unit number'
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+    <div
+      ref={swipeBackRef}
+      className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6 will-change-transform"
+    >
       {/* Header */}
       <div className="flex items-start gap-2 sm:gap-3">
         <Button

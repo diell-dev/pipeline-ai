@@ -5,8 +5,10 @@ import { useAuthStore } from '@/stores/auth-store'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { AppHeader } from '@/components/layout/app-header'
 import { BottomNav } from '@/components/layout/bottom-nav'
+import { MobilePageTransition } from '@/components/layout/mobile-page-transition'
 import { BrandProvider } from '@/components/providers/brand-provider'
 import { Skeleton } from '@/components/ui/skeleton'
+import { InstallPrompt } from '@/components/install-prompt'
 
 export default function DashboardLayout({
   children,
@@ -17,6 +19,11 @@ export default function DashboardLayout({
   // Phase F: re-key the <main> on pathname so the page-fade-in keyframe
   // replays on every route change. No layout shift — purely opacity + 4px
   // translateY. Reduced-motion users get the final state instantly.
+  //
+  // M2.3: On mobile, the richer MobilePageTransition wrapper handles
+  // push / pop / tab-switch transitions. Desktop keeps the cheap CSS
+  // keyframe (`md:page-fade-in`) — mobile uses motion/react and lets the
+  // CSS class no-op via the `md:` prefix.
   const pathname = usePathname()
 
   if (isLoading) {
@@ -42,14 +49,17 @@ export default function DashboardLayout({
           <AppHeader />
           <main
             key={pathname}
-            className="page-fade-in flex-1 overflow-y-auto bg-zinc-50 pb-20 md:pb-0 dark:bg-zinc-950"
+            className="md:page-fade-in flex-1 overflow-y-auto bg-zinc-50 pb-20 md:pb-0 dark:bg-zinc-950"
           >
-            {children}
+            <MobilePageTransition>{children}</MobilePageTransition>
           </main>
         </div>
       </div>
       {/* Mobile bottom nav */}
       <BottomNav />
+      {/* M4.4 — PWA install nudge. Self-throttles (60s dwell, 3+ routes,
+          30d dismissal). Renders nothing outside its eligibility window. */}
+      <InstallPrompt />
     </BrandProvider>
   )
 }

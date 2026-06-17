@@ -110,46 +110,43 @@ export function BottomNav() {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t bg-background md:hidden"
+      // M2.4 polish:
+      //   • Glass blur background (`bg-card/85 backdrop-blur-xl`) — reads
+      //     more iOS-native than a flat opaque bar.
+      //   • Slight shadow above for separation from scrolling content.
+      //   • Safe-area-inset preserved so the bar clears the iOS home indicator.
+      className="fixed inset-x-0 bottom-0 z-40 border-t bg-card/85 backdrop-blur-xl shadow-[0_-1px_8px_rgba(0,0,0,0.04)] supports-backdrop-filter:bg-card/75 md:hidden"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className="grid h-16 grid-cols-5">
-        {primaryItems.map((item) => {
-          const Icon = item.icon
-          const active = isActive(item.href)
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'relative flex flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors',
-                active ? 'text-brand-primary' : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {/* Active top border */}
-              {active && (
-                <span className="bg-brand-primary absolute inset-x-3 top-0 h-0.5 rounded-b" />
-              )}
-              <Icon className="h-5 w-5" />
-              <span className="truncate px-1">{item.label}</span>
-            </Link>
-          )
-        })}
+        {primaryItems.map((item) => (
+          <BottomNavLink
+            key={item.href}
+            href={item.href}
+            label={item.label}
+            Icon={item.icon}
+            active={isActive(item.href)}
+          />
+        ))}
 
         {/* Menu — sheet trigger (formerly "More"; see UX-SWEEP-#22) */}
         <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
           <SheetTrigger
             className={cn(
-              'relative flex flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors',
+              'group relative flex flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors duration-100 active:scale-95',
               overflowItems.some((it) => isActive(it.href))
                 ? 'text-brand-primary'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            {overflowItems.some((it) => isActive(it.href)) && (
-              <span className="bg-brand-primary absolute inset-x-3 top-0 h-0.5 rounded-b" />
-            )}
-            <MoreHorizontal className="h-5 w-5" />
+            <span
+              className={cn(
+                'flex items-center justify-center transition-transform duration-200',
+                overflowItems.some((it) => isActive(it.href)) && 'scale-105'
+              )}
+            >
+              <MoreHorizontal className="h-5 w-5" />
+            </span>
             {/* UX-SWEEP-#22: was "More" — too vague. "Menu" matches the sheet title
                 and tells users they'll see the rest of the app's navigation. */}
             <span>Menu</span>
@@ -187,5 +184,60 @@ export function BottomNav() {
         </Sheet>
       </div>
     </nav>
+  )
+}
+
+/**
+ * One tab in the bottom nav. Hoisted so it can own its own attention-badge
+ * fetch later without re-rendering the whole nav. For now it's a pure
+ * presentational component:
+ *
+ *   • Active: brand-primary color + 1.05 icon scale (subtle tactile cue).
+ *   • Tap feedback: `active:scale-95` springs back via transition.
+ *   • `attentionCount`: optional small dot for unread / pending items.
+ *     The dot is drawn outside the icon's bounding box so it doesn't
+ *     truncate, and capped at "9+" for sanity.
+ */
+function BottomNavLink({
+  href,
+  label,
+  Icon,
+  active,
+  attentionCount,
+}: {
+  href: string
+  label: string
+  Icon: React.ElementType
+  active: boolean
+  attentionCount?: number
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        'group relative flex flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors duration-100 active:scale-95',
+        active ? 'text-brand-primary' : 'text-muted-foreground hover:text-foreground'
+      )}
+    >
+      <span
+        className={cn(
+          'relative flex items-center justify-center transition-transform duration-200',
+          active && 'scale-105'
+        )}
+      >
+        <Icon className="h-5 w-5" />
+        {attentionCount != null && attentionCount > 0 && (
+          <span
+            // The dot is a small pill that scales up to a number badge when
+            // count > 0 — kept tiny enough that it never crowds the icon.
+            className="absolute -top-1 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-accent px-1 text-[9px] font-semibold leading-none text-brand-accent-fg ring-2 ring-card"
+            aria-label={`${attentionCount} pending`}
+          >
+            {attentionCount > 9 ? '9+' : attentionCount}
+          </span>
+        )}
+      </span>
+      <span className="truncate px-1">{label}</span>
+    </Link>
   )
 }

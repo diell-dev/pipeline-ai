@@ -323,7 +323,14 @@ export function ScheduleWorkOrderDialog({
 
   // ── Render ──────────────────────────────────────────────────
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      // M2.2 — long form (notes, schedule, services, equipment) benefits
+      // from snap points. Peek/sit/full so users can stay at 85% and still
+      // see the equipment chip behind them. Desktop ignores.
+      snapPoints={[0.4, 0.85, 1]}
+    >
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

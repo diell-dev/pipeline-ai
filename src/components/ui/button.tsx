@@ -6,12 +6,15 @@ import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  // Phase F: `motion-safe:active:scale-[0.97]` gives a tactile press feedback
-  // on every button without breaking keyboard interaction (motion-safe gates
-  // the scale on prefers-reduced-motion). The existing `active:translate-y-px`
-  // sub-pixel offset is preserved for the previous look. Transform-only —
-  // no layout reflow.
-  "group/button relative inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all duration-150 ease-out outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px motion-safe:active:not-aria-[haspopup]:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  // Emil Kowalski playbook applied (M3):
+  //   - `transition-[transform,background-color,color,box-shadow,border-color]`
+  //     instead of `transition-all` (never animate layout properties).
+  //   - `ease-out-strong` custom curve from design tokens — built-in ease-out
+  //     looks weak at the exact moment the user is watching the press.
+  //   - `motion-safe:active:scale-[0.97]` + sub-pixel translateY for tactile
+  //     press feedback. Transform-only so no reflow.
+  //   - Duration capped at 160ms (Emil's "button press" budget).
+  "group/button relative inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-[transform,background-color,color,box-shadow,border-color,opacity] duration-150 ease-out-strong outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px motion-safe:active:not-aria-[haspopup]:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {

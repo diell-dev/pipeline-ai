@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 import { hasPermission, hasAnyPermission, type Permission } from '@/lib/permissions'
+import { hasFeature } from '@/lib/tier-limits'
 import {
   LayoutDashboard,
   ClipboardList,
@@ -22,6 +23,7 @@ import {
   FlaskConical,
   Calendar,
   QrCode,
+  BookOpen,
 } from 'lucide-react'
 
 interface NavItem {
@@ -34,6 +36,9 @@ interface NavItem {
   techOnly?: boolean
   // If true, item is rendered for managers only (has jobs:schedule perm)
   managersOnly?: boolean
+  // If true, item is only shown when the org's tier includes `bookkeeping`.
+  // B3 — added with the Books module.
+  requiresBookkeeping?: boolean
 }
 
 const navItems: NavItem[] = [
@@ -50,6 +55,8 @@ const navItems: NavItem[] = [
   { label: 'Services', href: '/services', icon: Wrench, permission: 'services:view' },
   { label: 'Invoices', href: '/invoices', icon: FileText, anyPermission: ['invoices:view_all', 'invoices:view_own'] },
   { label: 'Finances', href: '/finances', icon: DollarSign, anyPermission: ['financials:view', 'financials:view_limited'] },
+  // Books — Business-tier-only bookkeeping module. Gated on perm AND tier feature.
+  { label: 'Books', href: '/books', icon: BookOpen, permission: 'bookkeeping:view', requiresBookkeeping: true },
   { label: 'Team', href: '/team', icon: Users, permission: 'users:view' },
   { label: 'Settings', href: '/settings', icon: Settings, permission: 'settings:view' },
   { label: 'AI Sandbox', href: '/test-ai', icon: FlaskConical, permission: 'settings:system' },
@@ -62,9 +69,11 @@ export function AppSidebar() {
 
   // Filter nav items by user permissions
   const isManager = user?.role ? hasPermission(user.role, 'jobs:schedule') : false
+  const hasBookkeeping = organization ? hasFeature(organization.tier, 'bookkeeping') : false
   const visibleItems = navItems.filter((item) => {
     if (item.managersOnly && !isManager) return false
     if (item.techOnly && (isManager || !user)) return false
+    if (item.requiresBookkeeping && !hasBookkeeping) return false
     if (!item.permission && !item.anyPermission) return true
     if (!user) return false
     if (item.anyPermission) return hasAnyPermission(user.role, item.anyPermission)

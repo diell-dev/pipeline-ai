@@ -10,10 +10,11 @@
  * - Status badges (paid, unpaid, overdue, etc.)
  */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
 import { hasPermission } from '@/lib/permissions'
+import { hasFeature } from '@/lib/tier-limits'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -81,9 +82,23 @@ const PAGE_SIZE = 15
 export default function InvoicesPage() {
   const { organization, user } = useAuthStore()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const canDeleteInvoice = user?.role ? hasPermission(user.role, 'invoices:delete') : false
   const canMarkPaid = user?.role ? hasPermission(user.role, 'invoices:mark_paid') : false
   const isSuperAdmin = user?.role === 'super_admin'
+
+  // B3: business-tier orgs use the bookkeeping-grade list at /books/invoices.
+  // Redirect them transparently. Other tiers keep the simple list below.
+  useEffect(() => {
+    if (
+      organization &&
+      hasFeature(organization.tier, 'bookkeeping') &&
+      user?.role &&
+      hasPermission(user.role, 'bookkeeping:view')
+    ) {
+      router.replace('/books/invoices')
+    }
+  }, [organization, user, router])
 
   const [invoices, setInvoices] = useState<InvoiceRow[]>([])
   const [clients, setClients] = useState<Client[]>([])

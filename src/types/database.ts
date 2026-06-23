@@ -107,6 +107,9 @@ export interface Organization {
   stripe_account_status: 'pending' | 'active' | 'restricted' | 'disconnected' | null
   stripe_charges_enabled: boolean
   stripe_payouts_enabled: boolean
+  // Bookkeeping module (Migration 016) — set once the setup wizard completes.
+  // NULL = books not yet enabled; non-null = COA seeded + period exists.
+  books_enabled_at: string | null
   // Metadata
   created_at: string
   updated_at: string

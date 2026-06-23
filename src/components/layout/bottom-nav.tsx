@@ -19,6 +19,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 import { hasPermission, hasAnyPermission, type Permission } from '@/lib/permissions'
+import { hasFeature } from '@/lib/tier-limits'
 import {
   Sheet,
   SheetContent,
@@ -40,6 +41,7 @@ import {
   Users,
   Settings,
   FlaskConical,
+  BookOpen,
 } from 'lucide-react'
 
 interface NavItem {
@@ -50,6 +52,8 @@ interface NavItem {
   anyPermission?: Permission[]
   techOnly?: boolean
   managersOnly?: boolean
+  /** Gated on `bookkeeping` tier feature — added by B3 for the Books module. */
+  requiresBookkeeping?: boolean
 }
 
 // Same shape as the sidebar's navItems — duplicated here so the two stay
@@ -65,6 +69,7 @@ const ALL_ITEMS: NavItem[] = [
   { label: 'Services', href: '/services', icon: Wrench, permission: 'services:view' },
   { label: 'Invoices', href: '/invoices', icon: FileText, anyPermission: ['invoices:view_all', 'invoices:view_own'] },
   { label: 'Finances', href: '/finances', icon: DollarSign, anyPermission: ['financials:view', 'financials:view_limited'] },
+  { label: 'Books', href: '/books', icon: BookOpen, permission: 'bookkeeping:view', requiresBookkeeping: true },
   { label: 'Team', href: '/team', icon: Users, permission: 'users:view' },
   { label: 'Settings', href: '/settings', icon: Settings, permission: 'settings:view' },
   { label: 'AI Sandbox', href: '/test-ai', icon: FlaskConical, permission: 'settings:system' },
@@ -77,17 +82,19 @@ const PRIMARY_FOR_TECH = ['/dashboard', '/schedule/my-schedule', '/jobs'] as con
 
 export function BottomNav() {
   const pathname = usePathname()
-  const { user } = useAuthStore()
+  const { user, organization } = useAuthStore()
   const [moreOpen, setMoreOpen] = useState(false)
 
   if (!user) return null
 
   const isManager = hasPermission(user.role, 'jobs:schedule')
+  const hasBookkeeping = organization ? hasFeature(organization.tier, 'bookkeeping') : false
 
   // Filter ALL_ITEMS by user permissions
   const visibleItems = ALL_ITEMS.filter((item) => {
     if (item.managersOnly && !isManager) return false
     if (item.techOnly && isManager) return false
+    if (item.requiresBookkeeping && !hasBookkeeping) return false
     if (!item.permission && !item.anyPermission) return true
     if (item.anyPermission) return hasAnyPermission(user.role, item.anyPermission)
     if (item.permission) return hasPermission(user.role, item.permission)

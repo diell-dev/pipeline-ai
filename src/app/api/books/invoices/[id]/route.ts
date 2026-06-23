@@ -23,7 +23,7 @@ export async function GET(_: NextRequest, ctx: { params: Promise<{ id: string }>
 
   const { data: invoice, error } = await supabase
     .from('invoices')
-    .select('*, clients (id, company_name, billing_email)')
+    .select('*, clients (id, company_name, billing_contact_email, primary_contact_email)')
     .eq('id', id)
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

@@ -43,7 +43,12 @@ interface Invoice {
   notes_internal: string | null
   po_number: string | null
   locked_at: string | null
-  clients: { id: string; company_name: string; billing_email: string | null } | null
+  clients: {
+    id: string
+    company_name: string
+    billing_contact_email: string | null
+    primary_contact_email: string | null
+  } | null
 }
 
 interface Line {

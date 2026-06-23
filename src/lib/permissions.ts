@@ -81,6 +81,12 @@ export type Permission =
   | 'equipment:manage_qr_batches'
   | 'service_requests:view'
   | 'service_requests:manage'
+  // Bookkeeping (Migration 015 — Business tier)
+  | 'bookkeeping:view'
+  | 'bookkeeping:edit'
+  | 'bookkeeping:reconcile'
+  | 'bookkeeping:lock_period'
+  | 'bookkeeping:reports'
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   super_admin: [
@@ -102,6 +108,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'equipment:view', 'equipment:register', 'equipment:edit', 'equipment:delete',
     'equipment:manage_qr_batches',
     'service_requests:view', 'service_requests:manage',
+    'bookkeeping:view', 'bookkeeping:edit', 'bookkeeping:reconcile',
+    'bookkeeping:lock_period', 'bookkeeping:reports',
   ],
 
   owner: [
@@ -122,6 +130,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'equipment:view', 'equipment:register', 'equipment:edit', 'equipment:delete',
     'equipment:manage_qr_batches',
     'service_requests:view', 'service_requests:manage',
+    'bookkeeping:view', 'bookkeeping:edit', 'bookkeeping:reconcile',
+    'bookkeeping:lock_period', 'bookkeeping:reports',
   ],
 
   office_manager: [
@@ -142,6 +152,9 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'equipment:view', 'equipment:register', 'equipment:edit',
     'equipment:manage_qr_batches',
     'service_requests:view', 'service_requests:manage',
+    // Bookkeeping: office_manager gets all but lock_period (owner-only)
+    'bookkeeping:view', 'bookkeeping:edit', 'bookkeeping:reconcile',
+    'bookkeeping:reports',
   ],
 
   field_tech: [

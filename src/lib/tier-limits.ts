@@ -37,6 +37,12 @@ export interface TierConfig {
     autoSendOnApproval: boolean
     jobScheduling: boolean
     crewManagement: boolean
+    /**
+     * Bookkeeping module (Migration 015) — chart of accounts, journal entries,
+     * bills, expenses, payments, bank reconciliation, GAAP-grade reports.
+     * Business tier only.
+     */
+    bookkeeping: boolean
   }
 }
 
@@ -72,6 +78,7 @@ export const TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
       autoSendOnApproval: false,
       jobScheduling: true,
       crewManagement: true,
+      bookkeeping: false,
     },
   },
 
@@ -106,6 +113,7 @@ export const TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
       autoSendOnApproval: true,
       jobScheduling: true,
       crewManagement: true,
+      bookkeeping: false,
     },
   },
 
@@ -140,6 +148,7 @@ export const TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
       autoSendOnApproval: true,
       jobScheduling: true,
       crewManagement: true,
+      bookkeeping: true,
     },
   },
 }

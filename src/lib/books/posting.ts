@@ -687,21 +687,44 @@ export async function postBill(
     })
   }
 
-  if (bill.tax_amount_cents > 0) {
-    const taxAccount = await getAccountByCode(
-      supabase,
-      bill.organization_id,
-      STANDARD_ACCOUNTS.SALES_TAX
-    )
-    // Recoverable sales tax: debit reduces our payable; if your
-    // jurisdiction makes it non-recoverable, B3 will let users
-    // override the account at the line level. For now: same account.
-    lines.push({
-      account_id: taxAccount.id,
-      debit_cents: bill.tax_amount_cents,
-      credit_cents: 0,
-      description: `Recoverable tax — bill ${bill.internal_number}`,
-    })
+  // US sales tax (USD-only deployment per spec): sales tax paid on
+  // business purchases is NOT recoverable like VAT — it becomes part
+  // of the cost basis of whatever was purchased. We roll bill tax into
+  // the expense accounts proportionally so the Sales Tax Payable
+  // account reflects only tax COLLECTED from customers (i.e. what
+  // we owe to the state tax authority), never tax we paid out.
+  // If we ever support VAT jurisdictions, gate this on org.country
+  // and put the tax into a "Recoverable Input Tax" asset account.
+  if (bill.tax_amount_cents > 0 && lines.length > 0) {
+    const expenseTotal = lines.reduce((sum, l) => sum + l.debit_cents, 0)
+    if (expenseTotal > 0) {
+      let allocated = 0
+      // Distribute proportionally, with the last line absorbing any
+      // rounding remainder so the total tax is fully allocated.
+      for (let i = 0; i < lines.length; i += 1) {
+        const isLast = i === lines.length - 1
+        const share = isLast
+          ? bill.tax_amount_cents - allocated
+          : Math.floor((lines[i].debit_cents * bill.tax_amount_cents) / expenseTotal)
+        lines[i].debit_cents += share
+        lines[i].description += ' (incl. NY sales tax)'
+        allocated += share
+      }
+    } else {
+      // No expense lines (shouldn't happen — guarded above). Fall back
+      // to MISCELLANEOUS to keep the entry balanced.
+      const misc = await getAccountByCode(
+        supabase,
+        bill.organization_id,
+        STANDARD_ACCOUNTS.MISCELLANEOUS
+      )
+      lines.push({
+        account_id: misc.id,
+        debit_cents: bill.tax_amount_cents,
+        credit_cents: 0,
+        description: `Sales tax — bill ${bill.internal_number}`,
+      })
+    }
   }
 
   lines.push({

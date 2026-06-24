@@ -22,7 +22,7 @@ import {
   DialogDescription, DialogFooter, DialogBody,
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Loader2, Printer, Receipt, Trash2 } from 'lucide-react'
+import { CheckCircle2, Loader2, Printer, Receipt, Send, Trash2 } from 'lucide-react'
 import { formatCurrency, formatDate, dollarsToCents } from '@/lib/books/format'
 import { todayIso } from '@/lib/books/format-helpers'
 import type { InvoiceStatus } from '@/types/database'
@@ -43,6 +43,9 @@ interface Invoice {
   notes_internal: string | null
   po_number: string | null
   locked_at: string | null
+  job_id: string | null
+  sent_at: string | null
+  send_count: number | null
   clients: {
     id: string
     company_name: string
@@ -89,6 +92,8 @@ export default function BooksInvoiceDetailPage({
   const [deleting, setDeleting] = useState(false)
   const [confirmVoid, setConfirmVoid] = useState(false)
   const [payOpen, setPayOpen] = useState(false)
+  const [confirmSend, setConfirmSend] = useState(false)
+  const [sending, setSending] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -125,6 +130,37 @@ export default function BooksInvoiceDetailPage({
     }
   }
 
+  async function handleSend() {
+    if (!invoice) return
+    setSending(true)
+    try {
+      // Field-ops invoices (job_id present) reuse the legacy jobs/send
+      // route which builds the AI-report email. Standalone books-mode
+      // invoices go through the new books-only endpoint.
+      const endpoint = invoice.job_id
+        ? `/api/jobs/${invoice.job_id}/send`
+        : `/api/books/invoices/${invoice.id}/send`
+      const res = await fetch(endpoint, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to send')
+      if (data.alreadySent) {
+        toast.success('Invoice was already sent — no email re-sent.')
+      } else if (invoice.job_id) {
+        toast.success('Invoice sent to client.')
+      } else {
+        // Standalone books invoice: status flipped + JE posted, but
+        // email is still a TODO. Be honest in the toast.
+        toast.success('Invoice marked sent and posted to the GL. (Email send for standalone invoices is not yet wired — see API route TODO.)')
+      }
+      load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send')
+    } finally {
+      setSending(false)
+      setConfirmSend(false)
+    }
+  }
+
   if (loading) {
     return <Skeleton className="h-64 w-full" />
   }
@@ -134,6 +170,12 @@ export default function BooksInvoiceDetailPage({
 
   const canEdit = !invoice.locked_at && invoice.status !== 'void' && invoice.status !== 'paid'
   const canPay = invoice.balance_due_cents > 0 && invoice.status !== 'void' && invoice.status !== 'draft'
+  const canSend = invoice.status === 'draft' && invoice.balance_due_cents > 0 && !invoice.locked_at
+  // Field-ops invoices (have a backing job) can be re-sent via the legacy
+  // route — backend already handles already-sent gracefully. Standalone
+  // books invoices don't have an email send wired yet, so skip resend
+  // for them until the TODO in /api/books/invoices/[id]/send is done.
+  const canResend = invoice.status === 'sent' && !!invoice.job_id
 
   return (
     <div className="space-y-4 print:space-y-2">
@@ -151,9 +193,24 @@ export default function BooksInvoiceDetailPage({
             <Button variant="outline" onClick={() => window.print()}>
               <Printer className="mr-1 h-4 w-4" /> Print
             </Button>
+            {canSend && (
+              <Button onClick={() => setConfirmSend(true)}>
+                <Send className="mr-1 h-4 w-4" /> Send invoice
+              </Button>
+            )}
+            {canResend && (
+              <Button variant="outline" onClick={() => setConfirmSend(true)}>
+                <Send className="mr-1 h-4 w-4" /> Resend
+              </Button>
+            )}
             {canPay && (
               <Button onClick={() => setPayOpen(true)}>
                 <Receipt className="mr-1 h-4 w-4" /> Record payment
+              </Button>
+            )}
+            {canPay && (
+              <Button variant="outline" onClick={() => setPayOpen(true)}>
+                <CheckCircle2 className="mr-1 h-4 w-4" /> Mark fully paid
               </Button>
             )}
             {canEdit && (
@@ -173,6 +230,13 @@ export default function BooksInvoiceDetailPage({
           <KV label="Date" value={formatDate(invoice.invoice_date)} />
           <KV label="Due" value={invoice.due_date ? formatDate(invoice.due_date) : '—'} />
           {invoice.po_number && <KV label="PO #" value={invoice.po_number} />}
+          <KV
+            label="Last sent"
+            value={invoice.sent_at ? formatDate(invoice.sent_at) : '—'}
+          />
+          {(invoice.send_count ?? 0) > 0 && (
+            <KV label="Send count" value={String(invoice.send_count ?? 0)} />
+          )}
           {journal && (
             <KV label="Journal entry"><span className="font-mono">{journal.entry_number}</span></KV>
           )}
@@ -251,6 +315,29 @@ export default function BooksInvoiceDetailPage({
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={confirmSend} onOpenChange={(o) => !sending && setConfirmSend(o)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {invoice.status === 'sent' ? 'Resend' : 'Send'} invoice {invoice.invoice_number}?
+            </DialogTitle>
+            <DialogDescription>
+              {invoice.job_id
+                ? 'This will post the invoice to the GL (if not already) and email the client the service report + invoice.'
+                : 'This will mark the invoice as sent and post it to the GL. Email send for standalone books invoices is not yet implemented — see the route TODO.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmSend(false)} disabled={sending}>
+              Cancel
+            </Button>
+            <Button onClick={handleSend} disabled={sending}>
+              {sending ? <><Loader2 className="mr-1 h-4 w-4 animate-spin" />Sending…</> : (invoice.status === 'sent' ? 'Resend' : 'Send invoice')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={confirmVoid} onOpenChange={(o) => !deleting && setConfirmVoid(o)}>
         <DialogContent className="sm:max-w-md">

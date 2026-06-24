@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getApiUser, hasPermission, canAccessOrg } from '@/lib/api-auth'
 import { createInvoiceCheckoutSession } from '@/lib/stripe-helpers'
+import { postInvoice } from '@/lib/books/posting'
 
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -114,7 +115,7 @@ export async function POST(
     const { data: org } = await supabase
       .from('organizations')
       .select(
-        'id, name, settings, primary_color, stripe_account_id, stripe_charges_enabled'
+        'id, name, settings, primary_color, stripe_account_id, stripe_charges_enabled, tier'
       )
       .eq('id', job.organization_id)
       .single()
@@ -206,12 +207,84 @@ export async function POST(
       })
     }
 
+    // ── Invoice claim: flip the matching invoice from draft → sent in
+    //    lockstep with the job claim, and remember the prior state so
+    //    we can roll it back if the email send fails. We only flip
+    //    drafts; anything already sent/paid/void stays put.
+    let invoicePriorStatus: string | null = null
+    let invoicePriorSendCount: number | null = null
+    let invoicePriorSentAt: string | null = null
+    let invoiceIdForPosting: string | null = null
+    {
+      const { data: invRow } = await supabase
+        .from('invoices')
+        .select('id, status, send_count, sent_at')
+        .eq('job_id', jobId)
+        .is('deleted_at', null)
+        .maybeSingle<{
+          id: string
+          status: string
+          send_count: number | null
+          sent_at: string | null
+        }>()
+
+      if (invRow) {
+        invoiceIdForPosting = invRow.id
+        if (invRow.status === 'draft') {
+          invoicePriorStatus = invRow.status
+          invoicePriorSendCount = invRow.send_count ?? 0
+          invoicePriorSentAt = invRow.sent_at
+          const { error: invFlipErr } = await supabase
+            .from('invoices')
+            .update({
+              status: 'sent',
+              sent_at: sentAt,
+              send_count: (invRow.send_count ?? 0) + 1,
+            })
+            .eq('id', invRow.id)
+            .eq('status', 'draft')
+            .is('deleted_at', null)
+          if (invFlipErr) {
+            console.error('Invoice flip failed (continuing):', invFlipErr.message)
+            // We don't abort the send if the invoice flip fails — the
+            // email still has business value. But we WILL skip the
+            // revert path on a downstream failure since we didn't
+            // actually mutate anything.
+            invoicePriorStatus = null
+          }
+        } else {
+          // Already sent / paid / void — bump send_count only.
+          const { error: bumpErr } = await supabase
+            .from('invoices')
+            .update({ send_count: (invRow.send_count ?? 0) + 1 })
+            .eq('id', invRow.id)
+          if (bumpErr) {
+            console.error('Invoice send_count bump failed:', bumpErr.message)
+          }
+        }
+      }
+    }
+
+    async function revertInvoiceClaim() {
+      if (!invoiceIdForPosting || invoicePriorStatus === null) return
+      console.error(`Reverting invoice send claim for invoice ${invoiceIdForPosting}`)
+      await supabase
+        .from('invoices')
+        .update({
+          status: invoicePriorStatus,
+          sent_at: invoicePriorSentAt,
+          send_count: invoicePriorSendCount ?? 0,
+        })
+        .eq('id', invoiceIdForPosting)
+    }
+
     async function revertClaim(reason: string) {
       console.error(`Reverting job send claim for ${jobId}: ${reason}`)
       await supabase
         .from('jobs')
         .update({ status: 'approved', sent_at: null })
         .eq('id', jobId)
+      await revertInvoiceClaim()
     }
 
     // ── 5. Send email (claim now held) ──
@@ -252,6 +325,25 @@ export async function POST(
       console.log('Subject: Service Report & Invoice')
       console.log('HTML length:', emailHtml.length)
       console.log('=== END EMAIL ===')
+    }
+
+    // ── Business-tier auto-post: write the journal entry for this
+    //    invoice. We only attempt this once the email has gone out
+    //    successfully — the email is the user-visible side-effect, and
+    //    posting a JE is recoverable (postInvoice is idempotent and
+    //    can be retried later). On failure we log and continue.
+    if (
+      invoiceIdForPosting &&
+      org?.tier === 'business'
+    ) {
+      try {
+        await postInvoice(supabase, invoiceIdForPosting)
+      } catch (postErr) {
+        console.error(
+          `Books auto-post failed for invoice ${invoiceIdForPosting} (email already sent — retry posting from books UI):`,
+          postErr instanceof Error ? postErr.message : postErr
+        )
+      }
     }
 
     // Log activity

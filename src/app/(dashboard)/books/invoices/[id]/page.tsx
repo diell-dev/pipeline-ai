@@ -22,7 +22,7 @@ import {
   DialogDescription, DialogFooter, DialogBody,
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { CheckCircle2, Loader2, Printer, Receipt, Send, Trash2 } from 'lucide-react'
+import { Loader2, Lock, Printer, Receipt, Send, Trash2 } from 'lucide-react'
 import { formatCurrency, formatDate, dollarsToCents } from '@/lib/books/format'
 import { todayIso } from '@/lib/books/format-helpers'
 import type { InvoiceStatus } from '@/types/database'
@@ -136,7 +136,8 @@ export default function BooksInvoiceDetailPage({
     try {
       // Field-ops invoices (job_id present) reuse the legacy jobs/send
       // route which builds the AI-report email. Standalone books-mode
-      // invoices go through the new books-only endpoint.
+      // invoices go through the new books-only endpoint, which currently
+      // just flips status + posts to the GL (no email yet — see route TODO).
       const endpoint = invoice.job_id
         ? `/api/jobs/${invoice.job_id}/send`
         : `/api/books/invoices/${invoice.id}/send`
@@ -148,9 +149,7 @@ export default function BooksInvoiceDetailPage({
       } else if (invoice.job_id) {
         toast.success('Invoice sent to client.')
       } else {
-        // Standalone books invoice: status flipped + JE posted, but
-        // email is still a TODO. Be honest in the toast.
-        toast.success('Invoice marked sent and posted to the GL. (Email send for standalone invoices is not yet wired — see API route TODO.)')
+        toast.success('Invoice marked sent and posted to the GL.')
       }
       load()
     } catch (err) {
@@ -195,7 +194,8 @@ export default function BooksInvoiceDetailPage({
             </Button>
             {canSend && (
               <Button onClick={() => setConfirmSend(true)}>
-                <Send className="mr-1 h-4 w-4" /> Send invoice
+                <Send className="mr-1 h-4 w-4" />
+                {invoice.job_id ? 'Send invoice' : 'Mark as sent'}
               </Button>
             )}
             {canResend && (
@@ -208,11 +208,6 @@ export default function BooksInvoiceDetailPage({
                 <Receipt className="mr-1 h-4 w-4" /> Record payment
               </Button>
             )}
-            {canPay && (
-              <Button variant="outline" onClick={() => setPayOpen(true)}>
-                <CheckCircle2 className="mr-1 h-4 w-4" /> Mark fully paid
-              </Button>
-            )}
             {canEdit && (
               <Button variant="destructive" onClick={() => setConfirmVoid(true)}>
                 <Trash2 className="mr-1 h-4 w-4" /> Void
@@ -221,6 +216,17 @@ export default function BooksInvoiceDetailPage({
           </div>
         }
       />
+
+      {invoice.locked_at && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200 print:hidden">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <p>
+            This period was locked on {formatDate(invoice.locked_at)}. Unlock in{' '}
+            <a href="/books/settings" className="underline underline-offset-2">Books → Settings</a>{' '}
+            to edit.
+          </p>
+        </div>
+      )}
 
       <Card>
         <CardHeader><CardTitle>Header</CardTitle></CardHeader>
@@ -320,12 +326,16 @@ export default function BooksInvoiceDetailPage({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {invoice.status === 'sent' ? 'Resend' : 'Send'} invoice {invoice.invoice_number}?
+              {invoice.status === 'sent'
+                ? `Resend invoice ${invoice.invoice_number}?`
+                : invoice.job_id
+                  ? `Send invoice ${invoice.invoice_number}?`
+                  : `Mark invoice ${invoice.invoice_number} as sent?`}
             </DialogTitle>
             <DialogDescription>
               {invoice.job_id
                 ? 'This will post the invoice to the GL (if not already) and email the client the service report + invoice.'
-                : 'This will mark the invoice as sent and post it to the GL. Email send for standalone books invoices is not yet implemented — see the route TODO.'}
+                : 'This will mark the invoice as sent and post it to your books.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -333,7 +343,13 @@ export default function BooksInvoiceDetailPage({
               Cancel
             </Button>
             <Button onClick={handleSend} disabled={sending}>
-              {sending ? <><Loader2 className="mr-1 h-4 w-4 animate-spin" />Sending…</> : (invoice.status === 'sent' ? 'Resend' : 'Send invoice')}
+              {sending
+                ? <><Loader2 className="mr-1 h-4 w-4 animate-spin" />Saving…</>
+                : invoice.status === 'sent'
+                  ? 'Resend'
+                  : invoice.job_id
+                    ? 'Send invoice'
+                    : 'Mark as sent'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -88,6 +88,30 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // MB-7: validate vendor_id belongs to caller's org. (Line account_ids
+  // are validated downstream by postBill via assertAccountInOrg, so we
+  // don't re-check here — but bills.vendor_id has no such guard.)
+  {
+    const { data: vendorRow, error: vendorErr } = await supabase
+      .from('vendors')
+      .select('id')
+      .eq('id', body.vendor_id)
+      .eq('organization_id', organizationId)
+      .maybeSingle()
+    if (vendorErr) {
+      return NextResponse.json(
+        { error: `Failed to validate vendor_id: ${vendorErr.message}` },
+        { status: 500 }
+      )
+    }
+    if (!vendorRow) {
+      return NextResponse.json(
+        { error: 'vendor_id does not belong to this organization' },
+        { status: 400 }
+      )
+    }
+  }
+
   // Compute monetary totals.
   let subtotalCents = 0
   let taxCents = 0

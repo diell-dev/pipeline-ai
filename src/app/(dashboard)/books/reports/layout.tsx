@@ -11,6 +11,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
+  ArrowLeft,
   BarChart3,
   BookOpen,
   Calculator,
@@ -60,6 +61,13 @@ export default function BooksReportsLayout({
             className="lg:w-56 lg:shrink-0 lg:sticky lg:top-4 print:hidden"
             aria-label="Reports navigation"
           >
+            <Link
+              href="/books"
+              className="mb-2 inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+              Back to Books
+            </Link>
             {/* Horizontal scroll on mobile, vertical stack on desktop. */}
             <nav className="-mx-1 flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
               <div className="hidden px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:block">

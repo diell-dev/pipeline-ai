@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SkeletonList } from '@/components/ui/skeleton'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { toast } from 'sonner'
 import { ReceiptText, Plus, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/books/format'
@@ -26,14 +26,6 @@ interface BillRow {
   total_cents: number
   balance_due_cents: number
   vendor: { id: string; name: string } | null
-}
-
-const STATUS_PILL: Record<BillRow['status'], string> = {
-  draft:          'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
-  open:           'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  partially_paid: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  paid:           'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
-  void:           'bg-zinc-100 text-zinc-500 line-through dark:bg-zinc-800 dark:text-zinc-400',
 }
 
 const PAGE_SIZE = 20
@@ -139,7 +131,7 @@ export default function BooksBillsListPage() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-xs font-medium">{r.internal_number}</span>
-                  <Badge className={`text-[10px] border-0 ${STATUS_PILL[r.status]}`}>{r.status}</Badge>
+                  <StatusBadge status={r.status} type="bill" />
                 </div>
                 <p className="text-sm truncate">{r.vendor?.name ?? '—'}</p>
                 <div className="flex items-center justify-between text-sm">
@@ -180,7 +172,7 @@ export default function BooksBillsListPage() {
                     <td className="px-3 py-2 text-right font-medium">{formatCurrency(r.total_cents)}</td>
                     <td className="px-3 py-2 text-right text-muted-foreground">{formatCurrency(r.balance_due_cents)}</td>
                     <td className="px-3 py-2 text-center">
-                      <Badge className={`text-[10px] border-0 ${STATUS_PILL[r.status]}`}>{r.status}</Badge>
+                      <StatusBadge status={r.status} type="bill" />
                     </td>
                   </tr>
                 ))}

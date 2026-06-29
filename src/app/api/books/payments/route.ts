@@ -101,34 +101,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error?.message ?? 'Failed' }, { status: 500 })
   }
 
-  // Bump the source row's amount_paid_cents.
-  if (sourceType === 'invoice' && sourceId && type === 'invoice_payment') {
-    const { data: inv } = await supabase
-      .from('invoices')
-      .select('total_cents, amount_paid_cents')
-      .eq('id', sourceId)
-      .maybeSingle<{ total_cents: number; amount_paid_cents: number }>()
-    if (inv) {
-      const newPaid = (inv.amount_paid_cents ?? 0) + amountCents
-      const status = newPaid >= inv.total_cents ? 'paid' : 'partially_paid'
-      await supabase.from('invoices').update({
-        amount_paid_cents: newPaid,
-        status,
-      }).eq('id', sourceId)
-    }
-  } else if (sourceType === 'bill' && sourceId && type === 'bill_payment') {
-    const { data: bill } = await supabase
-      .from('bills')
-      .select('total_cents, amount_paid_cents')
-      .eq('id', sourceId)
-      .maybeSingle<{ total_cents: number; amount_paid_cents: number }>()
-    if (bill) {
-      const newPaid = (bill.amount_paid_cents ?? 0) + amountCents
-      const status = newPaid >= bill.total_cents ? 'paid' : 'partially_paid'
-      await supabase.from('bills').update({
-        amount_paid_cents: newPaid,
-        status,
-      }).eq('id', sourceId)
+  // Bump the source row's amount_paid_cents via an atomic RPC. The
+  // earlier read-modify-write block raced when two payments hit the
+  // same invoice/bill concurrently (both reads saw the old value, both
+  // writes overwrote each other). The DB function does it in a single
+  // UPDATE so concurrent calls serialize on the row lock.
+  if (
+    sourceId &&
+    ((sourceType === 'invoice' && type === 'invoice_payment') ||
+      (sourceType === 'bill' && type === 'bill_payment'))
+  ) {
+    const { error: deltaErr } = await supabase.rpc('books_apply_payment_delta', {
+      p_source_type: sourceType,
+      p_source_id: sourceId,
+      p_amount_delta_cents: amountCents,
+    })
+    if (deltaErr) {
+      // Don't fail the request — the payment row exists; surface the
+      // problem so it can be reconciled.
+      console.error(
+        `Payment ${paymentNumber}: books_apply_payment_delta failed for ${sourceType} ${sourceId}: ${deltaErr.message}`
+      )
     }
   }
 

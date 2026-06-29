@@ -1103,13 +1103,6 @@ interface InvoiceForTax {
   job_id: string | null
 }
 
-interface BillForTax {
-  id: string
-  bill_date: string
-  subtotal_cents: number
-  tax_amount_cents: number
-}
-
 interface JobLineForTax {
   job_id: string
   tax_rate_id: string | null
@@ -1234,25 +1227,25 @@ export async function getSalesTaxSummary(
     }
   }
 
-  // 4. Tax paid on bills (recoverable). v1 lumps all bill tax under
-  // "Unspecified" since bills don't carry per-line rate ids in PA.
-  const { data: billRows, error: billErr } = await supabase
-    .from('bills')
-    .select('id, bill_date, subtotal_cents, tax_amount_cents')
-    .eq('organization_id', orgId)
-    .is('deleted_at', null)
-    .gte('bill_date', startDate)
-    .lte('bill_date', endDate)
-    .gt('tax_amount_cents', 0)
-
-  if (billErr) {
-    throw new ReportError(`Failed to load bills: ${billErr.message}`)
-  }
-  const bills = (billRows ?? []) as BillForTax[]
-  let totalBillTax = 0
-  for (const b of bills) {
-    totalBillTax += b.tax_amount_cents
-  }
+  // 4. US sales tax is NOT recoverable like VAT. Sales tax paid on
+  // business purchases (bills, expenses) becomes part of the cost basis
+  // of the purchased item — it does NOT offset what we owe the state
+  // for sales tax collected from customers. The Sales Tax Payable
+  // account (code 2200) should reflect ONLY customer-collected tax.
+  //
+  // The earlier version subtracted bills.tax_amount_cents from the
+  // collected total, which underreported net_tax_owed to the state
+  // (sometimes by enough to push it negative — i.e. claiming a refund
+  // the business is not entitled to). Combined with the recent posting
+  // fix that stopped routing bill tax to account 2200 (see posting.ts
+  // §2 "US sales tax (USD-only deployment per spec)"), this would have
+  // double-counted the bias.
+  //
+  // For an authoritative ground-truth check, the SALES_TAX (2200)
+  // account credit balance over the same period should equal the sum
+  // of tax_collected_cents across all groups below (modulo reversals).
+  // If we ever support VAT jurisdictions, gate "tax paid is
+  // recoverable" on org.country and add the bill-tax math back.
 
   // 5. Materialize the report rows.
   const rows: SalesTaxBreakdownRow[] = []
@@ -1267,25 +1260,6 @@ export async function getSalesTaxSummary(
       tax_paid_cents: 0,
       net_tax_owed_cents: totals.tax_collected_cents,
     })
-  }
-
-  // Drop bill tax onto "Unspecified" row (or create one if missing).
-  if (totalBillTax > 0) {
-    const unspec = rows.find((r) => r.tax_rate_id === null)
-    if (unspec) {
-      unspec.tax_paid_cents += totalBillTax
-      unspec.net_tax_owed_cents = unspec.tax_collected_cents - unspec.tax_paid_cents
-    } else {
-      rows.push({
-        tax_rate_id: null,
-        tax_rate_name: 'Unspecified',
-        rate_pct: 0,
-        taxable_subtotal_cents: 0,
-        tax_collected_cents: 0,
-        tax_paid_cents: totalBillTax,
-        net_tax_owed_cents: -totalBillTax,
-      })
-    }
   }
 
   rows.sort((a, b) => a.tax_rate_name.localeCompare(b.tax_rate_name))

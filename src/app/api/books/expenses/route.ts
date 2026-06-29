@@ -53,6 +53,51 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'amount must be > 0' }, { status: 400 })
   }
 
+  // MB-7: Cross-tenant FK validation. Anything that takes a FK to
+  // an org-scoped row must be verified to belong to the caller's org
+  // BEFORE the insert. Without this, a bookkeeper could (intentionally
+  // or by mistake) attach an expense to another org's vendor, client,
+  // job, or expense category — RLS on `expenses` lets the insert
+  // succeed because the row's `organization_id` matches the caller,
+  // but the referenced FK doesn't have to.
+  const fkChecks: Array<{ field: string; table: string; id: string }> = []
+  if (body.vendor_id) {
+    fkChecks.push({ field: 'vendor_id', table: 'vendors', id: body.vendor_id as string })
+  }
+  if (body.expense_category_id) {
+    fkChecks.push({
+      field: 'expense_category_id',
+      table: 'expense_categories',
+      id: body.expense_category_id as string,
+    })
+  }
+  if (body.client_id) {
+    fkChecks.push({ field: 'client_id', table: 'clients', id: body.client_id as string })
+  }
+  if (body.job_id) {
+    fkChecks.push({ field: 'job_id', table: 'jobs', id: body.job_id as string })
+  }
+  for (const fk of fkChecks) {
+    const { data: row, error: fkErr } = await supabase
+      .from(fk.table)
+      .select('id')
+      .eq('id', fk.id)
+      .eq('organization_id', organizationId)
+      .maybeSingle()
+    if (fkErr) {
+      return NextResponse.json(
+        { error: `Failed to validate ${fk.field}: ${fkErr.message}` },
+        { status: 500 }
+      )
+    }
+    if (!row) {
+      return NextResponse.json(
+        { error: `${fk.field} does not belong to this organization` },
+        { status: 400 }
+      )
+    }
+  }
+
   const insert = {
     organization_id: organizationId,
     expense_date: (body.expense_date as string) || todayIso(),

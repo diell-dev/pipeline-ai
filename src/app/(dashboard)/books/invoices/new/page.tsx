@@ -104,6 +104,7 @@ export default function NewBooksInvoicePage() {
           lines: usableLines.map((l) => ({
             description: l.description,
             account_id: l.account_id,
+            tax_rate_id: l.tax_rate_id || null,
             quantity: Number.parseFloat(l.quantity) || 1,
             unit_price: l.unit_price,
             tax_amount_cents: computeLineTotalsCents(l).taxCents,

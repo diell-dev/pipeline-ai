@@ -34,8 +34,12 @@ const buttonVariants = cva(
           "bg-brand-primary [a]:hover:opacity-90 hover:opacity-90 focus-visible:ring-[rgb(var(--brand-primary-rgb)/0.4)]",
       },
       size: {
+        // Default size bumped to h-10 (40px) for mobile tap targets. iOS HIG
+        // recommends a minimum of 44pt; 40px is the closest we can get
+        // without making desktop look chunky. Tighter spots can opt down
+        // to `sm` (h-7) or `xs` (h-6).
         default:
-          "h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
+          "h-10 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
         xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
         sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
         lg: "h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",

@@ -12,13 +12,13 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/status-badge'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter, DialogBody,
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Loader2, Printer, Receipt, Trash2 } from 'lucide-react'
+import { Loader2, Lock, Printer, Receipt, Trash2 } from 'lucide-react'
 import { formatCurrency, formatDate, dollarsToCents } from '@/lib/books/format'
 import { todayIso } from '@/lib/books/format-helpers'
 
@@ -115,7 +115,7 @@ export default function BookBillDetailPage({
         ]}
         actions={
           <div className="flex flex-wrap gap-2 print:hidden">
-            <Badge variant="outline">{bill.status}</Badge>
+            <StatusBadge status={bill.status} type="bill" />
             <Button variant="outline" onClick={() => window.print()}>
               <Printer className="mr-1 h-4 w-4" /> Print
             </Button>
@@ -132,6 +132,17 @@ export default function BookBillDetailPage({
           </div>
         }
       />
+
+      {bill.locked_at && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200 print:hidden">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <p>
+            This period was locked on {formatDate(bill.locked_at)}. Unlock in{' '}
+            <a href="/books/settings" className="underline underline-offset-2">Books → Settings</a>{' '}
+            to edit.
+          </p>
+        </div>
+      )}
 
       <Card>
         <CardHeader><CardTitle>Header</CardTitle></CardHeader>

@@ -8,12 +8,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { requireBooksAccess, assertOrgMatch } from '@/lib/books/api-guard'
-import { softDeleteAndReverse, PostingError, postInvoice } from '@/lib/books/posting'
+import {
+  softDeleteAndReverse,
+  PostingError,
+  postInvoice,
+  findExistingActiveEntry,
+  reverseJournalEntry,
+} from '@/lib/books/posting'
 
 const EDITABLE = [
   'invoice_date', 'due_date', 'notes_for_customer', 'notes_internal',
   'payment_terms_text', 'payment_terms_days', 'po_number', 'status',
 ] as const
+
+// Fields that, when changed on an already-posted invoice, require the
+// existing journal entry to be reversed and a fresh one created so the
+// GL matches the invoice header. `invoice_date` shifts the period the
+// entry posts to; the remaining EDITABLE fields are notes/terms/po and
+// don't move money. (Line-item totals are detected separately by
+// comparing the JE's debit total against the invoice header.)
+const POSTING_RELEVANT: readonly string[] = ['invoice_date']
 
 export async function GET(_: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params
@@ -106,18 +120,79 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // If we just transitioned out of draft, post the GL entry.
-  if (
+  const movedOutOfDraft =
     'status' in update &&
     existing.status === 'draft' &&
     update.status !== 'draft' &&
     update.status !== 'void'
-  ) {
+
+  if (movedOutOfDraft) {
     try {
       await postInvoice(supabase, id)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'posting failed'
       const code = err instanceof PostingError ? 422 : 500
       return NextResponse.json({ invoice: data, error: msg, posted: false }, { status: code })
+    }
+  } else {
+    // MB-5: re-post when posting-relevant fields change on a live
+    // invoice. Without this, an edit to invoice_date (or to line
+    // totals via subtotal/tax/total drift) would leave the GL entry
+    // pointing at the old values forever.
+    const postingChanged = POSTING_RELEVANT.some((k) => k in update)
+    const isLive =
+      existing.status !== 'draft' &&
+      existing.status !== 'void' &&
+      (update.status === undefined || (update.status !== 'draft' && update.status !== 'void'))
+
+    if (isLive) {
+      try {
+        const active = await findExistingActiveEntry(
+          supabase,
+          existing.organization_id,
+          'invoice',
+          id
+        )
+        if (active) {
+          let needsRepost = postingChanged
+
+          // Detect line-item-driven changes: compare the JE's total
+          // debit (which should equal invoice.total_cents) against the
+          // current invoice header. Drift means subtotal/tax/total
+          // shifted since the entry was written.
+          if (!needsRepost) {
+            const { data: jeLines } = await supabase
+              .from('journal_entry_lines')
+              .select('debit_cents')
+              .eq('journal_entry_id', active.id)
+            const jeDebitTotal = (jeLines ?? []).reduce(
+              (sum, l) => sum + ((l as { debit_cents: number }).debit_cents ?? 0),
+              0
+            )
+            const invTotal = (data as { total_cents?: number }).total_cents ?? 0
+            if (invTotal > 0 && jeDebitTotal !== invTotal) {
+              needsRepost = true
+            }
+          }
+
+          if (needsRepost) {
+            await reverseJournalEntry(
+              supabase,
+              active.id,
+              `Invoice ${id} edited (posting-relevant field change)`
+            )
+            await supabase
+              .from('journal_entries')
+              .update({ deleted_at: new Date().toISOString() })
+              .eq('id', active.id)
+            await postInvoice(supabase, id)
+          }
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'reposting failed'
+        console.error(`Invoice ${id} re-post after edit failed: ${msg}`)
+        return NextResponse.json({ invoice: data, error: msg, posted: false }, { status: 200 })
+      }
     }
   }
 

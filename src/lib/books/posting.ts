@@ -359,7 +359,7 @@ interface ExistingEntryRow {
   entry_number: string
 }
 
-async function findExistingActiveEntry(
+export async function findExistingActiveEntry(
   supabase: SupabaseClient,
   orgId: string,
   sourceType: PostingSourceType,

@@ -36,6 +36,7 @@ export default function NewExpensePage() {
   const [taxAmount, setTaxAmount] = useState('0.00')
   const [receiptUrl, setReceiptUrl] = useState('')
   const [reimbursable, setReimbursable] = useState(false)
+  const [notes, setNotes] = useState('')
 
   useEffect(() => {
     let cancel = false
@@ -74,6 +75,7 @@ export default function NewExpensePage() {
           tax_amount: taxAmount,
           receipt_url: receiptUrl || null,
           is_reimbursable: reimbursable,
+          notes: notes.trim() || null,
         }),
       })
       const data = await res.json()
@@ -146,22 +148,12 @@ export default function NewExpensePage() {
             <Input id="e-tax" value={taxAmount} onChange={(e) => setTaxAmount(e.target.value)} inputMode="decimal" />
           </div>
           <div className="md:col-span-2 space-y-1.5">
-            <Label htmlFor="e-receipt">Receipt URL (paste link or upload to storage)</Label>
+            <Label htmlFor="e-receipt">Receipt URL (paste link)</Label>
             <Input id="e-receipt" value={receiptUrl} onChange={(e) => setReceiptUrl(e.target.value)}
               placeholder="https://…" />
-            {/* Mobile camera capture: use the system file picker which on
-                iOS / Android exposes the camera as a source. */}
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="text-xs text-muted-foreground"
-              onChange={(e) => {
-                if (e.target.files && e.target.files[0]) {
-                  toast.message('Receipt selected — upload-to-storage wiring is part of B5.')
-                }
-              }}
-            />
+            {/* TODO(B5): wire up camera / file upload to Supabase storage
+                and set receiptUrl from the returned public URL. Hidden
+                for now so the form doesn't surface unfinished plumbing. */}
           </div>
           <div className="md:col-span-2">
             <label className="inline-flex items-center gap-2 text-sm">
@@ -172,7 +164,15 @@ export default function NewExpensePage() {
         </CardContent>
       </Card>
 
-      <Textarea placeholder="Internal notes…" />
+      <div className="space-y-1.5">
+        <Label htmlFor="e-notes">Internal notes</Label>
+        <Textarea
+          id="e-notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Internal notes…"
+        />
+      </div>
 
       <div className="flex justify-between gap-2">
         <Link href="/books/expenses">

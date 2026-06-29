@@ -436,32 +436,26 @@ async function maybePostStripePaymentToBooks(
     return
   }
 
-  // 8. Update the invoice's books-side amount_paid_cents. Generated
-  // column `balance_due_cents` and (eventually) status will refresh
-  // from this. We keep the legacy `paid_amount` update above for the
-  // pre-books UI; once that UI is retired this can be the sole source.
-  const newAmountPaidCents = (input.invoiceAmountPaidCents ?? 0) + amountCents
-  const invoiceTotalCents = input.invoiceTotalCents ?? 0
-  const newStatus =
-    invoiceTotalCents > 0 && newAmountPaidCents >= invoiceTotalCents
-      ? 'paid'
-      : newAmountPaidCents > 0
-        ? 'partially_paid'
-        : null
-
-  const invoiceUpdate: Record<string, unknown> = {
-    amount_paid_cents: newAmountPaidCents,
-  }
-  if (newStatus) invoiceUpdate.status = newStatus
-
-  const { error: invoiceUpdateErr } = await supabase
-    .from('invoices')
-    .update(invoiceUpdate)
-    .eq('id', invoiceId)
+  // 8. Update the invoice's books-side amount_paid_cents via the
+  // atomic RPC. The earlier read-modify-write (read amount_paid_cents
+  // → compute new total → write back) raced with concurrent webhook
+  // retries and with manual /api/books/payments POSTs against the
+  // same invoice; both readers saw the old value and both writes
+  // overwrote each other, leaving the invoice under-paid in books.
+  // The DB function uses a single UPDATE so concurrent calls serialize.
+  // NOTE: the legacy `paid_amount` / `status` write at lines ~145-158
+  // above is the pre-books UI path. We intentionally leave it alone in
+  // this pass; once the legacy UI is retired the RPC can be the sole
+  // source of truth.
+  const { error: invoiceUpdateErr } = await supabase.rpc('books_apply_payment_delta', {
+    p_source_type: 'invoice',
+    p_source_id: invoiceId,
+    p_amount_delta_cents: amountCents,
+  })
   if (invoiceUpdateErr) {
     // Log but keep going — the payment row is the source of truth.
     console.warn(
-      `Books posting: failed to refresh invoice ${invoiceId} amount_paid_cents: ${invoiceUpdateErr.message}`
+      `Books posting: books_apply_payment_delta failed for invoice ${invoiceId}: ${invoiceUpdateErr.message}`
     )
   }
 

@@ -38,7 +38,7 @@
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
-export type StatusType = 'job' | 'invoice' | 'proposal'
+export type StatusType = 'job' | 'invoice' | 'proposal' | 'bill'
 
 interface StatusStyle {
   label: string
@@ -84,10 +84,24 @@ const PROPOSAL_STATUSES: Record<string, StatusStyle> = {
   cancelled:    { label: 'Cancelled',    className: 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400' },
 }
 
+// Bill statuses — mirrors the bills.status check constraint in
+// migration 015 (draft | open | partially_paid | paid | void). Adds
+// 'overdue' for parity with invoices since the UI may compute it on
+// the fly even though the DB enum doesn't include it yet.
+const BILL_STATUSES: Record<string, StatusStyle> = {
+  draft:          { label: 'Draft',   className: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' },
+  open:           { label: 'Open',    className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  partially_paid: { label: 'Partial', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  paid:           { label: 'Paid',    className: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+  void:           { label: 'Void',    className: 'bg-zinc-100 text-zinc-500 line-through dark:bg-zinc-800 dark:text-zinc-400' },
+  overdue:        { label: 'Overdue', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+}
+
 const TYPE_MAP: Record<StatusType, Record<string, StatusStyle>> = {
   job: JOB_STATUSES,
   invoice: INVOICE_STATUSES,
   proposal: PROPOSAL_STATUSES,
+  bill: BILL_STATUSES,
 }
 
 interface StatusBadgeProps {

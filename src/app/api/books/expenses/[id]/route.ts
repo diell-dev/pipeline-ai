@@ -4,7 +4,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { requireBooksAccess, assertOrgMatch } from '@/lib/books/api-guard'
-import { softDeleteAndReverse, PostingError } from '@/lib/books/posting'
+import {
+  softDeleteAndReverse,
+  PostingError,
+  postExpense,
+  findExistingActiveEntry,
+  reverseJournalEntry,
+} from '@/lib/books/posting'
 
 const EDITABLE = [
   'description', 'expense_category_id', 'expense_account_id',
@@ -12,6 +18,18 @@ const EDITABLE = [
   'is_reimbursable', 'is_reimbursed', 'is_billable', 'receipt_url',
   'notes', 'client_id', 'job_id', 'expense_date',
 ] as const
+
+// Fields that affect the journal entry — changing any of these on an
+// already-posted expense requires reversing the old JE and writing a
+// fresh one. (Description / receipt / notes / billable flags don't
+// move money.)
+const POSTING_RELEVANT: readonly string[] = [
+  'expense_account_id',
+  'payment_account_id',
+  'expense_category_id',
+  'expense_date',
+  'is_reimbursable',
+]
 
 export async function GET(_: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params
@@ -57,6 +75,39 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
   const { data, error } = await supabase
     .from('expenses').update(update).eq('id', id).select('*').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // MB-5: if any posting-relevant fields changed AND a JE already
+  // exists for this expense, the JE is stale. Reverse it and post a
+  // fresh one. Expense doesn't have a draft state — every expense is
+  // immediately posted on create — so we always check.
+  const postingChanged = POSTING_RELEVANT.some((k) => k in update)
+  if (postingChanged) {
+    try {
+      const active = await findExistingActiveEntry(
+        supabase,
+        existing.organization_id,
+        'expense',
+        id
+      )
+      if (active) {
+        await reverseJournalEntry(
+          supabase,
+          active.id,
+          `Expense ${id} edited (posting-relevant field change)`
+        )
+        await supabase
+          .from('journal_entries')
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('id', active.id)
+        await postExpense(supabase, id)
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'reposting failed'
+      console.error(`Expense ${id} re-post after edit failed: ${msg}`)
+      return NextResponse.json({ expense: data, error: msg, posted: false }, { status: 200 })
+    }
+  }
+
   return NextResponse.json({ expense: data })
 }
 

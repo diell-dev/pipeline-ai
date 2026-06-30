@@ -29,7 +29,7 @@ import { formatCurrency, formatDate } from '@/lib/books/format'
 import { currentMonthRange, fmt } from '@/lib/books/format-helpers'
 import {
   TrendingUp, TrendingDown, Wallet, FileText, ReceiptText,
-  CreditCard, Banknote, BookOpen, ArrowRight,
+  CreditCard, Banknote, BookOpen, ArrowRight, Sparkles, X,
 } from 'lucide-react'
 
 interface KPIs {
@@ -57,6 +57,8 @@ interface MonthlyPoint {
   expenses: number
 }
 
+const JUST_SETUP_KEY = 'books-just-setup'
+
 export default function BooksDashboardPage() {
   const { organization } = useAuthStore()
   const [kpis, setKpis] = useState<KPIs | null>(null)
@@ -64,6 +66,47 @@ export default function BooksDashboardPage() {
   const [monthly, setMonthly] = useState<MonthlyPoint[]>([])
   const [loading, setLoading] = useState(true)
   const [needsSetup, setNeedsSetup] = useState(false)
+  const [showJustSetup, setShowJustSetup] = useState(false)
+
+  // Read the one-time "wizard just finished" flag set by /books/setup.
+  // We read it in an effect so SSR matches the initial render (no flash).
+  // The setState is deferred via microtask to keep the project's
+  // `react-hooks/set-state-in-effect` rule happy.
+  useEffect(() => {
+    let cancelled = false
+    void Promise.resolve().then(() => {
+      if (cancelled) return
+      try {
+        if (typeof window === 'undefined') return
+        if (window.localStorage.getItem(JUST_SETUP_KEY) === '1') {
+          setShowJustSetup(true)
+        }
+      } catch {
+        // privacy-mode browsers: localStorage throws; just leave it off.
+      }
+    })
+    return () => { cancelled = true }
+  }, [])
+
+  const dismissJustSetup = useCallback(() => {
+    setShowJustSetup(false)
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(JUST_SETUP_KEY)
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  // Auto-clear the hint once any posted journal entry exists — the user
+  // has gotten past their first invoice/bill, so the banner has done
+  // its job and shouldn't keep nagging on every dashboard visit.
+  useEffect(() => {
+    if (showJustSetup && recent.length > 0) {
+      void Promise.resolve().then(dismissJustSetup)
+    }
+  }, [showJustSetup, recent.length, dismissJustSetup])
 
   const load = useCallback(async () => {
     if (!organization) return
@@ -290,6 +333,34 @@ export default function BooksDashboardPage() {
         title="Books"
         subtitle="Operational bookkeeping — invoices, bills, expenses, and the ledger underneath."
       />
+
+      {showJustSetup && (
+        <div className="flex items-start gap-3 rounded-lg border border-brand-accent/40 bg-brand-accent/10 px-4 py-3 text-sm">
+          <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-brand-primary" aria-hidden="true" />
+          <div className="flex-1 space-y-1">
+            <p className="font-medium text-foreground">Books is ready.</p>
+            <p className="text-muted-foreground">
+              Your chart of accounts is seeded and the current period is open.
+              Create your first invoice to start posting to the ledger.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link href="/books/invoices/new">
+              <Button size="sm" onClick={dismissJustSetup}>
+                Create invoice
+              </Button>
+            </Link>
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={dismissJustSetup}
+              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">

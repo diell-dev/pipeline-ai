@@ -51,34 +51,43 @@ export function BooksSubNav() {
 
   return (
     <>
-      {/* Mobile: horizontal scroll pills */}
-      <nav
-        aria-label="Books"
-        className="lg:hidden -mx-4 sm:-mx-6 mb-4 overflow-x-auto border-b bg-card/40"
-      >
-        <ul className="flex min-w-max items-center gap-1 px-4 sm:px-6">
-          {ITEMS.map((it) => {
-            const Icon = it.icon
-            const active = isActive(pathname, it.href)
-            return (
-              <li key={it.href}>
-                <Link
-                  href={it.href}
-                  className={cn(
-                    'inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition-colors',
-                    active
-                      ? 'border-brand-primary text-foreground'
-                      : 'border-transparent text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span>{it.label}</span>
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
-      </nav>
+      {/* Mobile: horizontal scroll pills, with a right-edge fade so users
+          see there's more content off-screen. The fade is a pointer-events-
+          none overlay positioned just inside the nav, sitting above the
+          last pill but not blocking taps. */}
+      <div className="lg:hidden relative -mx-4 sm:-mx-6 mb-4 border-b bg-card/40">
+        <nav
+          aria-label="Books"
+          className="overflow-x-auto"
+        >
+          <ul className="flex min-w-max items-center gap-1 px-4 sm:px-6">
+            {ITEMS.map((it) => {
+              const Icon = it.icon
+              const active = isActive(pathname, it.href)
+              return (
+                <li key={it.href}>
+                  <Link
+                    href={it.href}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition-colors',
+                      active
+                        ? 'border-brand-primary text-foreground'
+                        : 'border-transparent text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span>{it.label}</span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </nav>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-card to-transparent"
+        />
+      </div>
 
       {/* Desktop: vertical rail */}
       <nav

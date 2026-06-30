@@ -110,6 +110,8 @@ export interface BalanceSheetReport {
   }
   totalLiabilitiesAndEquity_cents: number
   isBalanced: boolean
+  /** Signed delta (assets − liabilities − equity). Zero when balanced. */
+  imbalanceCents: number
 }
 
 export interface CashFlowReport {
@@ -581,17 +583,14 @@ export async function getBalanceSheet(
     a.account_code.localeCompare(b.account_code)
 
   // Allow ±1 cent for cumulative rounding — anything bigger means the
-  // GL is genuinely unbalanced.
-  const drift = Math.abs(assetsTotal - totalLiabilitiesAndEquity_cents)
+  // GL is genuinely unbalanced. We DO NOT throw on imbalance: the UI
+  // surfaces a banner instead so the user still sees their report (and
+  // can navigate to Trial Balance to investigate). The
+  // `BalanceSheetUnbalancedError` class stays exported for any callers
+  // that want to opt into strict checking.
+  const imbalance = assetsTotal - totalLiabilitiesAndEquity_cents
+  const drift = Math.abs(imbalance)
   const isBalanced = drift <= 1
-  if (!isBalanced) {
-    throw new BalanceSheetUnbalancedError(
-      `Balance sheet does not balance for org ${orgId} as of ${asOfDate}: ` +
-        `assets=${assetsTotal} liabilities+equity=${totalLiabilitiesAndEquity_cents} (drift=${drift}).`,
-      assetsTotal,
-      totalLiabilitiesAndEquity_cents
-    )
-  }
 
   return {
     asOfDate,
@@ -613,6 +612,7 @@ export async function getBalanceSheet(
     },
     totalLiabilitiesAndEquity_cents,
     isBalanced,
+    imbalanceCents: isBalanced ? 0 : imbalance,
   }
 }
 

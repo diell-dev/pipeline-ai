@@ -52,6 +52,16 @@ export default function BooksSetupPage() {
         `Books enabled. ${data.accountsSeeded ?? 0} accounts seeded.`
       )
       await refreshOrganization()
+      // One-time hint flag — the dashboard reads this and shows a
+      // "what's next" banner pointing to /books/invoices/new. Cleared
+      // by the dashboard on dismiss or first invoice creation.
+      try {
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem('books-just-setup', '1')
+        }
+      } catch {
+        // localStorage can throw in privacy-mode browsers; ignore.
+      }
       router.replace('/books')
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Setup failed'

@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { SkeletonList } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { Truck, Plus, Search } from 'lucide-react'
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 
 interface Vendor {
   id: string
@@ -44,6 +45,8 @@ export default function VendorsListPage() {
 
   useEffect(() => { load() }, [load])
 
+  const { PullIndicator } = usePullToRefresh({ onRefresh: load })
+
   const filtered = q.trim()
     ? vendors.filter((v) =>
         v.name.toLowerCase().includes(q.toLowerCase()) ||
@@ -52,7 +55,8 @@ export default function VendorsListPage() {
     : vendors
 
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
+      <PullIndicator />
       <PageHeader
         title="Vendors"
         subtitle="People and companies you pay. Bills and expenses tie back here."

@@ -15,6 +15,7 @@ import { StatusBadge } from '@/components/ui/status-badge'
 import { toast } from 'sonner'
 import { ReceiptText, Plus, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/books/format'
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 
 interface BillRow {
   id: string
@@ -60,6 +61,8 @@ export default function BooksBillsListPage() {
 
   useEffect(() => { load() }, [load])
 
+  const { PullIndicator } = usePullToRefresh({ onRefresh: load })
+
   const filtered = search.trim()
     ? rows.filter((r) => {
         const q = search.toLowerCase()
@@ -74,7 +77,8 @@ export default function BooksBillsListPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
+      <PullIndicator />
       <PageHeader
         title="Bills"
         subtitle="Vendor bills (AP). Posts a debit to expense + credit to Accounts Payable on save."

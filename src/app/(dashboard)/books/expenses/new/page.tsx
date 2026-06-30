@@ -106,7 +106,7 @@ export default function NewExpensePage() {
         <CardHeader><CardTitle>Expense</CardTitle></CardHeader>
         <CardContent className="grid md:grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="e-date">Date</Label>
+            <Label htmlFor="e-date" required>Date</Label>
             <Input id="e-date" type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} />
           </div>
           <div className="space-y-1.5">
@@ -123,7 +123,7 @@ export default function NewExpensePage() {
               placeholder="What was this for?" />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="e-acct">Expense account</Label>
+            <Label htmlFor="e-acct" required>Expense account</Label>
             <select id="e-acct" value={expenseAccountId} onChange={(e) => setExpenseAccountId(e.target.value)}
               className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 text-sm">
               <option value="">— default (Misc) —</option>
@@ -140,7 +140,7 @@ export default function NewExpensePage() {
             </select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="e-amount">Amount</Label>
+            <Label htmlFor="e-amount" required>Amount</Label>
             <Input id="e-amount" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />
           </div>
           <div className="space-y-1.5">

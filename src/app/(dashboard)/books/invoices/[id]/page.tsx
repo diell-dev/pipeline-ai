@@ -360,7 +360,7 @@ export default function BooksInvoiceDetailPage({
           <DialogHeader>
             <DialogTitle>Void invoice {invoice.invoice_number}?</DialogTitle>
             <DialogDescription>
-              Marks the invoice as void and posts a reversing journal entry so the ledger stays balanced. The invoice number is preserved.
+              This cancels the invoice and undoes any journal entries automatically. The invoice number stays in your books for the audit trail.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

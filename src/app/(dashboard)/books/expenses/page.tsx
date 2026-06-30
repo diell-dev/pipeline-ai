@@ -14,6 +14,7 @@ import { SkeletonList } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { CreditCard, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/books/format'
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 
 interface Expense {
   id: string
@@ -55,10 +56,13 @@ export default function ExpensesListPage() {
   }, [page])
   useEffect(() => { load() }, [load])
 
+  const { PullIndicator } = usePullToRefresh({ onRefresh: load })
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
+      <PullIndicator />
       <PageHeader
         title="Expenses"
         subtitle="One-off receipts. Snap a photo on mobile and it lands here."

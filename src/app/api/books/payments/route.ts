@@ -68,14 +68,59 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'amount must be > 0' }, { status: 400 })
   }
 
+  const sourceId = (body.source_id as string) || null
+
+  // Overpayment guard. The DB RPC `books_apply_payment_delta` clamps
+  // negative balance_due to 0, but doing that silently means the user
+  // can record a $5,000 payment against a $500 invoice and get no
+  // feedback. Block invoice / bill payments that exceed the open
+  // balance — refund and transfer payment types are intentionally
+  // exempt (refunds can exceed an invoice, transfers don't have a
+  // source balance).
+  if (
+    sourceId &&
+    ((sourceType === 'invoice' && type === 'invoice_payment') ||
+      (sourceType === 'bill' && type === 'bill_payment'))
+  ) {
+    const table = sourceType === 'invoice' ? 'invoices' : 'bills'
+    const { data: src, error: srcErr } = await supabase
+      .from(table)
+      .select('balance_due_cents')
+      .eq('id', sourceId)
+      .eq('organization_id', organizationId)
+      .is('deleted_at', null)
+      .maybeSingle()
+    if (srcErr) {
+      return NextResponse.json({ error: srcErr.message }, { status: 500 })
+    }
+    if (!src) {
+      return NextResponse.json(
+        { error: `${sourceType} not found` },
+        { status: 404 }
+      )
+    }
+    const balanceCents = Number((src as { balance_due_cents: number }).balance_due_cents) || 0
+    if (amountCents > balanceCents) {
+      const fmt = (cents: number) =>
+        new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+        }).format(cents / 100)
+      return NextResponse.json(
+        {
+          error: `Payment amount ${fmt(amountCents)} exceeds balance due ${fmt(balanceCents)}. Reduce the amount or split into two payments.`,
+        },
+        { status: 400 }
+      )
+    }
+  }
+
   const { data: nextNum, error: seqErr } = await supabase.rpc('next_books_sequence', {
     p_org_id: organizationId,
     p_kind: 'payment',
   })
   if (seqErr) return NextResponse.json({ error: seqErr.message }, { status: 500 })
   const paymentNumber = typeof nextNum === 'string' ? nextNum : String(nextNum)
-
-  const sourceId = (body.source_id as string) || null
 
   const { data: payment, error } = await supabase
     .from('payments')

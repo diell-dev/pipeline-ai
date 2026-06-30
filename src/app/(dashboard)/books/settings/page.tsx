@@ -3,11 +3,14 @@
 /**
  * Books → Settings.
  *
- * Two surfaces today:
+ * Active surfaces:
  *   1. Accounting periods (open + locked). Lock the current period to
  *      freeze entries against it; only owner / super_admin can lock.
- *   2. A "Coming soon" note for fiscal-year + default tax rate
- *      (B4 is doing the reports settings; B5 the tax + Stripe).
+ *
+ * Hidden until ready (see TODO below): fiscal-year picker, default tax
+ * rate, Stripe → books deposit account. The previous "Coming soon" card
+ * was a buyer-credibility hit on the demo, so we don't render anything
+ * for unfinished features — they'll come back when wired up in B7.
  */
 import { useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
@@ -130,16 +133,10 @@ export default function BooksSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle>Other settings</CardTitle></CardHeader>
-        <CardContent className="text-sm text-muted-foreground space-y-2">
-          <p>
-            Fiscal-year start, default tax rate, and Stripe → books deposit
-            account routing will land in the next pass. For now everything posts
-            into the standard chart from the setup wizard.
-          </p>
-        </CardContent>
-      </Card>
+      {/* TODO: enable in B7 — fiscal-year picker, default tax rate, and
+          Stripe → books deposit-account routing. Hidden from customer
+          UI until they actually work (audit flagged "coming soon" copy
+          as a buyer-credibility risk on the demo). */}
     </div>
   )
 }

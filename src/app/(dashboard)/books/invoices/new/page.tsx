@@ -166,7 +166,7 @@ export default function NewBooksInvoicePage() {
             <Input id="po" value={poNumber} onChange={(e) => setPoNumber(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="invDate">Invoice date</Label>
+            <Label htmlFor="invDate" required>Invoice date</Label>
             <Input id="invDate" type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
           </div>
           <div className="space-y-1.5">

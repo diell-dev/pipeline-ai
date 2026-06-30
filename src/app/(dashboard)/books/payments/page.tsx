@@ -7,6 +7,7 @@
  * which source row to apply against.
  */
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -16,6 +17,7 @@ import { SkeletonList } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { Wallet, ChevronLeft, ChevronRight } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/books/format'
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 
 interface Payment {
   id: string
@@ -57,6 +59,8 @@ export default function PaymentsListPage() {
   }, [page])
   useEffect(() => { load() }, [load])
 
+  const { PullIndicator } = usePullToRefresh({ onRefresh: load })
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   function rowLink(r: Payment): string {
@@ -64,7 +68,8 @@ export default function PaymentsListPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
+      <PullIndicator />
       <PageHeader
         title="Payments"
         subtitle="Every payment — Stripe, manual, ACH, check. To record a new one, open an invoice or bill."
@@ -77,6 +82,11 @@ export default function PaymentsListPage() {
           icon={Wallet}
           title="No payments yet"
           description="Record one against an invoice or bill — it shows up here once posted."
+          action={
+            <Link href="/books/invoices">
+              <Button>Browse invoices</Button>
+            </Link>
+          }
         />
       ) : (
         <>

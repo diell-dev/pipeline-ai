@@ -160,7 +160,7 @@ export default function NewBillPage() {
             <Input id="billnum" value={billNumber} onChange={(e) => setBillNumber(e.target.value)} placeholder="e.g. their invoice number" />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="billDate">Bill date</Label>
+            <Label htmlFor="billDate" required>Bill date</Label>
             <Input id="billDate" type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} />
           </div>
           <div className="space-y-1.5">

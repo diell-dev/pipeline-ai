@@ -171,6 +171,28 @@ function BalanceSheetInner() {
         />
       </div>
 
+      {/* Imbalance banner — when assets ≠ liabilities + equity we still
+          render the full report below it, so the user can investigate
+          without losing the snapshot. */}
+      {!loading && report && !report.isBalanced && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200 print:hidden">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <div className="space-y-1">
+            <p>
+              <strong>Balance Sheet is off by{' '}
+              {formatCurrency(Math.abs(report.imbalanceCents))}.</strong>
+            </p>
+            <p className="text-xs">
+              Most common cause: an unposted journal entry.{' '}
+              <a href="/books/reports/trial-balance" className="underline underline-offset-2">
+                Check Trial Balance
+              </a>{' '}
+              for details.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Body */}
       {error ? (
         <EmptyState icon={AlertTriangle} title="Could not load report" description={error} />

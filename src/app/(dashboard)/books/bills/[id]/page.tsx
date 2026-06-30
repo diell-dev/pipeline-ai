@@ -206,7 +206,7 @@ export default function BookBillDetailPage({
           <DialogHeader>
             <DialogTitle>Void bill {bill.internal_number}?</DialogTitle>
             <DialogDescription>
-              Posts a reversing journal entry to keep the ledger balanced.
+              This cancels the bill and undoes any journal entries automatically. The bill number stays in your books for the audit trail.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

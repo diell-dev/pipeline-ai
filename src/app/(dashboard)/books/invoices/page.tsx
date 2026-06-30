@@ -22,6 +22,7 @@ import {
   FileText, Plus, ChevronLeft, ChevronRight, Search,
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/books/format'
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import type { InvoiceStatus } from '@/types/database'
 
 interface InvoiceRow {
@@ -68,6 +69,9 @@ export default function BooksInvoicesListPage() {
 
   useEffect(() => { load() }, [load])
 
+  // Native-feeling pull-to-refresh on touch devices; no-op on desktop.
+  const { PullIndicator } = usePullToRefresh({ onRefresh: load })
+
   const filtered = search.trim()
     ? rows.filter((r) => {
         const q = search.toLowerCase()
@@ -81,7 +85,8 @@ export default function BooksInvoicesListPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
+      <PullIndicator />
       <PageHeader
         title="Invoices"
         subtitle="Operational invoice list — drill in for the journal entry, payments applied, and audit history."

@@ -141,12 +141,18 @@ function getDateRange(tf: Timeframe): { from: string | null; to: string | null }
   return { from: isoDate(start), to }
 }
 
+// KPI cards on the dashboard intentionally strip cents to keep the
+// numbers scannable (e.g. "$1,250,000" not "$1,250,000.00"). Everywhere
+// else the app uses `formatDollars` from `src/lib/format.ts` which keeps
+// 2 decimals — that's still the canonical formatter for line items,
+// invoices, and any value the reader might cross-check against a
+// receipt. Don't mirror this rounded variant elsewhere.
 function formatCurrency(n: number): string {
-  return n.toLocaleString('en-US', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     maximumFractionDigits: 0,
-  })
+  }).format(n)
 }
 
 export default function DashboardPage() {
@@ -271,9 +277,14 @@ export default function DashboardPage() {
     async function loadOverdue() {
       const supabase = createClient()
       const today = isoDate(new Date())
+      // TODO: drop legacy decimal columns (total_amount, paid_amount) once all readers migrated.
+      // We now read the canonical cents columns; balance_due_cents is a generated
+      // column that always equals total_cents - amount_paid_cents, so we never need
+      // to subtract by hand here (the legacy expression silently inflated AR by
+      // every payment recorded via Books).
       let q = supabase
         .from('invoices')
-        .select('id, total_amount, paid_amount, status, due_date')
+        .select('id, balance_due_cents, status, due_date')
         .in('status', ['overdue', 'sent', 'partially_paid'])
       if (!isSuperAdmin) q = q.eq('organization_id', organization!.id)
       const { data, error } = await q
@@ -287,9 +298,9 @@ export default function DashboardPage() {
         return inv.due_date && inv.due_date < today
       })
       const outstanding = overdueRows.reduce((sum, inv) => {
-        const total = Number(inv.total_amount) || 0
-        const paid = Number(inv.paid_amount) || 0
-        return sum + Math.max(0, total - paid)
+        // balance_due_cents → dollars for the hero chip subtitle.
+        const balanceCents = Number(inv.balance_due_cents) || 0
+        return sum + Math.max(0, balanceCents) / 100
       }, 0)
       if (!cancelled) {
         setOverdueInvoices({

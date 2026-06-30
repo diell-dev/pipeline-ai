@@ -41,6 +41,7 @@ import {
   ChevronRight,
   X,
 } from 'lucide-react'
+import { formatDollars, formatDate } from '@/lib/format'
 
 
 // Status config for badges — Phase G: paired with dark variants
@@ -59,10 +60,13 @@ interface InvoiceRow {
   job_id: string | null
   client_id: string
   status: string
-  amount: number
-  tax_amount: number
-  total_amount: number
-  paid_amount: number
+  // TODO: drop legacy decimal columns once all readers migrated. Cents
+  // columns are the source of truth — what Books writes and reports use.
+  subtotal_cents: number
+  tax_amount_cents: number
+  total_cents: number
+  amount_paid_cents: number
+  balance_due_cents: number
   due_date: string
   paid_date: string | null
   created_at: string
@@ -152,9 +156,14 @@ export default function FinancesPage() {
     if (!organization) return
     async function loadStats() {
       const supabase = createClient()
+      // TODO: drop legacy decimal columns once all readers migrated. Cents
+      // columns are the source of truth — balance_due_cents is the DB-generated
+      // outstanding figure (total_cents − amount_paid_cents) which stays in
+      // sync with Books, unlike the legacy `total_amount − paid_amount` expr
+      // which went stale on every payment recorded via Books.
       let statsQ = supabase
         .from('invoices')
-        .select('status, total_amount, paid_amount, due_date, created_at')
+        .select('status, total_cents, amount_paid_cents, balance_due_cents, due_date, created_at')
         .not('status', 'eq', 'void')
       if (!isSuperAdmin) statsQ = statsQ.eq('organization_id', organization!.id)
       const { data: allInvoices } = await statsQ
@@ -166,48 +175,52 @@ export default function FinancesPage() {
       const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
       const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
 
-      let revenueThisMonth = 0
-      let revenueLastMonth = 0
-      let outstanding = 0
-      let collected = 0
-      let overdue = 0
+      // Accumulate in cents — convert to dollars once at the end (the
+      // FinanceStats interface is still dollars to keep the KPI cards
+      // unchanged; they format via toLocaleString).
+      let revenueThisMonthCents = 0
+      let revenueLastMonthCents = 0
+      let outstandingCents = 0
+      let collectedCents = 0
+      let overdueCents = 0
       let paidCount = 0
       let unpaidCount = 0
       let overdueCount = 0
 
       for (const inv of allInvoices) {
-        const total = Number(inv.total_amount) || 0
-        const paid = Number(inv.paid_amount) || 0
+        const totalCents = Number(inv.total_cents) || 0
+        const paidCents = Number(inv.amount_paid_cents) || 0
+        const balanceCents = Number(inv.balance_due_cents) || 0
         const createdAt = new Date(inv.created_at)
         const dueDate = new Date(inv.due_date)
 
         // Revenue this month (based on invoice creation date)
         if (createdAt >= thisMonthStart) {
-          revenueThisMonth += total
+          revenueThisMonthCents += totalCents
         }
         if (createdAt >= lastMonthStart && createdAt <= lastMonthEnd) {
-          revenueLastMonth += total
+          revenueLastMonthCents += totalCents
         }
 
         if (inv.status === 'paid') {
-          collected += paid
+          collectedCents += paidCents
           paidCount++
         } else {
-          outstanding += total - paid
+          outstandingCents += Math.max(0, balanceCents)
           unpaidCount++
           if (dueDate < now && inv.status !== 'draft') {
-            overdue += total - paid
+            overdueCents += Math.max(0, balanceCents)
             overdueCount++
           }
         }
       }
 
       setStats({
-        revenueThisMonth,
-        revenueLastMonth,
-        outstanding,
-        collected,
-        overdue,
+        revenueThisMonth: revenueThisMonthCents / 100,
+        revenueLastMonth: revenueLastMonthCents / 100,
+        outstanding: outstandingCents / 100,
+        collected: collectedCents / 100,
+        overdue: overdueCents / 100,
         totalInvoices: allInvoices.filter(i => i.status !== 'void').length,
         paidCount,
         unpaidCount,
@@ -344,7 +357,7 @@ export default function FinancesPage() {
         <KPICard
           icon={TrendingUp}
           label="Revenue this month"
-          value={`$${(stats?.revenueThisMonth || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+          value={formatDollars(stats?.revenueThisMonth || 0)}
           helper={
             revenueChange !== null ? (
               <span className={revenueChangeColor}>
@@ -369,9 +382,7 @@ export default function FinancesPage() {
           label="Outstanding"
           value={
             <span className="text-amber-600">
-              ${(stats?.outstanding || 0).toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-              })}
+              {formatDollars(stats?.outstanding || 0)}
             </span>
           }
           helper={`${stats?.unpaidCount || 0} unpaid invoice${
@@ -384,9 +395,7 @@ export default function FinancesPage() {
           label="Collected"
           value={
             <span className="text-emerald-600">
-              ${(stats?.collected || 0).toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-              })}
+              {formatDollars(stats?.collected || 0)}
             </span>
           }
           helper={`${stats?.paidCount || 0} paid invoice${
@@ -399,9 +408,7 @@ export default function FinancesPage() {
           label="Overdue"
           value={
             <span className={stats?.overdue ? 'text-red-600' : ''}>
-              ${(stats?.overdue || 0).toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-              })}
+              {formatDollars(stats?.overdue || 0)}
             </span>
           }
           helper={`${stats?.overdueCount || 0} overdue invoice${
@@ -563,8 +570,10 @@ export default function FinancesPage() {
               <div className="md:hidden p-4 space-y-3">
                 {invoices.map((inv) => {
                   const statusConf = STATUS_CONFIG[inv.status] || STATUS_CONFIG.draft
-                  const total = Number(inv.total_amount) || 0
-                  const paid = Number(inv.paid_amount) || 0
+                  // TODO: drop legacy decimal columns once all readers migrated.
+                  // Cents → dollars for the formatDollars helper.
+                  const total = (Number(inv.total_cents) || 0) / 100
+                  const paid = (Number(inv.amount_paid_cents) || 0) / 100
                   const isOverdue =
                     new Date(inv.due_date) < new Date() &&
                     inv.status !== 'paid' &&
@@ -599,14 +608,14 @@ export default function FinancesPage() {
                         <div>
                           <span className="text-muted-foreground">Amount:</span>{' '}
                           <span className="font-medium">
-                            ${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            {formatDollars(total)}
                           </span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">Paid:</span>{' '}
                           {paid > 0 ? (
                             <span className="text-green-600">
-                              ${paid.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              {formatDollars(paid)}
                             </span>
                           ) : (
                             <span>—</span>
@@ -614,11 +623,11 @@ export default function FinancesPage() {
                         </div>
                         <div className={isOverdue ? 'text-red-600 font-medium' : ''}>
                           <span className="text-muted-foreground">Due:</span>{' '}
-                          {new Date(inv.due_date).toLocaleDateString()}
+                          {formatDate(inv.due_date)}
                         </div>
                         <div>
                           <span className="text-muted-foreground">Created:</span>{' '}
-                          {new Date(inv.created_at).toLocaleDateString()}
+                          {formatDate(inv.created_at)}
                         </div>
                       </div>
                       <div className="flex gap-2 pt-2 border-t">
@@ -687,9 +696,11 @@ export default function FinancesPage() {
                   <tbody>
                     {invoices.map((inv) => {
                       const statusConf = STATUS_CONFIG[inv.status] || STATUS_CONFIG.draft
-                      const total = Number(inv.total_amount) || 0
-                      const paid = Number(inv.paid_amount) || 0
-                      const balance = total - paid
+                      // TODO: drop legacy decimal columns once all readers migrated.
+                      // Cents → dollars for the formatDollars helper.
+                      const total = (Number(inv.total_cents) || 0) / 100
+                      const paid = (Number(inv.amount_paid_cents) || 0) / 100
+                      const balance = (Number(inv.balance_due_cents) || 0) / 100
                       const isOverdue = new Date(inv.due_date) < new Date() && inv.status !== 'paid' && inv.status !== 'void' && inv.status !== 'draft'
 
                       return (
@@ -706,20 +717,20 @@ export default function FinancesPage() {
                             </Badge>
                           </td>
                           <td className="px-4 py-3 text-right font-medium">
-                            ${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            {formatDollars(total)}
                           </td>
                           <td className="px-4 py-3 text-right">
                             {paid > 0 ? (
-                              <span className="text-green-600">${paid.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                              <span className="text-green-600">{formatDollars(paid)}</span>
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
                           </td>
                           <td className={`px-4 py-3 text-right text-xs ${isOverdue ? 'text-red-600 font-medium' : 'text-muted-foreground'}`}>
-                            {new Date(inv.due_date).toLocaleDateString()}
+                            {formatDate(inv.due_date)}
                           </td>
                           <td className="px-4 py-3 text-right text-xs text-muted-foreground">
-                            {new Date(inv.created_at).toLocaleDateString()}
+                            {formatDate(inv.created_at)}
                           </td>
                           <td className="px-4 py-3 text-right">
                             <Button

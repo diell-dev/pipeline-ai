@@ -27,6 +27,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { MarkPaidDialog } from '@/components/invoices/mark-paid-dialog'
+import { formatCurrency, formatDate } from '@/lib/format'
 import { SkeletonList } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
@@ -55,13 +56,16 @@ const MARK_PAID_STATUSES: InvoiceStatus[] = ['draft', 'sent', 'overdue', 'partia
 interface InvoiceRow {
   id: string
   invoice_number: string
-  amount: number
-  tax_amount: number
-  total_amount: number
+  // TODO: drop legacy decimal columns once all readers migrated.
+  // Cents columns are the source of truth and what Books writes.
+  subtotal_cents: number
+  tax_amount_cents: number
+  total_cents: number
+  amount_paid_cents: number
+  balance_due_cents: number
   status: InvoiceStatus
   due_date: string
   paid_date: string | null
-  paid_amount: number
   created_at: string
   client_id: string
   job_id: string
@@ -222,17 +226,10 @@ export default function InvoicesPage() {
     setPage(0)
   }
 
-  function formatCurrency(amount: number) {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
-  }
-
-  function formatDate(dateStr: string) {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    })
-  }
+  // Currency + date formatting comes from `src/lib/format.ts` — the
+  // single source of truth across the whole app. `formatCurrency(cents)`
+  // divides by 100 for display; `formatDate(yyyy-mm-dd|iso)` renders
+  // "Mar 15, 2026". Don't reintroduce local helpers here.
 
   // UX-SWEEP-#17: row subtitle — five identical-looking rows in a row are hard to
   // distinguish, so show created-relative-time per row. Lightweight, no extra join.
@@ -428,12 +425,12 @@ export default function InvoicesPage() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
                       <span className="text-muted-foreground">Total:</span>{' '}
-                      <span className="font-medium">{formatCurrency(inv.total_amount)}</span>
+                      <span className="font-medium">{formatCurrency(inv.total_cents)}</span>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Paid:</span>{' '}
                       <span>
-                        {inv.paid_amount > 0 ? formatCurrency(inv.paid_amount) : '—'}
+                        {inv.amount_paid_cents > 0 ? formatCurrency(inv.amount_paid_cents) : '—'}
                       </span>
                     </div>
                     <div className="col-span-2">
@@ -451,7 +448,9 @@ export default function InvoicesPage() {
                           invoice={{
                             id: inv.id,
                             invoice_number: inv.invoice_number,
-                            total_amount: Number(inv.total_amount) || 0,
+                            // MarkPaidDialog accepts dollars (legacy contract).
+                            // Convert canonical cents → dollars at the boundary.
+                            total_amount: (Number(inv.total_cents) || 0) / 100,
                           }}
                           onSuccess={loadInvoices}
                         >
@@ -542,10 +541,10 @@ export default function InvoicesPage() {
                         {formatDate(inv.due_date)}
                       </td>
                       <td className="px-4 py-3 text-right font-medium align-top">
-                        {formatCurrency(inv.total_amount)}
+                        {formatCurrency(inv.total_cents)}
                       </td>
                       <td className="px-4 py-3 text-right text-muted-foreground align-top">
-                        {inv.paid_amount > 0 ? formatCurrency(inv.paid_amount) : '—'}
+                        {inv.amount_paid_cents > 0 ? formatCurrency(inv.amount_paid_cents) : '—'}
                       </td>
                       <td className="px-4 py-3 text-center align-top">
                         <Badge className={`text-[10px] border-0 ${displayStatus.className}`}>
@@ -560,7 +559,8 @@ export default function InvoicesPage() {
                                 invoice={{
                                   id: inv.id,
                                   invoice_number: inv.invoice_number,
-                                  total_amount: Number(inv.total_amount) || 0,
+                                  // Convert cents → dollars at the boundary.
+                                  total_amount: (Number(inv.total_cents) || 0) / 100,
                                 }}
                                 onSuccess={loadInvoices}
                               >

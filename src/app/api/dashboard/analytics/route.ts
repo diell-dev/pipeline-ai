@@ -106,9 +106,13 @@ export async function GET(request: NextRequest) {
     const totalJobs = jobRows.length
 
     // ── Invoices in the window (use created_at to match the timeframe) ──
+    // TODO: drop legacy decimal columns (total_amount, paid_amount) once all
+    // readers migrated. Cents columns are the source of truth — Books writes
+    // only to them, so legacy columns went stale on every recorded payment
+    // and inflated reported AR.
     let invoicesQuery = supabase
       .from('invoices')
-      .select('id, client_id, total_amount, paid_amount, status, created_at')
+      .select('id, client_id, total_cents, amount_paid_cents, balance_due_cents, status, created_at')
     if (!isSuperAdmin) invoicesQuery = invoicesQuery.eq('organization_id', auth.organizationId)
 
     if (from) invoicesQuery = invoicesQuery.gte('created_at', `${from}T00:00:00Z`)
@@ -120,19 +124,23 @@ export async function GET(request: NextRequest) {
     if (invoicesError) throw new Error(`invoices: ${invoicesError.message}`)
 
     const invoiceRows = invoices || []
-    const invoiceTotal = invoiceRows.reduce(
-      (sum, inv) => sum + (Number(inv.total_amount) || 0),
+    // Convert cents → dollars at the API boundary so the dashboard's numeric
+    // KPI math stays in dollars (avgCostPerJob, outstandingRevenue both consumed
+    // by formatCurrency which expects dollars).
+    const invoiceTotalDollars = invoiceRows.reduce(
+      (sum, inv) => sum + ((Number(inv.total_cents) || 0) / 100),
       0
     )
-    const avgCostPerJob = totalJobs > 0 ? invoiceTotal / totalJobs : null
+    const avgCostPerJob = totalJobs > 0 ? invoiceTotalDollars / totalJobs : null
 
-    // Outstanding = unpaid balance across non-cancelled, non-draft invoices
+    // Outstanding = unpaid balance across non-cancelled, non-paid invoices.
+    // balance_due_cents is a generated column (total_cents - amount_paid_cents)
+    // that always stays in sync; we just sum it.
     const outstandingRevenue = invoiceRows
       .filter((inv) => inv.status !== 'cancelled' && inv.status !== 'paid')
       .reduce((sum, inv) => {
-        const total = Number(inv.total_amount) || 0
-        const paid = Number(inv.paid_amount) || 0
-        return sum + Math.max(0, total - paid)
+        const balanceCents = Number(inv.balance_due_cents) || 0
+        return sum + Math.max(0, balanceCents) / 100
       }, 0)
 
     // ── Proposals: proposal_sent → client_approved ──

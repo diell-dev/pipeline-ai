@@ -48,6 +48,7 @@ import {
   Layers,
 } from 'lucide-react'
 import { useSwipeBack } from '@/hooks/use-swipe-back'
+import { formatDate } from '@/lib/format'
 
 // ============================================================
 // Types — loose since the backend agent is still finalising
@@ -152,10 +153,9 @@ interface EquipmentDetailResponse {
 // ============================================================
 
 function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleDateString()
+  // Delegate to the app-wide shared formatter so every page renders dates
+  // the same way ("Mar 15, 2026"). Returns "—" for null/invalid input.
+  return formatDate(iso)
 }
 
 function dueChip(iso: string | null | undefined): { className: string; label: string } | null {

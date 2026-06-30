@@ -44,6 +44,11 @@ export default function NewBooksInvoicePage() {
   const [poNumber, setPoNumber] = useState('')
   const [lines, setLines] = useState<LineRow[]>([emptyLine()])
 
+  // UX-4B-4: inline validation. We keep the toast as a backup banner but
+  // the per-field text below each input is now the primary feedback —
+  // toasts vanish after ~4s and were getting missed in the demo.
+  const [errors, setErrors] = useState<Record<string, string>>({})
+
   useEffect(() => {
     let cancelled = false
     async function load() {
@@ -79,15 +84,34 @@ export default function NewBooksInvoicePage() {
   )
 
   async function save(status: 'draft' | 'sent') {
-    if (!clientId) { toast.error('Pick a client'); return }
     const usableLines = lines.filter((l) => {
       const { totalCents } = computeLineTotalsCents(l)
       return totalCents > 0 || l.description.trim() || l.account_id
     })
-    if (usableLines.length === 0) { toast.error('Add at least one line item'); return }
-    for (const l of usableLines) {
-      if (!l.account_id) { toast.error('Every line needs an income account'); return }
+
+    // Build up every error before bailing — we want all of them surfaced
+    // at once so the user fixes the form in one pass rather than chasing
+    // a sequence of toasts.
+    const next: Record<string, string> = {}
+    if (!clientId) next.client = 'Choose a client'
+    if (!invoiceDate) next.invDate = 'Pick an invoice date'
+    if (usableLines.length === 0) next.lines = 'Add at least one line item'
+    else if (usableLines.some((l) => !l.account_id)) {
+      next.lines = 'Every line needs an income account'
     }
+    if (Object.keys(next).length > 0) {
+      setErrors(next)
+      toast.error('Please fix the highlighted fields')
+      const firstKey = Object.keys(next)[0]
+      // Scroll the first invalid field into view. requestAnimationFrame
+      // gives React a tick to render the error markers first so the
+      // scroll target picks up the new height.
+      requestAnimationFrame(() => {
+        document.getElementById(firstKey)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      })
+      return
+    }
+    setErrors({})
 
     setSaving(status)
     try {
@@ -133,7 +157,18 @@ export default function NewBooksInvoicePage() {
   }
 
   return (
-    <div className="space-y-4">
+    <form
+      className="space-y-4"
+      // UX-4B-3: real <form> semantics. Pressing Enter inside any input
+      // now triggers the primary action ("Save & send"), and the Cancel
+      // button is `type="button"` so the browser doesn't submit on it.
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (saving) return
+        save('sent')
+      }}
+      noValidate
+    >
       <PageHeader
         title="New invoice"
         subtitle="Create a books-grade invoice. When you save & send, it auto-posts to the ledger."
@@ -153,13 +188,18 @@ export default function NewBooksInvoicePage() {
               id="client"
               value={clientId}
               onChange={(e) => setClientId(e.target.value)}
-              className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 text-sm"
+              aria-invalid={!!errors.client}
+              aria-describedby={errors.client ? 'client-error' : undefined}
+              className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 text-sm aria-[invalid=true]:border-destructive"
             >
               <option value="">— pick a client —</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>{c.company_name}</option>
               ))}
             </select>
+            {errors.client && (
+              <p id="client-error" className="text-xs text-destructive mt-1">{errors.client}</p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="po">PO number</Label>
@@ -167,7 +207,17 @@ export default function NewBooksInvoicePage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="invDate" required>Invoice date</Label>
-            <Input id="invDate" type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+            <Input
+              id="invDate"
+              type="date"
+              value={invoiceDate}
+              onChange={(e) => setInvoiceDate(e.target.value)}
+              aria-invalid={!!errors.invDate}
+              aria-describedby={errors.invDate ? 'invDate-error' : undefined}
+            />
+            {errors.invDate && (
+              <p id="invDate-error" className="text-xs text-destructive mt-1">{errors.invDate}</p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="dueDate">Due date</Label>
@@ -179,13 +229,21 @@ export default function NewBooksInvoicePage() {
       <Card>
         <CardHeader><CardTitle>Line items</CardTitle></CardHeader>
         <CardContent>
-          <LineItemsEditor
-            lines={lines}
-            onChange={setLines}
-            accounts={accounts}
-            accountTypeFilter="income"
-            disabled={!!saving}
-          />
+          {/* Anchor for scroll-to-error. The LineItemsEditor lives inside
+              this wrapper so the scroll target is stable even though the
+              editor doesn't expose its own id. */}
+          <div id="lines">
+            <LineItemsEditor
+              lines={lines}
+              onChange={setLines}
+              accounts={accounts}
+              accountTypeFilter="income"
+              disabled={!!saving}
+            />
+            {errors.lines && (
+              <p id="lines-error" className="text-xs text-destructive mt-2">{errors.lines}</p>
+            )}
+          </div>
           <div className="mt-4 space-y-1 max-w-xs ml-auto text-sm">
             <Row label="Subtotal" value={formatCurrency(totals.subtotal)} />
             <Row label="Tax" value={formatCurrency(totals.tax)} />
@@ -208,22 +266,22 @@ export default function NewBooksInvoicePage() {
 
       <div className="flex flex-wrap justify-between gap-2">
         <Link href="/books/invoices">
-          <Button variant="outline" disabled={!!saving}>
+          <Button type="button" variant="outline" disabled={!!saving}>
             <ChevronLeft className="mr-1 h-4 w-4" /> Cancel
           </Button>
         </Link>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => save('draft')} disabled={!!saving}>
+          <Button type="button" variant="outline" onClick={() => save('draft')} disabled={!!saving}>
             {saving === 'draft' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />}
             Save draft
           </Button>
-          <Button onClick={() => save('sent')} disabled={!!saving}>
+          <Button type="submit" disabled={!!saving}>
             {saving === 'sent' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Send className="mr-1 h-4 w-4" />}
             Save &amp; send
           </Button>
         </div>
       </div>
-    </div>
+    </form>
   )
 }
 

@@ -36,6 +36,7 @@ import {
   CalendarClock,
 } from 'lucide-react'
 import type { Job, JobStatus, JobPriority } from '@/types/database'
+import { formatDate } from '@/lib/format'
 
 // Status badge colors — Phase G: paired light tints with dark variants so
 // the legacy inline map matches the StatusBadge component in dark mode.
@@ -495,7 +496,7 @@ export default function JobsPage() {
                       )}
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
-                        {new Date(job.service_date).toLocaleDateString()}
+                        {formatDate(job.service_date)}
                       </span>
                     </div>
                     {canViewAll && job.submitter && (

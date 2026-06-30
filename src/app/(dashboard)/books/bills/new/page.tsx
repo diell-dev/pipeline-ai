@@ -37,6 +37,10 @@ export default function NewBillPage() {
   const [notes, setNotes] = useState('')
   const [lines, setLines] = useState<LineRow[]>([emptyLine()])
 
+  // UX-4B-4: inline validation. Keep the toast as a backup banner; the
+  // per-field text is the primary feedback now.
+  const [errors, setErrors] = useState<Record<string, string>>({})
+
   useEffect(() => {
     let cancel = false
     async function load() {
@@ -79,15 +83,28 @@ export default function NewBillPage() {
   )
 
   async function save(status: 'draft' | 'open') {
-    if (!vendorId) { toast.error('Pick a vendor'); return }
     const usable = lines.filter((l) => {
       const { totalCents } = computeLineTotalsCents(l)
       return totalCents > 0 || l.description.trim() || l.account_id
     })
-    if (usable.length === 0) { toast.error('Add at least one line item'); return }
-    for (const l of usable) {
-      if (!l.account_id) { toast.error('Every line needs an expense account'); return }
+
+    const next: Record<string, string> = {}
+    if (!vendorId) next.vendor = 'Choose a vendor'
+    if (!billDate) next.billDate = 'Pick a bill date'
+    if (usable.length === 0) next.lines = 'Add at least one line item'
+    else if (usable.some((l) => !l.account_id)) {
+      next.lines = 'Every line needs an expense account'
     }
+    if (Object.keys(next).length > 0) {
+      setErrors(next)
+      toast.error('Please fix the highlighted fields')
+      const firstKey = Object.keys(next)[0]
+      requestAnimationFrame(() => {
+        document.getElementById(firstKey)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      })
+      return
+    }
+    setErrors({})
 
     setSaving(status)
     try {
@@ -126,7 +143,18 @@ export default function NewBillPage() {
   if (loading) return <Skeleton className="h-64 w-full" />
 
   return (
-    <div className="space-y-4">
+    <form
+      className="space-y-4"
+      // UX-4B-3: real <form> semantics. Enter submits the primary action
+      // ("Save & post"); Cancel is type="button" so the browser doesn't
+      // accidentally save when the user hits Esc/Enter near it.
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (saving) return
+        save('open')
+      }}
+      noValidate
+    >
       <PageHeader
         title="New bill"
         subtitle="Record a vendor bill. Auto-posts to AP when you save & post."
@@ -146,11 +174,16 @@ export default function NewBillPage() {
               id="vendor"
               value={vendorId}
               onChange={(e) => onVendorChange(e.target.value)}
-              className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 text-sm"
+              aria-invalid={!!errors.vendor}
+              aria-describedby={errors.vendor ? 'vendor-error' : undefined}
+              className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 text-sm aria-[invalid=true]:border-destructive"
             >
               <option value="">— pick vendor —</option>
               {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
+            {errors.vendor && (
+              <p id="vendor-error" className="text-xs text-destructive mt-1">{errors.vendor}</p>
+            )}
             <p className="text-xs text-muted-foreground">
               Need a new vendor? <Link href="/books/vendors/new" className="underline">Add one</Link>.
             </p>
@@ -161,7 +194,17 @@ export default function NewBillPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="billDate" required>Bill date</Label>
-            <Input id="billDate" type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} />
+            <Input
+              id="billDate"
+              type="date"
+              value={billDate}
+              onChange={(e) => setBillDate(e.target.value)}
+              aria-invalid={!!errors.billDate}
+              aria-describedby={errors.billDate ? 'billDate-error' : undefined}
+            />
+            {errors.billDate && (
+              <p id="billDate-error" className="text-xs text-destructive mt-1">{errors.billDate}</p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="dueDate">Due date</Label>
@@ -173,13 +216,18 @@ export default function NewBillPage() {
       <Card>
         <CardHeader><CardTitle>Line items</CardTitle></CardHeader>
         <CardContent>
-          <LineItemsEditor
-            lines={lines}
-            onChange={setLines}
-            accounts={accounts}
-            accountTypeFilter="expense"
-            disabled={!!saving}
-          />
+          <div id="lines">
+            <LineItemsEditor
+              lines={lines}
+              onChange={setLines}
+              accounts={accounts}
+              accountTypeFilter="expense"
+              disabled={!!saving}
+            />
+            {errors.lines && (
+              <p id="lines-error" className="text-xs text-destructive mt-2">{errors.lines}</p>
+            )}
+          </div>
           <div className="mt-4 space-y-1 max-w-xs ml-auto text-sm">
             <Row label="Subtotal" value={formatCurrency(totals.subtotal)} />
             <Row label="Tax" value={formatCurrency(totals.tax)} />
@@ -197,22 +245,22 @@ export default function NewBillPage() {
 
       <div className="flex flex-wrap justify-between gap-2">
         <Link href="/books/bills">
-          <Button variant="outline" disabled={!!saving}>
+          <Button type="button" variant="outline" disabled={!!saving}>
             <ChevronLeft className="mr-1 h-4 w-4" /> Cancel
           </Button>
         </Link>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => save('draft')} disabled={!!saving}>
+          <Button type="button" variant="outline" onClick={() => save('draft')} disabled={!!saving}>
             {saving === 'draft' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />}
             Save draft
           </Button>
-          <Button onClick={() => save('open')} disabled={!!saving}>
+          <Button type="submit" disabled={!!saving}>
             {saving === 'open' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Send className="mr-1 h-4 w-4" />}
             Save &amp; post
           </Button>
         </div>
       </div>
-    </div>
+    </form>
   )
 }
 

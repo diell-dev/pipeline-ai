@@ -28,6 +28,7 @@ import {
   ChevronDown,
 } from 'lucide-react'
 import type { Proposal, ProposalStatus } from '@/types/database'
+import { formatDollars, formatDate } from '@/lib/format'
 
 const STATUS_CONFIG: Record<ProposalStatus, { label: string; className: string }> = {
   draft: { label: 'Draft', className: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' },
@@ -46,9 +47,6 @@ interface ProposalWithRelations extends Proposal {
   sites?: { name: string; address: string } | null
   creator?: { full_name: string } | null
 }
-
-const formatCurrency = (n: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 
 export default function ProposalsPage() {
   const router = useRouter()
@@ -303,19 +301,17 @@ export default function ProposalsPage() {
                     <div>
                       <span className="text-muted-foreground">Total:</span>{' '}
                       <span className="font-medium">
-                        {formatCurrency(Number(p.total_amount) || 0)}
+                        {formatDollars(Number(p.total_amount) || 0)}
                       </span>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Created:</span>{' '}
-                      <span>{new Date(p.created_at).toLocaleDateString()}</span>
+                      <span>{formatDate(p.created_at)}</span>
                     </div>
                     <div className="col-span-2">
                       <span className="text-muted-foreground">Valid until:</span>{' '}
                       <span>
-                        {p.valid_until
-                          ? new Date(p.valid_until).toLocaleDateString()
-                          : '—'}
+                        {p.valid_until ? formatDate(p.valid_until) : '—'}
                       </span>
                     </div>
                   </div>
@@ -355,7 +351,7 @@ export default function ProposalsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-right font-medium">
-                      {formatCurrency(Number(p.total_amount) || 0)}
+                      {formatDollars(Number(p.total_amount) || 0)}
                     </td>
                     <td className="px-4 py-3">
                       <Badge className={statusConf.className} variant="outline">
@@ -364,10 +360,10 @@ export default function ProposalsPage() {
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
                       <Calendar className="h-3 w-3 inline mr-1" />
-                      {new Date(p.created_at).toLocaleDateString()}
+                      {formatDate(p.created_at)}
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {p.valid_until ? new Date(p.valid_until).toLocaleDateString() : '—'}
+                      {p.valid_until ? formatDate(p.valid_until) : '—'}
                     </td>
                     <td className="px-2 py-3">
                       <Eye className="h-4 w-4 text-muted-foreground" />

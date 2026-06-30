@@ -20,6 +20,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { ClientCombobox } from '@/components/clients/client-combobox'
 import { Plus, Trash2, Wrench } from 'lucide-react'
+import { toast } from 'sonner'
+import { formatDollars } from '@/lib/format'
 import type {
   Site,
   ServiceCatalogItem,
@@ -85,8 +87,9 @@ export const emptyProposalForm: ProposalFormValues = {
   valid_until: '',
 }
 
-const fmtUSD = (n: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+// Money rendering goes through the app-wide formatter so totals look
+// identical here, on the proposals list, and on the invoice.
+const fmtUSD = (n: number) => formatDollars(n)
 
 interface Props {
   initial?: ProposalFormValues
@@ -111,6 +114,9 @@ export function ProposalForm({
   const [values, setValues] = useState<ProposalFormValues>(initial || emptyProposalForm)
   const [sites, setSites] = useState<Site[]>([])
   const [services, setServices] = useState<ServiceCatalogItem[]>([])
+  // UX-4B-4: inline validation. The toast banner is just a backup —
+  // per-field text below each input is the primary feedback now.
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const [equipmentOptions, setEquipmentOptions] = useState<string[]>(() => {
     const merged = new Set<string>(DEFAULT_EQUIPMENT)
     initial?.equipment_list.forEach((e) => merged.add(e))
@@ -240,6 +246,24 @@ export function ProposalForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+
+    const next: Record<string, string> = {}
+    if (!values.client_id) next.client = 'Choose a client'
+    if (!values.issue_description.trim()) next.issue = 'Describe the issue the client is seeing'
+    if (!values.proposed_solution.trim()) next.solution = 'Describe the work you propose to do'
+
+    if (Object.keys(next).length > 0) {
+      setErrors(next)
+      toast.error('Please fix the highlighted fields')
+      const firstKey = Object.keys(next)[0]
+      // requestAnimationFrame so the error markers render first; the
+      // target's final position then includes the new inline error text.
+      requestAnimationFrame(() => {
+        document.getElementById(firstKey)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      })
+      return
+    }
+    setErrors({})
     onSubmit(values)
   }
 
@@ -259,11 +283,21 @@ export function ProposalForm({
               onChange={(newId) => {
                 update('client_id', newId)
                 update('site_id', '')
+                if (errors.client) {
+                  setErrors((p) => {
+                    const { client: _omit, ...rest } = p
+                    return rest
+                  })
+                }
               }}
               placeholder="Select or add a client"
               required
               disabled={lockLocation}
+              className={errors.client ? 'ring-2 ring-destructive/40 rounded-lg' : undefined}
             />
+            {errors.client && (
+              <p id="client-error" className="text-xs text-destructive">{errors.client}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -466,8 +500,16 @@ export function ProposalForm({
               onChange={(e) => update('issue_description', e.target.value)}
               required
               placeholder="What's wrong at the property? What did you find on-site?"
-              className="min-h-[80px]"
+              className={
+                'min-h-[80px]' +
+                (errors.issue ? ' border-destructive focus-visible:border-destructive' : '')
+              }
+              aria-invalid={!!errors.issue}
+              aria-describedby={errors.issue ? 'issue-error' : undefined}
             />
+            {errors.issue && (
+              <p id="issue-error" className="text-xs text-destructive">{errors.issue}</p>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="solution">Proposed Solution *</Label>
@@ -477,8 +519,16 @@ export function ProposalForm({
               onChange={(e) => update('proposed_solution', e.target.value)}
               required
               placeholder="The work we propose to do, in clear language for the client."
-              className="min-h-[120px]"
+              className={
+                'min-h-[120px]' +
+                (errors.solution ? ' border-destructive focus-visible:border-destructive' : '')
+              }
+              aria-invalid={!!errors.solution}
+              aria-describedby={errors.solution ? 'solution-error' : undefined}
             />
+            {errors.solution && (
+              <p id="solution-error" className="text-xs text-destructive">{errors.solution}</p>
+            )}
           </div>
 
           {/* Line items */}

@@ -55,10 +55,11 @@ export function ReportToolbar(props: ReportToolbarProps) {
     downloadCsv(rows, csvFilename)
   }, [getCsvRows, csvFilename])
 
+  // PDF rendering stub. TODO: enable when jspdf-autotable wiring lands per
+  // report (same approach as B3's invoice PDF generation in lib/pdf). The
+  // button itself is hidden below so the demo doesn't surface a "coming
+  // soon" toast — Print is the substitute path for now.
   const handlePdf = useCallback(() => {
-    // PDF rendering stub. TODO: wire into jspdf-autotable per report so
-    // the exported PDF mirrors the on-screen layout (same as B3's
-    // invoice PDF generation in lib/pdf).
     toast.message('PDF export', {
       description: 'PDF export is coming soon — use Print for now.',
     })
@@ -125,10 +126,16 @@ export function ReportToolbar(props: ReportToolbarProps) {
             Export CSV
           </Button>
         )}
-        <Button variant="outline" size="sm" onClick={handlePdf} disabled={loading}>
-          <FileText className="mr-1.5 h-3.5 w-3.5" />
-          Export PDF
-        </Button>
+        {/* TODO: enable when PDF export feature ships. Hidden in pre-demo
+            polish so we don't surface a "coming soon" toast in front of
+            customers — Print covers the gap. Keep handler in place so
+            re-enabling is a one-line change. */}
+        {false && (
+          <Button variant="outline" size="sm" onClick={handlePdf} disabled={loading}>
+            <FileText className="mr-1.5 h-3.5 w-3.5" />
+            Export PDF
+          </Button>
+        )}
         <Button variant="outline" size="sm" onClick={handlePrint} disabled={loading}>
           <Printer className="mr-1.5 h-3.5 w-3.5" />
           Print

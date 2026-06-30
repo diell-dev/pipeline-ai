@@ -50,6 +50,7 @@ import {
   Wrench,
 } from 'lucide-react'
 import { downloadInvoicePdf, downloadReportPdf, downloadBothAsZip } from '@/lib/pdf/download'
+import { formatDollars, formatDate } from '@/lib/format'
 import { JobActivityTimeline } from '@/components/jobs/activity-timeline'
 import { InspectionChecklist, type Inspection } from '@/components/equipment/inspection-checklist'
 import type { Job, JobStatus, JobPriority } from '@/types/database'
@@ -428,7 +429,7 @@ function InvoiceEditor({
                     >
                       <div className="font-medium">{service.name}</div>
                       <div className="text-xs text-muted-foreground">
-                        {service.code} - ${service.default_price.toFixed(2)}
+                        {service.code} - {formatDollars(service.default_price)}
                       </div>
                     </button>
                   ))}
@@ -480,7 +481,7 @@ function InvoiceEditor({
             </div>
             <div className="col-span-1 md:col-span-2 text-right text-sm font-medium pt-1">
               <span className="text-xs text-muted-foreground md:hidden mr-1">Total:</span>
-              ${(item.quantity * item.unit_price).toFixed(2)}
+              {formatDollars(item.quantity * item.unit_price)}
             </div>
             <div className="col-span-1 md:col-span-1 flex justify-end md:justify-start">
               <Button
@@ -505,15 +506,15 @@ function InvoiceEditor({
       <div className="space-y-1 text-sm border-t pt-3">
         <div className="flex justify-between">
           <span className="text-muted-foreground">Subtotal</span>
-          <span>${subtotal.toFixed(2)}</span>
+          <span>{formatDollars(subtotal)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Tax ({taxRate}%)</span>
-          <span>${taxAmount.toFixed(2)}</span>
+          <span>{formatDollars(taxAmount)}</span>
         </div>
         <div className="flex justify-between font-semibold text-base pt-1 border-t">
           <span>Total</span>
-          <span>${totalAmount.toFixed(2)}</span>
+          <span>{formatDollars(totalAmount)}</span>
         </div>
       </div>
 
@@ -1160,11 +1161,11 @@ export default function JobDetailPage() {
           <CardContent className="space-y-1 text-sm">
             <p>
               <span className="text-muted-foreground">Service Date:</span>{' '}
-              {new Date(job.service_date).toLocaleDateString()}
+              {formatDate(job.service_date)}
             </p>
             <p>
               <span className="text-muted-foreground">Submitted:</span>{' '}
-              {new Date(job.created_at).toLocaleDateString()}
+              {formatDate(job.created_at)}
             </p>
             <p className="flex items-center gap-1">
               <User className="h-3 w-3 text-muted-foreground" />
@@ -1245,8 +1246,8 @@ export default function JobDetailPage() {
                           {code && <span className="text-xs text-muted-foreground ml-2">{code}</span>}
                         </td>
                         <td className="px-3 py-2 text-center">{qty}</td>
-                        <td className="px-3 py-2 text-right">${price.toFixed(2)}</td>
-                        <td className="px-3 py-2 text-right font-medium">${total.toFixed(2)}</td>
+                        <td className="px-3 py-2 text-right">{formatDollars(price)}</td>
+                        <td className="px-3 py-2 text-right font-medium">{formatDollars(total)}</td>
                       </tr>
                     )
                   })}
@@ -1269,10 +1270,10 @@ export default function JobDetailPage() {
                     )}
                     <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                       <span>
-                        {qty} × ${price.toFixed(2)}
+                        {qty} × {formatDollars(price)}
                       </span>
                       <span className="text-sm font-semibold text-foreground">
-                        ${total.toFixed(2)}
+                        {formatDollars(total)}
                       </span>
                     </div>
                   </div>
@@ -1555,7 +1556,7 @@ export default function JobDetailPage() {
                       <div>
                         <span className="text-muted-foreground">Due:</span>{' '}
                         {inv.due_date
-                          ? new Date(inv.due_date as string).toLocaleDateString()
+                          ? formatDate(inv.due_date as string)
                           : 'N/A'}
                       </div>
                     </div>
@@ -1587,9 +1588,9 @@ export default function JobDetailPage() {
                                   )}
                                 </td>
                                 <td className="p-2 text-center">{isAdjustment ? '' : (item.quantity as number)}</td>
-                                <td className="p-2 text-right">{isAdjustment ? '' : `$${Number(item.unit_price).toFixed(2)}`}</td>
+                                <td className="p-2 text-right">{isAdjustment ? '' : formatDollars(Number(item.unit_price))}</td>
                                 <td className={`p-2 text-right font-medium ${isDiscount ? 'text-red-600 dark:text-red-400' : ''}`}>
-                                  {isDiscount ? `-$${Math.abs(total).toFixed(2)}` : `$${total.toFixed(2)}`}
+                                  {isDiscount ? `-${formatDollars(Math.abs(total))}` : formatDollars(total)}
                                 </td>
                               </tr>
                             )
@@ -1621,10 +1622,10 @@ export default function JobDetailPage() {
                               <span>
                                 {isAdjustment
                                   ? ''
-                                  : `${item.quantity as number} × $${Number(item.unit_price).toFixed(2)}`}
+                                  : `${item.quantity as number} × ${formatDollars(Number(item.unit_price))}`}
                               </span>
                               <span className={`text-sm font-semibold ${isDiscount ? 'text-red-600' : 'text-foreground'}`}>
-                                {isDiscount ? `-$${Math.abs(total).toFixed(2)}` : `$${total.toFixed(2)}`}
+                                {isDiscount ? `-${formatDollars(Math.abs(total))}` : formatDollars(total)}
                               </span>
                             </div>
                           </div>
@@ -1636,18 +1637,18 @@ export default function JobDetailPage() {
                     <div className="space-y-1 text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Subtotal</span>
-                        <span>${Number(inv.subtotal).toFixed(2)}</span>
+                        <span>{formatDollars(Number(inv.subtotal))}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Tax ({inv.tax_rate as number}%)</span>
-                        <span>${Number(inv.tax_amount).toFixed(2)}</span>
+                        <span>{formatDollars(Number(inv.tax_amount))}</span>
                       </div>
                       <div className="flex justify-between font-semibold text-base pt-1 border-t">
                         <span className="flex items-center gap-1">
                           <DollarSign className="h-4 w-4" />
                           Total
                         </span>
-                        <span>${Number(inv.total_amount).toFixed(2)}</span>
+                        <span>{formatDollars(Number(inv.total_amount))}</span>
                       </div>
                     </div>
 

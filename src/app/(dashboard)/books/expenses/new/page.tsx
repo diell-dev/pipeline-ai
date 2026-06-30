@@ -38,6 +38,9 @@ export default function NewExpensePage() {
   const [reimbursable, setReimbursable] = useState(false)
   const [notes, setNotes] = useState('')
 
+  // UX-4B-4: inline validation. The toast is just a backup banner.
+  const [errors, setErrors] = useState<Record<string, string>>({})
+
   useEffect(() => {
     let cancel = false
     async function load() {
@@ -60,6 +63,25 @@ export default function NewExpensePage() {
   )
 
   async function submit() {
+    // Up-front validation. The submit handler is what the <form> calls
+    // on Enter, so anything we want to block has to happen here.
+    const next: Record<string, string> = {}
+    if (!expenseDate) next['e-date'] = 'Pick a date'
+    const amountNum = Number.parseFloat(amount)
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      next['e-amount'] = 'Enter an amount greater than zero'
+    }
+    if (Object.keys(next).length > 0) {
+      setErrors(next)
+      toast.error('Please fix the highlighted fields')
+      const firstKey = Object.keys(next)[0]
+      requestAnimationFrame(() => {
+        document.getElementById(firstKey)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      })
+      return
+    }
+    setErrors({})
+
     setSaving(true)
     try {
       const res = await fetch('/api/books/expenses', {
@@ -92,7 +114,17 @@ export default function NewExpensePage() {
   if (loading) return <Skeleton className="h-64 w-full" />
 
   return (
-    <div className="space-y-4">
+    <form
+      className="space-y-4"
+      // UX-4B-3: real <form> semantics. Enter submits; Cancel is
+      // type="button" so it never accidentally saves.
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (saving) return
+        submit()
+      }}
+      noValidate
+    >
       <PageHeader
         title="New expense"
         breadcrumb={[
@@ -107,7 +139,17 @@ export default function NewExpensePage() {
         <CardContent className="grid md:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="e-date" required>Date</Label>
-            <Input id="e-date" type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} />
+            <Input
+              id="e-date"
+              type="date"
+              value={expenseDate}
+              onChange={(e) => setExpenseDate(e.target.value)}
+              aria-invalid={!!errors['e-date']}
+              aria-describedby={errors['e-date'] ? 'e-date-error' : undefined}
+            />
+            {errors['e-date'] && (
+              <p id="e-date-error" className="text-xs text-destructive mt-1">{errors['e-date']}</p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="e-vendor">Vendor (optional)</Label>
@@ -141,7 +183,17 @@ export default function NewExpensePage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="e-amount" required>Amount</Label>
-            <Input id="e-amount" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />
+            <Input
+              id="e-amount"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              inputMode="decimal"
+              aria-invalid={!!errors['e-amount']}
+              aria-describedby={errors['e-amount'] ? 'e-amount-error' : undefined}
+            />
+            {errors['e-amount'] && (
+              <p id="e-amount-error" className="text-xs text-destructive mt-1">{errors['e-amount']}</p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="e-tax">Tax amount (recoverable)</Label>
@@ -176,15 +228,15 @@ export default function NewExpensePage() {
 
       <div className="flex justify-between gap-2">
         <Link href="/books/expenses">
-          <Button variant="outline" disabled={saving}>
+          <Button type="button" variant="outline" disabled={saving}>
             <ChevronLeft className="mr-1 h-4 w-4" /> Cancel
           </Button>
         </Link>
-        <Button onClick={submit} disabled={saving}>
+        <Button type="submit" disabled={saving}>
           {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />}
           Save expense
         </Button>
       </div>
-    </div>
+    </form>
   )
 }

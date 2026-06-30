@@ -407,9 +407,13 @@ export default function BooksDashboardPage() {
         <Link href="/books/expenses/new">
           <Button variant="outline"><CreditCard className="mr-2 h-4 w-4" />Add expense</Button>
         </Link>
-        <Link href="/books/banking">
-          <Button variant="outline"><Banknote className="mr-2 h-4 w-4" />Reconcile bank</Button>
-        </Link>
+        {/* TODO: enable when banking / bank-rec feature ships. The /books/banking
+            route is still a stub, so hiding the primary CTA prevents demo dead-ends. */}
+        {false && (
+          <Link href="/books/banking">
+            <Button variant="outline"><Banknote className="mr-2 h-4 w-4" />Reconcile bank</Button>
+          </Link>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">

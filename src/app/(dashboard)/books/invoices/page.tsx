@@ -22,6 +22,7 @@ import {
   FileText, Plus, ChevronLeft, ChevronRight, Search, X,
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/books/format'
+import { createClient } from '@/lib/supabase/client'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import type { InvoiceStatus } from '@/types/database'
 
@@ -49,7 +50,7 @@ export default function BooksInvoicesListPage() {
   const [rows, setRows] = useState<InvoiceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState<string>('')
+  const [status, setStatus] = useState<string>(searchParams.get('status') || '')
   const [page, setPage] = useState(0)
   const [total, setTotal] = useState(0)
   const [clientLabel, setClientLabel] = useState<string>('')
@@ -61,13 +62,13 @@ export default function BooksInvoicesListPage() {
     if (!clientIdFromUrl) { setClientLabel(''); return }
     ;(async () => {
       try {
-        const res = await fetch(`/api/clients?ids=${clientIdFromUrl}`)
-        if (!res.ok) return
-        const data = await res.json()
-        const row = Array.isArray(data?.clients)
-          ? data.clients.find((c: { id: string }) => c.id === clientIdFromUrl)
-          : null
-        if (row?.company_name) setClientLabel(row.company_name as string)
+        const supabase = createClient()
+        const { data } = await supabase
+          .from('clients')
+          .select('company_name')
+          .eq('id', clientIdFromUrl)
+          .maybeSingle<{ company_name: string }>()
+        if (data?.company_name) setClientLabel(data.company_name)
       } catch { /* silent — chip just shows the id fallback */ }
     })()
   }, [clientIdFromUrl])

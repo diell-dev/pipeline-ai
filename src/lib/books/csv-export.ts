@@ -26,7 +26,15 @@ const UTF8_BOM = '﻿'
  */
 export function escapeCsvCell(value: unknown): string {
   if (value === null || value === undefined) return ''
-  const s = typeof value === 'string' ? value : String(value)
+  let s = typeof value === 'string' ? value : String(value)
+  // Neutralize spreadsheet formula injection: a text cell beginning with
+  // =, +, -, @ (or tab/CR) is executed as a formula by Excel/Sheets. Prefix
+  // such cells with a single quote so they're treated as text. Numeric-
+  // looking cells (currency, negatives, parenthesized) are left alone.
+  const looksNumeric = /^[-+]?[\d.,$%()\s]+$/.test(s)
+  if (!looksNumeric && /^[=+\-@\t\r]/.test(s)) {
+    s = "'" + s
+  }
   // Quote if the cell contains any of: comma, quote, CR, LF, leading/trailing whitespace.
   const needsQuoting =
     s.includes(COMMA) ||

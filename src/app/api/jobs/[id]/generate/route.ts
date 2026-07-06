@@ -23,6 +23,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
 import { getApiUser, canAccessOrg } from '@/lib/api-auth'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 // Use service role client (bypasses RLS) for server-side operations
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,6 +46,10 @@ export async function POST(
     const auth = await getApiUser()
     if (!auth.authenticated) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
+    }
+    // Throttle the paid AI generation per user (cost abuse defense).
+    if (!checkRateLimit(`job-generate:${auth.userId}`, { limit: 15, windowMs: 60_000 })) {
+      return NextResponse.json({ error: 'Too many requests — slow down.' }, { status: 429 })
     }
 
     const supabase = getServiceClient()

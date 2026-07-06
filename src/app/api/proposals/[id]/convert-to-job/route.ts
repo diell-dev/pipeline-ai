@@ -28,7 +28,8 @@ export async function POST(
       .from('proposals')
       .select('*')
       .eq('id', id)
-      .single()
+      .is('deleted_at', null)
+      .maybeSingle()
     if (!proposal) {
       return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
     }
@@ -105,8 +106,11 @@ export async function POST(
       }
     }
 
-    // Update proposal to converted_to_job
-    const { error: updateError } = await supabase
+    // Atomic claim: only convert if the proposal is still approved,
+    // unconverted, and not deleted. If the conditional update matches no
+    // row, another request already converted it (or it was deleted) — roll
+    // back the job we just created so we don't leave two jobs per proposal.
+    const { data: claimed } = await supabase
       .from('proposals')
       .update({
         status: 'converted_to_job',
@@ -114,8 +118,25 @@ export async function POST(
         converted_at: new Date().toISOString(),
       })
       .eq('id', id)
-    if (updateError) {
-      console.error('convert-to-job: proposal update failed:', updateError.message)
+      .eq('status', 'client_approved')
+      .is('converted_to_job_id', null)
+      .is('deleted_at', null)
+      .select('id')
+      .maybeSingle()
+
+    if (!claimed) {
+      console.error('convert-to-job: lost claim race, rolling back job', job.id)
+      await supabase.from('job_line_items').delete().eq('job_id', job.id)
+      await supabase.from('jobs').delete().eq('id', job.id)
+      const { data: existing } = await supabase
+        .from('proposals').select('converted_to_job_id').eq('id', id).maybeSingle()
+      return NextResponse.json(
+        {
+          error: 'Proposal already converted',
+          jobId: (existing as { converted_to_job_id?: string } | null)?.converted_to_job_id ?? null,
+        },
+        { status: 409 }
+      )
     }
 
     // Activity log entry

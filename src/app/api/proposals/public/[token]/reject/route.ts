@@ -60,7 +60,7 @@ export async function POST(
     if (proposal.valid_until && new Date(proposal.valid_until).getTime() < Date.now()) {
       return NextResponse.json({ error: 'This estimate has expired' }, { status: 410 })
     }
-    const { error } = await supabase
+    const { data: claimed, error } = await supabase
       .from('proposals')
       .update({
         status: 'client_rejected',
@@ -68,8 +68,19 @@ export async function POST(
         client_rejection_reason: body.reason.trim(),
       })
       .eq('id', proposal.id)
+      .in('status', ['sent_to_client', 'admin_approved'])
+      .is('deleted_at', null)
+      .select('id')
+      .maybeSingle()
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error('Failed to reject proposal:', error.message)
+      return NextResponse.json({ error: 'Could not record your response' }, { status: 500 })
+    }
+    if (!claimed) {
+      return NextResponse.json(
+        { error: 'This estimate is no longer open.' },
+        { status: 409 }
+      )
     }
     return NextResponse.json({ success: true })
   } catch (err) {

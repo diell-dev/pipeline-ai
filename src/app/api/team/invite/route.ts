@@ -8,6 +8,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getApiUser, hasPermission } from '@/lib/api-auth'
+import { canAddUser } from '@/lib/tier-limits'
+import type { SubscriptionTier } from '@/types/database'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,6 +82,37 @@ export async function POST(req: NextRequest) {
       if (reactivateError) throw reactivateError
 
       return NextResponse.json({ success: true, user: reactivated, reactivated: true })
+    }
+
+    // M14: enforce the subscription tier's seat cap before creating a seat.
+    const { data: orgRow } = await supabase
+      .from('organizations')
+      .select('tier')
+      .eq('id', organization_id)
+      .maybeSingle<{ tier: SubscriptionTier | null }>()
+    const { count: activeUsers } = await supabase
+      .from('users')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', organization_id)
+      .eq('is_active', true)
+    const tier: SubscriptionTier = orgRow?.tier ?? 'basic'
+    if (!canAddUser(tier, activeUsers ?? 0)) {
+      return NextResponse.json(
+        {
+          error: `Your ${tier} plan has reached its team-member limit. Upgrade your plan to add more people.`,
+        },
+        { status: 403 }
+      )
+    }
+
+    // M15: fail BEFORE creating the account if credentials can't be delivered
+    // in production — otherwise we orphan an auth user + users row with a temp
+    // password nobody can see, and the email address is then taken.
+    if (process.env.NODE_ENV === 'production' && !process.env.RESEND_API_KEY) {
+      return NextResponse.json(
+        { error: 'Email provider not configured — cannot invite users' },
+        { status: 500 }
+      )
     }
 
     // Generate a cryptographically secure temporary password (24 chars)

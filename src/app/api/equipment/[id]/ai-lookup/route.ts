@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getApiUser, canAccessOrg, hasPermission } from '@/lib/api-auth'
+import { checkRateLimit } from '@/lib/rate-limit'
 import { lookupManufacturerInfo, computeNextServiceDueDate } from '@/lib/equipment-ai'
 
 export async function POST(
@@ -23,6 +24,10 @@ export async function POST(
   }
   if (!hasPermission(auth.role, 'equipment:edit')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  // H15: throttle the paid Claude call per user.
+  if (!checkRateLimit(`equip-ai-lookup:${auth.userId}`, { limit: 20, windowMs: 60_000 })) {
+    return NextResponse.json({ error: 'Too many requests — slow down.' }, { status: 429 })
   }
 
   const supabase = await createClient()

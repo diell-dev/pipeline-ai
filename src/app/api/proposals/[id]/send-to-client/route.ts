@@ -34,7 +34,8 @@ export async function POST(
         sites:site_id ( address )
       `)
       .eq('id', id)
-      .single()
+      .is('deleted_at', null)
+      .maybeSingle()
     if (fetchError || !proposal) {
       return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
     }
@@ -115,6 +116,7 @@ export async function POST(
       .eq('id', id)
       .eq('status', 'admin_approved')
       .is('sent_to_client_at', null)
+      .is('deleted_at', null)
       .select('id')
       .maybeSingle()
 

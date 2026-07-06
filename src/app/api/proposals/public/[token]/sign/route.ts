@@ -98,7 +98,33 @@ export async function POST(
     // Capture IP + user agent
     const userAgent = request.headers.get('user-agent') || null
 
-    // Insert signature
+    // Atomic claim FIRST — flip to client_approved only if the proposal is
+    // still open. Prevents a sign+reject race and double-signing: if the
+    // conditional update matches no row, someone already actioned it. (H16)
+    const { data: claimed, error: claimErr } = await supabase
+      .from('proposals')
+      .update({
+        status: 'client_approved',
+        client_approved_at: new Date().toISOString(),
+      })
+      .eq('id', proposal.id)
+      .in('status', ['sent_to_client', 'admin_approved'])
+      .is('deleted_at', null)
+      .select('id')
+      .maybeSingle()
+    if (claimErr) {
+      console.error('Failed to claim proposal for signing:', claimErr.message)
+      return NextResponse.json({ error: 'Could not record signature' }, { status: 500 })
+    }
+    if (!claimed) {
+      return NextResponse.json(
+        { error: 'This estimate is no longer open for signing.' },
+        { status: 409 }
+      )
+    }
+
+    // Insert signature AFTER the claim, so a rejected/converted proposal can
+    // never accumulate a signature row.
     const { error: sigError } = await supabase.from('proposal_signatures').insert({
       proposal_id: proposal.id,
       signed_by_name: body.signed_by_name,
@@ -111,19 +137,7 @@ export async function POST(
     })
     if (sigError) {
       console.error('Failed to insert signature:', sigError.message)
-      return NextResponse.json({ error: sigError.message }, { status: 500 })
-    }
-
-    // Update proposal status
-    const { error: updateError } = await supabase
-      .from('proposals')
-      .update({
-        status: 'client_approved',
-        client_approved_at: new Date().toISOString(),
-      })
-      .eq('id', proposal.id)
-    if (updateError) {
-      console.error('Failed to update proposal status:', updateError.message)
+      return NextResponse.json({ error: 'Could not record signature' }, { status: 500 })
     }
 
     // Activity log (best-effort)

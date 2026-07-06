@@ -52,6 +52,31 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // 1b. Seed a default sales-tax rate if the org has none, linked to Sales
+  //     Tax Payable (2200), so the tax feature works out of the box for new
+  //     orgs (M3). Admins can adjust it once tax-rate management ships.
+  const { data: existingRates } = await supabase
+    .from('tax_rates')
+    .select('id')
+    .eq('organization_id', organizationId)
+    .is('deleted_at', null)
+    .limit(1)
+  if (!existingRates || existingRates.length === 0) {
+    const { data: taxAcct } = await supabase
+      .from('chart_of_accounts')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('code', '2200')
+      .maybeSingle<{ id: string }>()
+    await supabase.from('tax_rates').insert({
+      organization_id: organizationId,
+      name: 'Sales Tax (8.875%)',
+      rate_pct: 8.875,
+      tax_authority_account_id: taxAcct?.id ?? null,
+      is_active: true,
+    })
+  }
+
   // 2. Create the current month's accounting period (idempotent via
   //    UNIQUE(organization_id, start_date) — handle 23505 as a no-op).
   const { start, end } = currentMonthRange()

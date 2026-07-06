@@ -32,13 +32,22 @@
  * learning loop gets a complete training row.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { getApiUser } from '@/lib/api-auth'
+import { getApiUser, hasPermission } from '@/lib/api-auth'
+import { checkRateLimit } from '@/lib/rate-limit'
 import { extractDataPlate, MAX_DATA_PLATE_PHOTO_BYTES } from '@/lib/equipment-ai'
 
 export async function POST(request: NextRequest) {
   const auth = await getApiUser()
   if (!auth.authenticated) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
+  }
+  // H15: restrict the paid Claude vision call to staff who register
+  // equipment, and throttle per user so it can't be looped for cost abuse.
+  if (!hasPermission(auth.role, 'equipment:edit')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  if (!checkRateLimit(`equip-ocr:${auth.userId}`, { limit: 20, windowMs: 60_000 })) {
+    return NextResponse.json({ error: 'Too many requests — slow down.' }, { status: 429 })
   }
 
   let body: { photo_base64?: unknown; mime_type?: unknown }

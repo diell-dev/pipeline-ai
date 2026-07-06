@@ -514,7 +514,7 @@ async function generateInvoice({ job, lineItems, services, orgName, orgSettings,
   }
 
   // ── Apply pricing adjustments from tech notes (discounts, surcharges, etc.) ──
-  let adjustmentLineItems: Array<{
+  const adjustmentLineItems: Array<{
     service: string
     code: string
     quantity: number

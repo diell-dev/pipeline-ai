@@ -10,7 +10,7 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PageHeader } from '@/components/ui/page-header'
@@ -19,7 +19,7 @@ import { SkeletonList } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { toast } from 'sonner'
 import {
-  FileText, Plus, ChevronLeft, ChevronRight, Search,
+  FileText, Plus, ChevronLeft, ChevronRight, Search, X,
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/books/format'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
@@ -41,12 +41,36 @@ const PAGE_SIZE = 20
 
 export default function BooksInvoicesListPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Support ?client_id=xxx (canonical) plus ?client=xxx (legacy alias
+  // from the redirect chain) so links from client detail pages work.
+  const clientIdFromUrl =
+    searchParams.get('client_id') || searchParams.get('client') || ''
   const [rows, setRows] = useState<InvoiceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<string>('')
   const [page, setPage] = useState(0)
   const [total, setTotal] = useState(0)
+  const [clientLabel, setClientLabel] = useState<string>('')
+
+  // When a client filter is active, look up the client name once for
+  // the "Filtered by..." chip. Uses the existing clients-list endpoint
+  // shape (single row filter, no pagination).
+  useEffect(() => {
+    if (!clientIdFromUrl) { setClientLabel(''); return }
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/clients?ids=${clientIdFromUrl}`)
+        if (!res.ok) return
+        const data = await res.json()
+        const row = Array.isArray(data?.clients)
+          ? data.clients.find((c: { id: string }) => c.id === clientIdFromUrl)
+          : null
+        if (row?.company_name) setClientLabel(row.company_name as string)
+      } catch { /* silent — chip just shows the id fallback */ }
+    })()
+  }, [clientIdFromUrl])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -55,6 +79,7 @@ export default function BooksInvoicesListPage() {
       params.set('limit', String(PAGE_SIZE))
       params.set('offset', String(page * PAGE_SIZE))
       if (status) params.set('status', status)
+      if (clientIdFromUrl) params.set('client_id', clientIdFromUrl)
       const res = await fetch(`/api/books/invoices?${params}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to load')
@@ -65,7 +90,16 @@ export default function BooksInvoicesListPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, status])
+  }, [page, status, clientIdFromUrl])
+
+  function clearClientFilter() {
+    // Drop the client params but keep any status filter the user set
+    const next = new URLSearchParams()
+    if (status) next.set('status', status)
+    const qs = next.toString()
+    router.replace(qs ? `/books/invoices?${qs}` : '/books/invoices')
+    setPage(0)
+  }
 
   useEffect(() => { load() }, [load])
 
@@ -89,13 +123,32 @@ export default function BooksInvoicesListPage() {
       <PullIndicator />
       <PageHeader
         title="Invoices"
-        subtitle="Operational invoice list — drill in for the journal entry, payments applied, and audit history."
+        subtitle={
+          clientIdFromUrl && clientLabel
+            ? `Invoices for ${clientLabel}`
+            : 'Operational invoice list — drill in for the journal entry, payments applied, and audit history.'
+        }
         actions={
           <Link href="/books/invoices/new">
             <Button><Plus className="mr-1 h-4 w-4" />New invoice</Button>
           </Link>
         }
       />
+
+      {clientIdFromUrl && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-900/50 dark:bg-amber-950/30">
+          <span className="text-muted-foreground">Filtered by client:</span>
+          <span className="font-medium">{clientLabel || 'Loading…'}</span>
+          <button
+            type="button"
+            onClick={clearClientFilter}
+            className="ml-auto inline-flex items-center gap-1 rounded-md border border-amber-300 bg-white px-2 py-0.5 text-xs font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900"
+          >
+            <X className="h-3 w-3" />
+            Clear filter
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-64">

@@ -92,7 +92,8 @@ export default function InvoicesPage() {
   const isSuperAdmin = user?.role === 'super_admin'
 
   // B3: business-tier orgs use the bookkeeping-grade list at /books/invoices.
-  // Redirect them transparently. Other tiers keep the simple list below.
+  // Redirect them transparently. Preserve ?client=xxx so a link from
+  // /clients/[id] "View invoices" lands filtered on the books list.
   useEffect(() => {
     if (
       organization &&
@@ -100,7 +101,13 @@ export default function InvoicesPage() {
       user?.role &&
       hasPermission(user.role, 'bookkeeping:view')
     ) {
-      router.replace('/books/invoices')
+      const clientParam = searchParams.get('client')
+      const statusParam = searchParams.get('status')
+      const qs = new URLSearchParams()
+      if (clientParam) qs.set('client_id', clientParam)
+      if (statusParam) qs.set('status', statusParam)
+      const suffix = qs.toString() ? `?${qs.toString()}` : ''
+      router.replace(`/books/invoices${suffix}`)
     }
   }, [organization, user, router])
 

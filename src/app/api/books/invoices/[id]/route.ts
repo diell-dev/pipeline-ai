@@ -86,7 +86,42 @@ export async function GET(_: NextRequest, ctx: { params: Promise<{ id: string }>
     .limit(1)
     .maybeSingle()
 
-  return NextResponse.json({ invoice, lines, payments: payments ?? [], journal })
+  // Prev / next invoices — for the paper-preview pagination arrows.
+  // Ordered by invoice_date so we walk the ledger chronologically. We
+  // filter to the same org and skip soft-deleted rows so voided-then-
+  // deleted invoices don't show up in navigation.
+  const orgId = (invoice as { organization_id: string }).organization_id
+  const invoiceDate = (invoice as { invoice_date: string }).invoice_date
+
+  const [{ data: prev }, { data: next }] = await Promise.all([
+    supabase
+      .from('invoices')
+      .select('id, invoice_number')
+      .eq('organization_id', orgId)
+      .is('deleted_at', null)
+      .lt('invoice_date', invoiceDate)
+      .order('invoice_date', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('invoices')
+      .select('id, invoice_number')
+      .eq('organization_id', orgId)
+      .is('deleted_at', null)
+      .gt('invoice_date', invoiceDate)
+      .order('invoice_date', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  return NextResponse.json({
+    invoice,
+    lines,
+    payments: payments ?? [],
+    journal,
+    prev: prev ?? null,
+    next: next ?? null,
+  })
 }
 
 export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {

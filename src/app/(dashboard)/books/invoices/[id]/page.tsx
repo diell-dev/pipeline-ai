@@ -1,14 +1,20 @@
 'use client'
 
 /**
- * Books → Invoice detail. Shows header, line items, applied payments,
- * journal-entry link, and the lifecycle action buttons.
+ * Books → Invoice detail. PBAccounting-parity view.
  *
- * The "Record payment" button opens a Dialog (responsive bottom sheet on
- * mobile) and POSTs to /api/books/payments. The "Void" button calls the
- * soft-delete-and-reverse path on /api/books/invoices/[id] DELETE.
+ *   [ EDIT | SEND | MARK SENT | + RECORD PAYMENT | EXPORT PDF | MORE ▼ ]  ‹ ›
+ *   ┌─ What's next? — contextual nudge (draft → send, sent → collect) ─┐
+ *   ├─ Paper invoice preview (brand-colored table, DRAFT ribbon, etc.) ─┤
+ *   └─ Payments applied + Journal entry (compact secondary cards)     ─┘
+ *
+ * Existing Void / Record-Payment dialogs stay as-is — the new action bar
+ * just re-wires them. The paper preview is a print-friendly rendering:
+ * `@media print` hides the action bar + banner and drops the shadow so
+ * users get a clean print-to-PDF fallback.
  */
 import { useEffect, useState, useCallback, use } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,45 +27,50 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter, DialogBody,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
-import { Loader2, Lock, Printer, Receipt, Send, Trash2 } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Loader2,
+  Lock,
+  MoreHorizontal,
+  Pencil,
+  Printer,
+  Receipt,
+  Send,
+  Trash2,
+} from 'lucide-react'
 import { formatCurrency, formatDate, dollarsToCents } from '@/lib/books/format'
 import { todayIso } from '@/lib/books/format-helpers'
 import type { InvoiceStatus } from '@/types/database'
+import { WhatsNextBanner } from '@/components/books/whats-next-banner'
+import {
+  InvoicePreview,
+  type InvoicePreviewInvoice,
+  type InvoicePreviewLine,
+  type InvoicePreviewOrg,
+} from '@/components/books/invoice-preview'
+import { generateInvoicePdf } from '@/lib/books/invoice-pdf'
 
-interface Invoice {
-  id: string
+interface Invoice extends InvoicePreviewInvoice {
   organization_id: string
-  invoice_number: string
-  invoice_date: string
-  due_date: string | null
-  status: InvoiceStatus
-  total_cents: number
-  subtotal_cents: number
-  tax_amount_cents: number
-  amount_paid_cents: number
-  balance_due_cents: number
-  notes_for_customer: string | null
   notes_internal: string | null
-  po_number: string | null
   locked_at: string | null
   job_id: string | null
   sent_at: string | null
   send_count: number | null
-  clients: {
-    id: string
-    company_name: string
-    billing_contact_email: string | null
-    primary_contact_email: string | null
-  } | null
 }
 
-interface Line {
-  id: string
-  description: string | null
-  quantity: number
-  unit_price_cents: number
-  total_cents: number
+interface Line extends InvoicePreviewLine {
   account?: { code: string; name: string } | null
 }
 
@@ -79,6 +90,11 @@ interface Journal {
 
 interface Account { id: string; code: string; name: string; type: string }
 
+interface Adjacent {
+  id: string
+  invoice_number: string
+}
+
 export default function BooksInvoiceDetailPage({
   params,
 }: { params: Promise<{ id: string }> }) {
@@ -88,23 +104,41 @@ export default function BooksInvoiceDetailPage({
   const [lines, setLines] = useState<Line[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [journal, setJournal] = useState<Journal | null>(null)
+  const [prev, setPrev] = useState<Adjacent | null>(null)
+  const [next, setNext] = useState<Adjacent | null>(null)
+  const [org, setOrg] = useState<InvoicePreviewOrg | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
   const [confirmVoid, setConfirmVoid] = useState(false)
   const [payOpen, setPayOpen] = useState(false)
   const [confirmSend, setConfirmSend] = useState(false)
   const [sending, setSending] = useState(false)
+  const [markingSent, setMarkingSent] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/books/invoices/${id}`)
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to load')
-      setInvoice(data.invoice as Invoice)
-      setLines(data.lines as Line[])
-      setPayments(data.payments as Payment[])
-      setJournal(data.journal as Journal | null)
+      const [invRes, orgRes] = await Promise.all([
+        fetch(`/api/books/invoices/${id}`),
+        fetch('/api/books/org-brand'),
+      ])
+      const invData = await invRes.json()
+      if (!invRes.ok) throw new Error(invData.error || 'Failed to load')
+      setInvoice(invData.invoice as Invoice)
+      setLines(invData.lines as Line[])
+      setPayments(invData.payments as Payment[])
+      setJournal(invData.journal as Journal | null)
+      setPrev((invData.prev as Adjacent | null) ?? null)
+      setNext((invData.next as Adjacent | null) ?? null)
+
+      // Org branding is a soft dependency — if the call fails, we still
+      // render the preview with a name-only fallback so the page never
+      // stalls behind branding.
+      if (orgRes.ok) {
+        const orgJson = await orgRes.json()
+        setOrg(orgJson.org as InvoicePreviewOrg)
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load')
     } finally {
@@ -130,14 +164,11 @@ export default function BooksInvoiceDetailPage({
     }
   }
 
+  // "Send" — draft → sent, emailing when we have a backing job.
   async function handleSend() {
     if (!invoice) return
     setSending(true)
     try {
-      // Field-ops invoices (job_id present) reuse the legacy jobs/send
-      // route which builds the AI-report email. Standalone books-mode
-      // invoices go through the new books-only endpoint, which currently
-      // just flips status + posts to the GL (no email yet — see route TODO).
       const endpoint = invoice.job_id
         ? `/api/jobs/${invoice.job_id}/send`
         : `/api/books/invoices/${invoice.id}/send`
@@ -160,6 +191,66 @@ export default function BooksInvoiceDetailPage({
     }
   }
 
+  // "Mark sent" — flip status without sending an email. Both routes
+  // (books-only and legacy jobs/send) handle this identically today
+  // because there's no email wired for standalone books invoices yet.
+  // We PATCH straight to the invoice endpoint to make the "no email"
+  // semantic explicit even when we do wire email in the future.
+  async function handleMarkSent() {
+    if (!invoice) return
+    setMarkingSent(true)
+    try {
+      const res = await fetch(`/api/books/invoices/${invoice.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'sent' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to mark sent')
+      toast.success('Invoice marked as sent and posted to the GL.')
+      load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to mark sent')
+    } finally {
+      setMarkingSent(false)
+    }
+  }
+
+  async function handleExportPdf() {
+    if (!invoice) return
+    setExporting(true)
+    try {
+      // Org may not have loaded (endpoint failed). Fall back to a
+      // minimal brand so the PDF still generates rather than throwing.
+      const brand: InvoicePreviewOrg =
+        org ??
+        {
+          id: invoice.organization_id,
+          name: invoice.clients?.company_name ?? 'Invoice',
+          logo_url: null,
+          primary_color: '#05093d',
+          company_phone: null,
+          company_email: null,
+          company_website: null,
+          company_address: null,
+        }
+      const blob = await generateInvoicePdf(invoice, lines, brand)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${invoice.invoice_number}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success('PDF exported.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to export PDF')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   if (loading) {
     return <Skeleton className="h-64 w-full" />
   }
@@ -167,14 +258,28 @@ export default function BooksInvoiceDetailPage({
     return <p className="text-sm text-muted-foreground">Invoice not found.</p>
   }
 
-  const canEdit = !invoice.locked_at && invoice.status !== 'void' && invoice.status !== 'paid'
-  const canPay = invoice.balance_due_cents > 0 && invoice.status !== 'void' && invoice.status !== 'draft'
-  const canSend = invoice.status === 'draft' && invoice.balance_due_cents > 0 && !invoice.locked_at
-  // Field-ops invoices (have a backing job) can be re-sent via the legacy
-  // route — backend already handles already-sent gracefully. Standalone
-  // books invoices don't have an email send wired yet, so skip resend
-  // for them until the TODO in /api/books/invoices/[id]/send is done.
-  const canResend = invoice.status === 'sent' && !!invoice.job_id
+  const status: InvoiceStatus = invoice.status
+  const canEdit = !invoice.locked_at && status !== 'void' && status !== 'paid'
+  const canPay = invoice.balance_due_cents > 0 && status !== 'void' && status !== 'draft'
+  const canSendDraft = status === 'draft' && invoice.balance_due_cents > 0 && !invoice.locked_at
+  const canResend =
+    (status === 'sent' || status === 'partially_paid' || status === 'overdue') &&
+    !!invoice.job_id
+
+  // Preview data (org falls back to a minimal card if the brand endpoint
+  // failed — the preview still renders a name-only letterhead).
+  const previewOrg: InvoicePreviewOrg =
+    org ??
+    {
+      id: invoice.organization_id,
+      name: invoice.clients?.company_name ?? '—',
+      logo_url: null,
+      primary_color: '#05093d',
+      company_phone: null,
+      company_email: null,
+      company_website: null,
+      company_address: null,
+    }
 
   return (
     <div className="space-y-4 print:space-y-2">
@@ -187,32 +292,8 @@ export default function BooksInvoiceDetailPage({
           { label: invoice.invoice_number },
         ]}
         actions={
-          <div className="flex flex-wrap gap-2 print:hidden">
+          <div className="flex items-center gap-2 print:hidden">
             <StatusBadge status={invoice.status} type="invoice" />
-            <Button variant="outline" onClick={() => window.print()}>
-              <Printer className="mr-1 h-4 w-4" /> Print
-            </Button>
-            {canSend && (
-              <Button onClick={() => setConfirmSend(true)}>
-                <Send className="mr-1 h-4 w-4" />
-                {invoice.job_id ? 'Send invoice' : 'Mark as sent'}
-              </Button>
-            )}
-            {canResend && (
-              <Button variant="outline" onClick={() => setConfirmSend(true)}>
-                <Send className="mr-1 h-4 w-4" /> Resend
-              </Button>
-            )}
-            {canPay && (
-              <Button onClick={() => setPayOpen(true)}>
-                <Receipt className="mr-1 h-4 w-4" /> Record payment
-              </Button>
-            )}
-            {canEdit && (
-              <Button variant="destructive" onClick={() => setConfirmVoid(true)}>
-                <Trash2 className="mr-1 h-4 w-4" /> Void
-              </Button>
-            )}
           </div>
         }
       />
@@ -228,109 +309,111 @@ export default function BooksInvoiceDetailPage({
         </div>
       )}
 
-      <Card>
-        <CardHeader><CardTitle>Header</CardTitle></CardHeader>
-        <CardContent className="grid sm:grid-cols-2 gap-y-2 gap-x-6 text-sm">
-          <KV label="Client" value={invoice.clients?.company_name ?? '—'} />
-          <KV label="Status"><StatusBadge status={invoice.status} type="invoice" /></KV>
-          <KV label="Date" value={formatDate(invoice.invoice_date)} />
-          <KV label="Due" value={invoice.due_date ? formatDate(invoice.due_date) : '—'} />
-          {invoice.po_number && <KV label="PO #" value={invoice.po_number} />}
-          <KV
-            label="Last sent"
-            value={invoice.sent_at ? formatDate(invoice.sent_at) : '—'}
-          />
-          {(invoice.send_count ?? 0) > 0 && (
-            <KV label="Send count" value={String(invoice.send_count ?? 0)} />
-          )}
-          {journal && (
-            <KV label="Journal entry"><span className="font-mono">{journal.entry_number}</span></KV>
-          )}
-        </CardContent>
-      </Card>
+      {/* Action bar */}
+      <ActionBar
+        canEdit={canEdit}
+        canSendDraft={canSendDraft}
+        canResend={canResend}
+        canPay={canPay}
+        onEdit={() => router.push(`/books/invoices/${invoice.id}/edit`)}
+        onSend={() => setConfirmSend(true)}
+        onMarkSent={handleMarkSent}
+        onRecordPayment={() => setPayOpen(true)}
+        onExportPdf={handleExportPdf}
+        onDuplicate={() => toast.info('Duplicate — coming soon.')}
+        onPrint={() => window.print()}
+        onVoid={() => setConfirmVoid(true)}
+        onNavigate={(href) => router.push(href)}
+        prev={prev}
+        next={next}
+        sending={sending}
+        markingSent={markingSent}
+        exporting={exporting}
+      />
 
-      <Card>
-        <CardHeader><CardTitle>Line items</CardTitle></CardHeader>
-        <CardContent className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-muted-foreground">
-                <th className="py-2 font-medium">Description</th>
-                <th className="py-2 font-medium">Account</th>
-                <th className="py-2 font-medium text-right">Qty</th>
-                <th className="py-2 font-medium text-right">Unit</th>
-                <th className="py-2 font-medium text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map((l) => (
-                <tr key={l.id} className="border-b last:border-0">
-                  <td className="py-2">{l.description ?? '—'}</td>
-                  <td className="py-2 text-muted-foreground">
-                    {l.account ? `${l.account.code} · ${l.account.name}` : '—'}
-                  </td>
-                  <td className="py-2 text-right tabular-nums">{l.quantity}</td>
-                  <td className="py-2 text-right tabular-nums">{formatCurrency(l.unit_price_cents)}</td>
-                  <td className="py-2 text-right tabular-nums font-medium">
-                    {formatCurrency(l.total_cents)}
-                  </td>
-                </tr>
-              ))}
-              {lines.length === 0 && (
-                <tr><td colSpan={5} className="py-4 text-center text-muted-foreground text-xs">No lines.</td></tr>
-              )}
-            </tbody>
-          </table>
+      {/* Contextual nudge */}
+      <WhatsNextBanner
+        status={invoice.status}
+        balanceDueCents={invoice.balance_due_cents}
+        dueDate={invoice.due_date}
+        onSend={() => setConfirmSend(true)}
+        onMarkSent={handleMarkSent}
+        onRecordPayment={() => setPayOpen(true)}
+      />
 
-          <div className="mt-4 max-w-xs ml-auto space-y-1 text-sm">
-            <KV label="Subtotal" value={formatCurrency(invoice.subtotal_cents)} />
-            <KV label="Tax" value={formatCurrency(invoice.tax_amount_cents)} />
-            <KV label="Total" value={formatCurrency(invoice.total_cents)} strong />
-            <KV label="Paid" value={formatCurrency(invoice.amount_paid_cents)} />
-            <KV label="Balance due" value={formatCurrency(invoice.balance_due_cents)} strong />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Paper preview */}
+      <InvoicePreview invoice={invoice} lines={lines} org={previewOrg} />
 
-      <Card>
-        <CardHeader><CardTitle>Payments applied</CardTitle></CardHeader>
-        <CardContent>
-          {payments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No payments yet.</p>
-          ) : (
-            <ul className="divide-y">
-              {payments.map((p) => (
-                <li key={p.id} className="py-2 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-mono">{p.payment_number}</p>
-                    <p className="text-xs text-muted-foreground">{formatDate(p.payment_date)} · {p.payment_method}</p>
-                  </div>
-                  <span className="text-sm font-medium">{formatCurrency(p.amount_cents)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-
-      {invoice.notes_for_customer && (
+      {/* Secondary — payments applied + JE link */}
+      <div className="grid gap-4 md:grid-cols-2 print:hidden">
         <Card>
-          <CardHeader><CardTitle>Notes for customer</CardTitle></CardHeader>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Payments applied</CardTitle>
+          </CardHeader>
           <CardContent>
-            <p className="text-sm whitespace-pre-wrap">{invoice.notes_for_customer}</p>
+            {payments.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No payments yet.</p>
+            ) : (
+              <ul className="divide-y">
+                {payments.map((p) => (
+                  <li key={p.id} className="py-1.5 flex items-center justify-between text-sm">
+                    <div className="min-w-0">
+                      <p className="font-mono text-xs">{p.payment_number}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(p.payment_date)} · {p.payment_method}
+                      </p>
+                    </div>
+                    <span className="tabular-nums font-medium">
+                      {formatCurrency(p.amount_cents)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
-      )}
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Journal entry</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {journal ? (
+              <Link
+                href={`/books/journal/${journal.id}`}
+                className="inline-flex items-center gap-2 text-sm hover:underline"
+              >
+                <span className="font-mono">{journal.entry_number}</span>
+                <span className="text-muted-foreground">
+                  · {formatDate(journal.entry_date)}
+                </span>
+              </Link>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {invoice.status === 'draft'
+                  ? 'No GL entry yet — draft invoices post when marked sent.'
+                  : 'No journal entry linked.'}
+              </p>
+            )}
+            {(invoice.send_count ?? 0) > 0 && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Last sent {invoice.sent_at ? formatDate(invoice.sent_at) : '—'} ·{' '}
+                {invoice.send_count} time{invoice.send_count === 1 ? '' : 's'}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <Dialog open={confirmSend} onOpenChange={(o) => !sending && setConfirmSend(o)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {invoice.status === 'sent'
-                ? `Resend invoice ${invoice.invoice_number}?`
-                : invoice.job_id
+              {invoice.status === 'draft'
+                ? invoice.job_id
                   ? `Send invoice ${invoice.invoice_number}?`
-                  : `Mark invoice ${invoice.invoice_number} as sent?`}
+                  : `Send invoice ${invoice.invoice_number}?`
+                : `Resend invoice ${invoice.invoice_number}?`}
             </DialogTitle>
             <DialogDescription>
               {invoice.job_id
@@ -345,11 +428,9 @@ export default function BooksInvoiceDetailPage({
             <Button onClick={handleSend} disabled={sending}>
               {sending
                 ? <><Loader2 className="mr-1 h-4 w-4 animate-spin" />Saving…</>
-                : invoice.status === 'sent'
-                  ? 'Resend'
-                  : invoice.job_id
-                    ? 'Send invoice'
-                    : 'Mark as sent'}
+                : invoice.status === 'draft'
+                  ? invoice.job_id ? 'Send invoice' : 'Send'
+                  : 'Resend'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -380,17 +461,208 @@ export default function BooksInvoiceDetailPage({
         invoice={invoice}
         onSuccess={() => { setPayOpen(false); load() }}
       />
+
+      <style jsx global>{`
+        @media print {
+          /* Strip page chrome so the paper preview prints as-is. */
+          body { background: #fff !important; }
+          .invoice-preview {
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            max-width: none !important;
+            width: 100% !important;
+          }
+        }
+      `}</style>
     </div>
   )
 }
 
-function KV({ label, value, children, strong }: {
-  label: string; value?: React.ReactNode; children?: React.ReactNode; strong?: boolean
-}) {
+interface ActionBarProps {
+  canEdit: boolean
+  canSendDraft: boolean
+  canResend: boolean
+  canPay: boolean
+  onEdit: () => void
+  onSend: () => void
+  onMarkSent: () => void
+  onRecordPayment: () => void
+  onExportPdf: () => void
+  onDuplicate: () => void
+  onPrint: () => void
+  onVoid: () => void
+  onNavigate: (href: string) => void
+  prev: Adjacent | null
+  next: Adjacent | null
+  sending: boolean
+  markingSent: boolean
+  exporting: boolean
+}
+
+/**
+ * Six-button action row, PBAccounting-style. On <md we collapse to
+ * "Actions ▾" + prev/next arrows so it stays finger-friendly.
+ */
+function ActionBar({
+  canEdit, canSendDraft, canResend, canPay,
+  onEdit, onSend, onMarkSent, onRecordPayment, onExportPdf,
+  onDuplicate, onPrint, onVoid, onNavigate,
+  prev, next, sending, markingSent, exporting,
+}: ActionBarProps) {
   return (
-    <div className="flex justify-between border-b last:border-0 py-1">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={strong ? 'font-semibold' : ''}>{children ?? value}</span>
+    <div className="flex flex-wrap items-center gap-2 print:hidden">
+      {/* Desktop: individual buttons */}
+      <div className="hidden md:flex md:flex-wrap md:items-center md:gap-2">
+        {canEdit && (
+          <Button variant="outline" size="sm" onClick={onEdit}>
+            <Pencil className="mr-1 h-4 w-4" />
+            Edit
+          </Button>
+        )}
+        {canSendDraft && (
+          <Button size="sm" onClick={onSend} disabled={sending}>
+            <Send className="mr-1 h-4 w-4" />
+            Send
+          </Button>
+        )}
+        {canSendDraft && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onMarkSent}
+            disabled={markingSent}
+          >
+            {markingSent
+              ? <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              : null}
+            Mark sent
+          </Button>
+        )}
+        {canResend && (
+          <Button variant="outline" size="sm" onClick={onSend} disabled={sending}>
+            <Send className="mr-1 h-4 w-4" />
+            Resend
+          </Button>
+        )}
+        {canPay && (
+          <Button
+            size="sm"
+            onClick={onRecordPayment}
+            className="bg-emerald-600 hover:bg-emerald-600/90 text-white"
+          >
+            <Receipt className="mr-1 h-4 w-4" />
+            Record payment
+          </Button>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onExportPdf}
+          disabled={exporting}
+        >
+          {exporting
+            ? <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            : <Download className="mr-1 h-4 w-4" />}
+          Export PDF
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger className="inline-flex h-7 items-center gap-1 rounded-lg border border-border bg-background px-2.5 text-[0.8rem] font-medium hover:bg-muted hover:text-foreground outline-none">
+            <MoreHorizontal className="h-4 w-4" />
+            More
+            <ChevronDown className="h-3 w-3" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onDuplicate}>
+              Duplicate
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onPrint}>
+              <Printer className="mr-1 h-4 w-4" />
+              Print
+            </DropdownMenuItem>
+            {canEdit && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onClick={onVoid}>
+                  <Trash2 className="mr-1 h-4 w-4" />
+                  Void
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Mobile: single dropdown */}
+      <div className="flex items-center gap-2 md:hidden">
+        <DropdownMenu>
+          <DropdownMenuTrigger className="inline-flex h-7 items-center gap-1 rounded-lg border border-border bg-background px-2.5 text-[0.8rem] font-medium hover:bg-muted hover:text-foreground outline-none">
+            Actions
+            <ChevronDown className="h-3 w-3" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {canEdit && (
+              <DropdownMenuItem onClick={onEdit}>
+                <Pencil className="mr-1 h-4 w-4" /> Edit
+              </DropdownMenuItem>
+            )}
+            {canSendDraft && (
+              <DropdownMenuItem onClick={onSend}>
+                <Send className="mr-1 h-4 w-4" /> Send
+              </DropdownMenuItem>
+            )}
+            {canSendDraft && (
+              <DropdownMenuItem onClick={onMarkSent}>Mark sent</DropdownMenuItem>
+            )}
+            {canResend && (
+              <DropdownMenuItem onClick={onSend}>
+                <Send className="mr-1 h-4 w-4" /> Resend
+              </DropdownMenuItem>
+            )}
+            {canPay && (
+              <DropdownMenuItem onClick={onRecordPayment}>
+                <Receipt className="mr-1 h-4 w-4" /> Record payment
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={onExportPdf}>
+              <Download className="mr-1 h-4 w-4" /> Export PDF
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onDuplicate}>Duplicate</DropdownMenuItem>
+            <DropdownMenuItem onClick={onPrint}>
+              <Printer className="mr-1 h-4 w-4" /> Print
+            </DropdownMenuItem>
+            {canEdit && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onClick={onVoid}>
+                  <Trash2 className="mr-1 h-4 w-4" /> Void
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Prev/next — far right. */}
+      <div className="ml-auto flex items-center gap-1">
+        <Button
+          variant="outline"
+          size="icon-sm"
+          disabled={!prev}
+          aria-label={prev ? `Previous invoice ${prev.invoice_number}` : 'No previous invoice'}
+          onClick={() => prev && onNavigate(`/books/invoices/${prev.id}`)}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon-sm"
+          disabled={!next}
+          aria-label={next ? `Next invoice ${next.invoice_number}` : 'No next invoice'}
+          onClick={() => next && onNavigate(`/books/invoices/${next.id}`)}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   )
 }

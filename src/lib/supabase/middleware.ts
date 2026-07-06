@@ -23,7 +23,6 @@ function getSupabaseConfig() {
 /** Pages (NOT api routes) that don't require authentication */
 const PUBLIC_ROUTES = [
   '/login',
-  '/register',
   '/forgot-password',
   '/reset-password',
   '/proposals/sign',

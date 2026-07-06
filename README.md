@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Pipeline AI
 
-## Getting Started
+Multi-tenant SaaS for field-service businesses (plumbing, drain cleaning, HVAC,
+electrical). A field tech captures job data + photos, the app generates a
+service report and invoice, a manager approves, and the system emails the
+client with a card-payment link. Adjacent modules: proposals/estimates with
+e-signature, scheduling with crews + a daily recurring-jobs cron, QR-based
+HVAC equipment cataloging, and a double-entry bookkeeping module ("Books").
 
-First, run the development server:
+First customer: **New York Sewer & Drain**. Built by **Polar Bear Agency**.
+
+## Stack
+
+- **Next.js 16** (App Router, Turbopack) · **TypeScript** (strict)
+- **Supabase** Postgres + Auth + Storage, **RLS on every table**
+- **Tailwind v4** + **shadcn/ui** · **Zustand** for auth state
+- **Anthropic SDK** (reports / equipment AI) · **Resend** (email)
+- **Stripe Connect** (per-org payments) · **jsPDF** (invoices/reports)
+- **Vercel** (hosting + daily cron)
+
+## Local setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local   # fill in Supabase / Anthropic / Resend / Stripe
+npm install
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Type-check and lint before pushing:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npx tsc --noEmit --skipLibCheck
+npx eslint
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Database
 
-## Learn More
+Migrations live in `supabase/migrations/` and are applied in order. Apply new
+ones via the Supabase SQL editor or MCP. RLS is the primary tenant-isolation
+boundary; API routes add defense-in-depth org/role checks on top.
 
-To learn more about Next.js, take a look at the following resources:
+## Docs
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`CLAUDE.md` is the canonical engineering reference (architecture, roles, tiers,
+branding, common pitfalls). Read it before making changes.

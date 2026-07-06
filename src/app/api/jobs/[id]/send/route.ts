@@ -409,7 +409,9 @@ function buildEmailHtml({
 }: EmailInput): string {
   // Pay-with-Card button picks up the org's primary color so branding stays
   // consistent. Fallback is brand-neutral green if the org hasn't set one.
-  const payColor = payButtonColor || '#00a447'
+  // Validate the org-supplied colour is a hex literal so it can't break out
+  // of the inline style attribute. (L3)
+  const payColor = /^#[0-9a-fA-F]{3,8}$/.test(payButtonColor || '') ? (payButtonColor as string) : '#00a447'
   const lineItems = (invoice.line_items as Array<Record<string, unknown>>) || []
 
   const workPerformed = Array.isArray(report.work_performed)
@@ -457,7 +459,7 @@ function buildEmailHtml({
 
     <!-- Header -->
     <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); color: white; padding: 32px; border-radius: 12px 12px 0 0; text-align: center;">
-      <h1 style="margin: 0; font-size: 24px; font-weight: 700;">${orgName}</h1>
+      <h1 style="margin: 0; font-size: 24px; font-weight: 700;">${escHtml(orgName)}</h1>
       <p style="margin: 8px 0 0; opacity: 0.9; font-size: 14px;">Service Report & Invoice</p>
     </div>
 
@@ -513,7 +515,7 @@ function buildEmailHtml({
 
       <!-- Invoice Section -->
       <h2 style="font-size: 18px; color: #1e3a5f; margin-bottom: 4px;">Invoice</h2>
-      <p style="font-size: 13px; color: #888; margin-top: 0;">#${invoice.invoice_number || 'N/A'}</p>
+      <p style="font-size: 13px; color: #888; margin-top: 0;">#${escHtml(invoice.invoice_number || 'N/A')}</p>
 
       <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin: 16px 0;">
         <thead>
@@ -565,7 +567,7 @@ function buildEmailHtml({
       <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0 16px;">
 
       <p style="font-size: 13px; color: #888; text-align: center; margin: 0;">
-        Thank you for choosing ${orgName}.<br>
+        Thank you for choosing ${escHtml(orgName)}.<br>
         If you have any questions, please don't hesitate to contact us.
       </p>
     </div>

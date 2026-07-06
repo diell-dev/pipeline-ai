@@ -104,14 +104,29 @@ self.addEventListener('fetch', (event) => {
   // Never cache API or Supabase calls.
   if (url.pathname.startsWith('/api/')) return
 
+  // Only cache shells for PUBLIC, offline-safe routes. Authenticated app
+  // pages (dashboard, clients, jobs, books, …) must NOT be cached — an
+  // offline navigation after logout on a shared device could otherwise serve
+  // a stale authenticated shell.
+  const PUBLIC_SHELL_PREFIXES = [
+    '/login', '/forgot-password', '/reset-password',
+    '/pay', '/proposals/sign', '/equipment/qr',
+  ]
+  const isPublicShell = PUBLIC_SHELL_PREFIXES.some(
+    (p) => url.pathname === p || url.pathname.startsWith(p + '/')
+  )
+
   // Navigations → network-first, fall back to cached shell, then offline.
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          // Cache successful HTML responses so we have a shell to fall
-          // back to on subsequent offline visits.
-          if (res && res.ok && res.headers.get('content-type')?.includes('text/html')) {
+          // Cache successful HTML only for public routes (see above).
+          if (
+            isPublicShell &&
+            res && res.ok &&
+            res.headers.get('content-type')?.includes('text/html')
+          ) {
             const copy = res.clone()
             caches.open(SHELL_CACHE).then((cache) => cache.put(req, copy))
           }

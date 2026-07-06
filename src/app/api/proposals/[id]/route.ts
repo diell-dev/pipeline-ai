@@ -120,7 +120,8 @@ export async function PATCH(
       lineItemsForTotals = existingLines || []
     }
 
-    const taxRate = typeof body.tax_rate === 'number' ? body.tax_rate : Number(existing.tax_rate)
+    const taxRateRaw = typeof body.tax_rate === 'number' ? body.tax_rate : Number(existing.tax_rate)
+    const taxRate = Math.min(30, Math.max(0, taxRateRaw || 0)) // clamp 0–30% (L4)
     const discountEnabled =
       typeof body.discount_enabled === 'boolean' ? body.discount_enabled : !!existing.discount_enabled
     const discountAmount =

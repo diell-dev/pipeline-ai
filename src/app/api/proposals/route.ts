@@ -115,7 +115,8 @@ export async function POST(request: NextRequest) {
       sort_order: idx,
     }))
 
-    const taxRate = typeof body.tax_rate === 'number' ? body.tax_rate : 8.875
+    const taxRateRaw = typeof body.tax_rate === 'number' ? body.tax_rate : 8.875
+    const taxRate = Math.min(30, Math.max(0, taxRateRaw)) // clamp 0–30% (L4)
     const totals = computeTotals({
       lineItems,
       discountEnabled: !!body.discount_enabled,

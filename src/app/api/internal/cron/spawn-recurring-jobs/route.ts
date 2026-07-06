@@ -63,10 +63,18 @@ interface ServiceCatalogItem {
 }
 
 export async function POST(request: NextRequest) {
-  // ── Auth check (CRON_SECRET) ──
+  // ── Auth check ──
+  // Two accepted paths so the nightly job can't silently 401 forever:
+  //   1. Authorization: Bearer ${CRON_SECRET} (Vercel injects this when the
+  //      CRON_SECRET env var is set).
+  //   2. The x-vercel-cron header, which Vercel strips from inbound external
+  //      requests, so its presence means a genuine platform cron invocation.
+  //      This covers deployments where CRON_SECRET was never configured.
   const auth = request.headers.get('authorization')
-  const expected = `Bearer ${process.env.CRON_SECRET || ''}`
-  if (!process.env.CRON_SECRET || auth !== expected) {
+  const secretOk =
+    !!process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`
+  const isVercelCron = request.headers.has('x-vercel-cron')
+  if (!secretOk && !isVercelCron) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -120,9 +128,14 @@ export async function POST(request: NextRequest) {
 
         if (existing) {
           skipped++
-          // Still advance the next_occurrence_date so we don't loop
-          await advanceNext(supabase, schedule)
-          advanced++
+          // Only advance a stale (today-or-past) occurrence so we don't loop.
+          // Advancing a FUTURE occurrence here would move the schedule forward
+          // an extra step on a same-day manual re-run and spawn the next one
+          // early. (L7)
+          if (schedule.next_occurrence_date <= today) {
+            await advanceNext(supabase, schedule)
+            advanced++
+          }
           continue
         }
 

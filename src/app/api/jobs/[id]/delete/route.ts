@@ -44,6 +44,23 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // Guard: never erase recognized revenue. If this job has a paid or
+    // partially-paid invoice, block the delete — the payment must be voided
+    // first (mirrors the invoice-level "can't void a paid invoice" rule). (M6)
+    const { data: paidInvoices } = await supabase
+      .from('invoices')
+      .select('id')
+      .eq('job_id', jobId)
+      .is('deleted_at', null)
+      .in('status', ['paid', 'partially_paid'])
+      .limit(1)
+    if (paidInvoices && paidInvoices.length > 0) {
+      return NextResponse.json(
+        { error: 'This job has a paid invoice. Void the payment before deleting the job.' },
+        { status: 409 }
+      )
+    }
+
     const now = new Date().toISOString()
 
     // 1. Soft-delete the job
@@ -52,11 +69,12 @@ export async function POST(
       .update({ deleted_at: now, status: 'cancelled' })
       .eq('id', jobId)
 
-    // 2. Void the associated invoice (don't delete — preserve the number)
+    // 2. Void the associated (unpaid) invoices — preserve the number.
     await supabase
       .from('invoices')
       .update({ status: 'void', deleted_at: now })
       .eq('job_id', jobId)
+      .not('status', 'in', '(paid,partially_paid)')
 
     // 3. Log the action
     await supabase.from('activity_log').insert({

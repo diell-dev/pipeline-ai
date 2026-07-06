@@ -317,6 +317,7 @@ async function fetchPostedLines(
       .not('journal_entries.posted_at', 'is', null)
       .is('journal_entries.deleted_at', null)
       .lte('journal_entries.entry_date', endDate)
+      .order('id', { ascending: true })
       .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
 
     if (startDate) {
@@ -566,6 +567,17 @@ export async function getBalanceSheet(
   const pnl = await getProfitAndLoss(supabase, orgId, ytdStart, asOfDate)
   const currentPeriodNetIncome_cents = pnl.netIncome.amount_cents
 
+  // H2: prior fiscal years' accumulated net income belongs in Retained
+  // Earnings. Nothing posts a year-end closing entry, so without this the
+  // balance sheet goes out of balance by all prior years' net income from
+  // the org's second year onward. Compute RE virtually as all P&L dated
+  // before the current fiscal year. (Assumes no manual closing entries are
+  // posted to Retained Earnings; if you add real year-end closing, drop
+  // this virtual roll-up to avoid double counting.)
+  const priorYearEnd = `${Number(ytdStart.slice(0, 4)) - 1}-12-31`
+  const priorPnl = await getProfitAndLoss(supabase, orgId, '1900-01-01', priorYearEnd)
+  retainedEarnings_cents += priorPnl.netIncome.amount_cents
+
   const sumOf = (rows: BalanceSheetLine[]) =>
     rows.reduce((acc, r) => acc + r.amount_cents, 0)
 
@@ -779,6 +791,7 @@ export async function getARAging(
     )
     .eq('organization_id', orgId)
     .is('deleted_at', null)
+    .not('status', 'in', '(draft,void)')
     .gt('balance_due_cents', 0)
     .lte('invoice_date', asOfDate)
 
@@ -856,6 +869,7 @@ export async function getAPAging(
     )
     .eq('organization_id', orgId)
     .is('deleted_at', null)
+    .not('status', 'in', '(draft,void)')
     .gt('balance_due_cents', 0)
     .lte('bill_date', asOfDate)
 
@@ -1156,6 +1170,7 @@ export async function getSalesTaxSummary(
     .select('id, invoice_date, subtotal_cents, tax_amount_cents, job_id')
     .eq('organization_id', orgId)
     .is('deleted_at', null)
+    .not('status', 'in', '(draft,void)')
     .gte('invoice_date', startDate)
     .lte('invoice_date', endDate)
     .gt('tax_amount_cents', 0)

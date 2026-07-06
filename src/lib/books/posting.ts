@@ -524,6 +524,51 @@ export async function postInvoice(
       }
       revenueRemainder = 0
     }
+  } else {
+    // Books-native invoice (no job_id): revenue lines live in
+    // invoice_line_items, each with its own account_id. Aggregate the
+    // pre-tax revenue (line total_cents INCLUDES tax) by account so the
+    // P&L shows revenue-by-account instead of dumping it all on 4000. (H3)
+    const { data: invLines, error: invLinesErr } = await supabase
+      .from('invoice_line_items')
+      .select('account_id, total_cents, tax_amount_cents')
+      .eq('invoice_id', invoice.id)
+    if (invLinesErr) {
+      throw new PostingError(
+        `Failed to load invoice_line_items for invoice ${invoice.invoice_number}: ${invLinesErr.message}`
+      )
+    }
+    if (invLines && invLines.length > 0) {
+      const aggregate = new Map<string, number>()
+      for (const line of invLines as Array<{
+        account_id: string | null
+        total_cents: number | null
+        tax_amount_cents: number | null
+      }>) {
+        const amount = (line.total_cents ?? 0) - (line.tax_amount_cents ?? 0)
+        if (amount <= 0) continue
+        const accountId = line.account_id ?? defaultRevenue.id
+        if (line.account_id) {
+          await assertAccountInOrg(supabase, line.account_id, invoice.organization_id)
+        }
+        aggregate.set(accountId, (aggregate.get(accountId) ?? 0) + amount)
+      }
+      const aggregateTotal = Array.from(aggregate.values()).reduce((a, b) => a + b, 0)
+      if (aggregateTotal !== invoice.subtotal_cents && aggregateTotal > 0) {
+        const drift = invoice.subtotal_cents - aggregateTotal
+        aggregate.set(defaultRevenue.id, (aggregate.get(defaultRevenue.id) ?? 0) + drift)
+      }
+      for (const [accountId, amount] of aggregate.entries()) {
+        if (amount === 0) continue
+        lines.push({
+          account_id: accountId,
+          debit_cents: 0,
+          credit_cents: amount,
+          description: `Revenue — invoice ${invoice.invoice_number}`,
+        })
+      }
+      revenueRemainder = 0
+    }
   }
 
   // Fallback: invoice has no line items (or job_id is null). Push the
@@ -1057,26 +1102,16 @@ export async function postExpense(
   const lines: JournalLineSpec[] = []
   const description = expense.description ?? `Expense on ${expense.expense_date}`
 
+  // US sales tax on purchases is NOT recoverable, so fold the tax into the
+  // expense-account debit rather than debiting Sales Tax Payable (2200) —
+  // which would understate the tax liability and break the sales-tax report.
+  // Mirrors the bill treatment. (M10)
   lines.push({
     account_id: expenseAccount.id,
-    debit_cents: expense.amount_cents,
+    debit_cents: expense.amount_cents + (expense.tax_amount_cents ?? 0),
     credit_cents: 0,
     description,
   })
-
-  if (expense.tax_amount_cents > 0) {
-    const taxAccount = await getAccountByCode(
-      supabase,
-      expense.organization_id,
-      STANDARD_ACCOUNTS.SALES_TAX
-    )
-    lines.push({
-      account_id: taxAccount.id,
-      debit_cents: expense.tax_amount_cents,
-      credit_cents: 0,
-      description: `Recoverable tax — ${description}`,
-    })
-  }
 
   if (expense.is_reimbursable && !expense.is_reimbursed) {
     const ap = await getAccountByCode(

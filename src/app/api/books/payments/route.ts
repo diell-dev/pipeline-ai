@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     const table = sourceType === 'invoice' ? 'invoices' : 'bills'
     const { data: src, error: srcErr } = await supabase
       .from(table)
-      .select('balance_due_cents')
+      .select('balance_due_cents, status')
       .eq('id', sourceId)
       .eq('organization_id', organizationId)
       .is('deleted_at', null)
@@ -97,6 +97,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: `${sourceType} not found` },
         { status: 404 }
+      )
+    }
+    // M11: only record payments against a source that has actually been
+    // issued. Paying a draft credits AR/AP that was never posted (drafts
+    // don't post), producing paid-with-no-revenue and a negative balance.
+    const srcStatus = (src as { status: string }).status
+    const payable =
+      sourceType === 'invoice'
+        ? ['sent', 'partially_paid', 'overdue']
+        : ['open', 'partially_paid', 'overdue']
+    if (!payable.includes(srcStatus)) {
+      return NextResponse.json(
+        { error: `Cannot record a payment against a ${srcStatus} ${sourceType}.` },
+        { status: 400 }
       )
     }
     const balanceCents = Number((src as { balance_due_cents: number }).balance_due_cents) || 0

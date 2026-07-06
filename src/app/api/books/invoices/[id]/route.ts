@@ -13,7 +13,6 @@ import {
   PostingError,
   postInvoice,
   findExistingActiveEntry,
-  reverseJournalEntry,
 } from '@/lib/books/posting'
 
 const EDITABLE = [
@@ -150,6 +149,23 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
     return NextResponse.json({ error: 'No editable fields' }, { status: 400 })
   }
 
+  // Guard status transitions. Only draft->sent is a legal manual PATCH.
+  // Voiding must go through DELETE (which reverses the GL entry); payment
+  // status (paid/partially_paid) is derived from recorded payments; a
+  // posted invoice must not be demoted back to draft.
+  if ('status' in update && update.status !== existing.status) {
+    const legal = existing.status === 'draft' && update.status === 'sent'
+    if (!legal) {
+      return NextResponse.json(
+        {
+          error:
+            'Invalid status change. Use Send (draft→sent), record a payment, or Void.',
+        },
+        { status: 400 }
+      )
+    }
+  }
+
   const { data, error } = await supabase
     .from('invoices').update(update).eq('id', id).select('*').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -211,11 +227,11 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
           }
 
           if (needsRepost) {
-            await reverseJournalEntry(
-              supabase,
-              active.id,
-              `Invoice ${id} edited (posting-relevant field change)`
-            )
+            // Soft-delete the original entry and post a fresh one. Do NOT
+            // ALSO post a reversal: reports exclude the soft-deleted original
+            // but would still count a reversal, netting the document to zero
+            // in the P&L / trial balance. Excluding the original + posting
+            // the new entry is the correct net (H1).
             await supabase
               .from('journal_entries')
               .update({ deleted_at: new Date().toISOString() })
@@ -241,11 +257,21 @@ export async function DELETE(_: NextRequest, ctx: { params: Promise<{ id: string
   const { supabase } = guard
 
   const { data: existing } = await supabase
-    .from('invoices').select('id, organization_id, invoice_number').eq('id', id)
-    .maybeSingle<{ id: string; organization_id: string; invoice_number: string }>()
+    .from('invoices').select('id, organization_id, invoice_number, amount_paid_cents').eq('id', id)
+    .maybeSingle<{ id: string; organization_id: string; invoice_number: string; amount_paid_cents: number | null }>()
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   const forbidden = assertOrgMatch(guard, existing.organization_id)
   if (forbidden) return forbidden
+
+  // H5: don't void an invoice that has payments applied — it would leave the
+  // payment journal entries standing and drive AR negative. Refund/void the
+  // payments first.
+  if ((existing.amount_paid_cents ?? 0) > 0) {
+    return NextResponse.json(
+      { error: 'This invoice has payments applied. Void or refund the payments first.' },
+      { status: 409 }
+    )
+  }
 
   try {
     const reversal = await softDeleteAndReverse(

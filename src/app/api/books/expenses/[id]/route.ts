@@ -9,7 +9,6 @@ import {
   PostingError,
   postExpense,
   findExistingActiveEntry,
-  reverseJournalEntry,
 } from '@/lib/books/posting'
 
 const EDITABLE = [
@@ -72,6 +71,33 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
     return NextResponse.json({ error: 'No editable fields' }, { status: 400 })
   }
 
+  // M12: validate that any foreign-key references still belong to this org.
+  // POST validates these; PATCH previously did not, allowing an expense to
+  // point at another org's vendor/account/client/job.
+  const fkChecks: Array<[string, string, unknown]> = [
+    ['vendors', 'vendor_id', update.vendor_id],
+    ['expense_categories', 'expense_category_id', update.expense_category_id],
+    ['chart_of_accounts', 'expense_account_id', update.expense_account_id],
+    ['chart_of_accounts', 'payment_account_id', update.payment_account_id],
+    ['clients', 'client_id', update.client_id],
+    ['jobs', 'job_id', update.job_id],
+  ]
+  for (const [table, field, val] of fkChecks) {
+    if (field in update && val) {
+      const { data: ref } = await supabase
+        .from(table)
+        .select('organization_id')
+        .eq('id', val as string)
+        .maybeSingle<{ organization_id: string }>()
+      if (!ref || ref.organization_id !== existing.organization_id) {
+        return NextResponse.json(
+          { error: `Invalid ${field} — must belong to your organization` },
+          { status: 400 }
+        )
+      }
+    }
+  }
+
   const { data, error } = await supabase
     .from('expenses').update(update).eq('id', id).select('*').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -90,11 +116,8 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
         id
       )
       if (active) {
-        await reverseJournalEntry(
-          supabase,
-          active.id,
-          `Expense ${id} edited (posting-relevant field change)`
-        )
+        // Soft-delete the stale entry and post a fresh one — no reversal
+        // (reversal + exclusion would net the expense to zero). (H1)
         await supabase
           .from('journal_entries')
           .update({ deleted_at: new Date().toISOString() })

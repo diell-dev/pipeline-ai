@@ -9,7 +9,6 @@ import {
   PostingError,
   postBill,
   findExistingActiveEntry,
-  reverseJournalEntry,
 } from '@/lib/books/posting'
 
 const EDITABLE = [
@@ -87,6 +86,19 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
     return NextResponse.json({ error: 'No editable fields' }, { status: 400 })
   }
 
+  // Guard status transitions. Only draft->open is a legal manual PATCH;
+  // void goes through DELETE (reverses the GL), payment status is derived
+  // from recorded payments, and a posted bill can't be demoted to draft.
+  if ('status' in update && update.status !== existing.status) {
+    const legal = existing.status === 'draft' && update.status === 'open'
+    if (!legal) {
+      return NextResponse.json(
+        { error: 'Invalid status change. Use Approve (draft→open), record a payment, or Void.' },
+        { status: 400 }
+      )
+    }
+  }
+
   const { data, error } = await supabase
     .from('bills').update(update).eq('id', id).select('*').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -134,11 +146,9 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
           // then soft-delete the original so the next postBill() doesn't
           // hit its idempotency cache and skip the re-post. The bill
           // row itself stays live — only the GL needs re-aligning.
-          await reverseJournalEntry(
-            supabase,
-            active.id,
-            `Bill ${id} edited (posting-relevant field change)`
-          )
+          // Soft-delete the stale entry and post a fresh one — do NOT also
+          // post a reversal (reports exclude the deleted original but would
+          // still count a reversal, netting the bill to zero). (H1)
           await supabase
             .from('journal_entries')
             .update({ deleted_at: new Date().toISOString() })
@@ -163,11 +173,20 @@ export async function DELETE(_: NextRequest, ctx: { params: Promise<{ id: string
   const { supabase } = guard
 
   const { data: existing } = await supabase
-    .from('bills').select('id, organization_id, internal_number').eq('id', id)
-    .maybeSingle<{ id: string; organization_id: string; internal_number: string }>()
+    .from('bills').select('id, organization_id, internal_number, amount_paid_cents').eq('id', id)
+    .maybeSingle<{ id: string; organization_id: string; internal_number: string; amount_paid_cents: number | null }>()
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   const forbidden = assertOrgMatch(guard, existing.organization_id)
   if (forbidden) return forbidden
+
+  // H5: don't void a bill with payments applied — would strand payment
+  // entries and drive AP negative. Void the payments first.
+  if ((existing.amount_paid_cents ?? 0) > 0) {
+    return NextResponse.json(
+      { error: 'This bill has payments applied. Void the payments first.' },
+      { status: 409 }
+    )
+  }
 
   try {
     const reversal = await softDeleteAndReverse(

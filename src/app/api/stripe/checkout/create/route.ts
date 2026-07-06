@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const { data: invoice, error: invErr } = await supabase
       .from('invoices')
       .select(
-        'id, organization_id, invoice_number, total_amount, stripe_checkout_session_id, stripe_payment_link_url'
+        'id, organization_id, invoice_number, total_amount, total_cents, amount_paid_cents, balance_due_cents, status, stripe_checkout_session_id, stripe_payment_link_url'
       )
       .eq('id', invoiceId)
       .single()
@@ -51,6 +51,14 @@ export async function POST(request: NextRequest) {
 
     if (!canAccessOrg(auth, invoice.organization_id)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    // Don't create a payment link for an invoice that isn't collectable.
+    if (invoice.status && ['paid', 'void', 'cancelled'].includes(invoice.status)) {
+      return NextResponse.json(
+        { error: `Invoice is ${invoice.status} — no payment needed` },
+        { status: 400 }
+      )
     }
 
     const { data: org, error: orgErr } = await supabase

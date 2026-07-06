@@ -22,6 +22,10 @@ interface InvoiceForCheckout {
   organization_id: string
   invoice_number: string
   total_amount: number
+  total_cents?: number | null
+  amount_paid_cents?: number | null
+  balance_due_cents?: number | null
+  status?: string | null
   stripe_checkout_session_id: string | null
   stripe_payment_link_url: string | null
 }
@@ -51,17 +55,58 @@ export async function createInvoiceCheckoutSession(
     throw new Error('Organization Stripe account is not yet enabled for charges')
   }
 
-  // Reuse an existing session URL if one was already created for this invoice.
-  if (invoice.stripe_checkout_session_id && invoice.stripe_payment_link_url) {
-    return {
-      url: invoice.stripe_payment_link_url,
-      session_id: invoice.stripe_checkout_session_id,
-      reused: true,
-    }
+  // Never create a payment link for an invoice that isn't collectable.
+  if (invoice.status && ['paid', 'void', 'cancelled'].includes(invoice.status)) {
+    throw new Error(`Invoice is '${invoice.status}' — no payment link needed`)
+  }
+
+  // Charge the OUTSTANDING balance in cents (source of truth), not the
+  // full legacy decimal total. Falls back gracefully for older rows.
+  const amountPaidCents = invoice.amount_paid_cents ?? 0
+  const balanceCents =
+    typeof invoice.balance_due_cents === 'number' && invoice.balance_due_cents > 0
+      ? invoice.balance_due_cents
+      : typeof invoice.total_cents === 'number' && invoice.total_cents > 0
+        ? invoice.total_cents - amountPaidCents
+        : Math.round(Number(invoice.total_amount) * 100)
+
+  if (balanceCents <= 0) {
+    throw new Error('Invoice has no outstanding balance to charge')
   }
 
   const stripe = getStripeClient()
-  const unitAmount = Math.round(Number(invoice.total_amount) * 100)
+
+  // Reuse an existing session only if it is still open AND its amount
+  // still matches the current balance. Otherwise expire it and mint a
+  // fresh one so the emailed total and the charged total can't diverge.
+  if (invoice.stripe_checkout_session_id && invoice.stripe_payment_link_url) {
+    try {
+      const existing = await stripe.checkout.sessions.retrieve(
+        invoice.stripe_checkout_session_id,
+        { stripeAccount: org.stripe_account_id }
+      )
+      if (existing.status === 'open' && existing.amount_total === balanceCents) {
+        return {
+          url: invoice.stripe_payment_link_url,
+          session_id: invoice.stripe_checkout_session_id,
+          reused: true,
+        }
+      }
+      if (existing.status === 'open') {
+        try {
+          await stripe.checkout.sessions.expire(existing.id, {
+            stripeAccount: org.stripe_account_id,
+          })
+        } catch {
+          // best-effort; a stale open session left behind is harmless
+        }
+      }
+    } catch {
+      // Couldn't retrieve it — fall through and create a new session.
+    }
+  }
+
+  const unitAmount = balanceCents
 
   const session = await stripe.checkout.sessions.create(
     {
@@ -83,8 +128,8 @@ export async function createInvoiceCheckoutSession(
         // No platform fee for v1
         application_fee_amount: 0,
       },
-      success_url: `${appUrl}/invoices/${invoice.id}?paid=true`,
-      cancel_url: `${appUrl}/invoices/${invoice.id}`,
+      success_url: `${appUrl}/pay/${invoice.id}?status=paid`,
+      cancel_url: `${appUrl}/pay/${invoice.id}?status=cancelled`,
       metadata: {
         invoice_id: invoice.id,
         organization_id: invoice.organization_id,
@@ -99,7 +144,6 @@ export async function createInvoiceCheckoutSession(
     throw new Error('Stripe did not return a Checkout URL')
   }
 
-  // Persist on the invoice so the email and any retries can reuse it.
   await supabase
     .from('invoices')
     .update({

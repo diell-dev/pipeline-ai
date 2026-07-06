@@ -610,59 +610,100 @@ async function generateInvoice({ job, lineItems, services, orgName, orgSettings,
   const dueDate = new Date()
   dueDate.setDate(dueDate.getDate() + dueDays)
 
-  // Generate invoice number: PREFIX-YYYYMMDD-XXX
-  // Use custom prefix from org settings, fallback to 'NYSD'
-  const prefix = ((orgSettings.invoice_prefix as string) || 'NYSD').toUpperCase()
-  const nextNum = (orgSettings.invoice_next_number as number) || null
+  const notesText = pricingAdjustments.hasAdjustments
+    ? `Auto-generated for job at ${(site?.address as string) || 'N/A'}. ${pricingAdjustments.summary}`
+    : `Auto-generated for job at ${(site?.address as string) || 'N/A'}`
 
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-
-  let seqNum: string
-  if (nextNum) {
-    // Use the configured next number from settings
-    seqNum = String(nextNum).padStart(3, '0')
-    // Atomically increment the next number in org settings
-    await supabase
-      .from('organizations')
-      .update({
-        settings: { ...orgSettings, invoice_next_number: nextNum + 1 },
-      })
-      .eq('id', job.organization_id)
-  } else {
-    // Fallback: count existing invoices
-    const { count } = await supabase
-      .from('invoices')
-      .select('*', { count: 'exact', head: true })
-      .eq('organization_id', job.organization_id as string)
-    seqNum = String((count || 0) + 1).padStart(3, '0')
+  // Money columns: write BOTH the legacy decimal columns AND the cents
+  // columns (source of truth since migration 015). Without *_cents the
+  // invoice renders as $0.00 everywhere and never posts to the books.
+  // A DB trigger backstops this, but writing them explicitly is correct.
+  const moneyCols = {
+    amount: subtotal,
+    tax_rate: taxRate,
+    tax_amount: taxAmount,
+    total_amount: totalAmount,
+    subtotal_cents: Math.round(subtotal * 100),
+    tax_amount_cents: Math.round(taxAmount * 100),
+    total_cents: Math.round(totalAmount * 100),
   }
 
-  const invoiceNumber = `${prefix}-${dateStr}-${seqNum}`
-
-  // Create the invoice record in the database
-  const { data: invoice, error: invoiceError } = await supabase
+  // Reuse the job's existing (non-void) invoice instead of inserting a
+  // duplicate on every regenerate. Duplicates silently break send,
+  // Stripe and books posting (maybeSingle lookups error on 2+ rows).
+  const { data: existingInvoice } = await supabase
     .from('invoices')
-    .insert({
-      job_id: job.id,
-      organization_id: job.organization_id,
-      client_id: job.client_id,
-      invoice_number: invoiceNumber,
-      amount: subtotal,
-      tax_rate: taxRate,
-      tax_amount: taxAmount,
-      total_amount: totalAmount,
-      status: 'draft',
-      due_date: dueDate.toISOString().slice(0, 10),
-      paid_amount: 0,
-      notes: pricingAdjustments.hasAdjustments
-        ? `Auto-generated for job at ${(site?.address as string) || 'N/A'}. ${pricingAdjustments.summary}`
-        : `Auto-generated for job at ${(site?.address as string) || 'N/A'}`,
-    })
-    .select()
-    .single()
+    .select('id, invoice_number, status')
+    .eq('job_id', job.id as string)
+    .neq('status', 'void')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
 
-  if (invoiceError) {
-    console.error('Failed to create invoice:', invoiceError.message)
+  let invoice: { id: string } | null = null
+  let invoiceNumber: string
+
+  if (existingInvoice) {
+    invoiceNumber = existingInvoice.invoice_number as string
+    if (existingInvoice.status === 'draft') {
+      // Refresh the draft in place (keeps its number).
+      const { data: updated, error: updErr } = await supabase
+        .from('invoices')
+        .update({ ...moneyCols, due_date: dueDate.toISOString().slice(0, 10), notes: notesText })
+        .eq('id', existingInvoice.id)
+        .select('id')
+        .single()
+      if (updErr) throw new Error(`Failed to update invoice: ${updErr.message}`)
+      invoice = updated
+    } else {
+      // Already sent/paid — never mutate a finalized invoice or mint a new one.
+      invoice = { id: existingInvoice.id as string }
+    }
+  } else {
+    // Mint a new invoice number and insert.
+    const prefix = ((orgSettings.invoice_prefix as string) || 'NYSD').toUpperCase()
+    const nextNum = (orgSettings.invoice_next_number as number) || null
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+
+    let seqNum: string
+    if (nextNum) {
+      seqNum = String(nextNum).padStart(3, '0')
+      await supabase
+        .from('organizations')
+        .update({ settings: { ...orgSettings, invoice_next_number: nextNum + 1 } })
+        .eq('id', job.organization_id)
+    } else {
+      const { count } = await supabase
+        .from('invoices')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', job.organization_id as string)
+      seqNum = String((count || 0) + 1).padStart(3, '0')
+    }
+    invoiceNumber = `${prefix}-${dateStr}-${seqNum}`
+
+    const { data: inserted, error: invoiceError } = await supabase
+      .from('invoices')
+      .insert({
+        job_id: job.id,
+        organization_id: job.organization_id,
+        client_id: job.client_id,
+        invoice_number: invoiceNumber,
+        ...moneyCols,
+        status: 'draft',
+        due_date: dueDate.toISOString().slice(0, 10),
+        paid_amount: 0,
+        notes: notesText,
+      })
+      .select('id')
+      .single()
+
+    // Fatal: a phantom invoice number in the client's email with no DB
+    // row is worse than failing the generate (which can be retried).
+    if (invoiceError) {
+      throw new Error(`Failed to create invoice: ${invoiceError.message}`)
+    }
+    invoice = inserted
   }
 
   // Note: We do NOT re-insert job_line_items — they already exist from job creation.

@@ -123,7 +123,7 @@ export async function POST(
     const { data: invoice, error: invError } = await supabase
       .from('invoices')
       .select(
-        'id, organization_id, status, total_amount, notes, invoice_number'
+        'id, organization_id, status, total_amount, total_cents, paid_amount, amount_paid_cents, notes, invoice_number'
       )
       .eq('id', invoiceId)
       .is('deleted_at', null)
@@ -143,14 +143,23 @@ export async function POST(
         { status: 400 }
       )
     }
+    if (invoice.status === 'paid') {
+      return NextResponse.json(
+        { error: 'Invoice is already fully paid' },
+        { status: 400 }
+      )
+    }
 
     // ── Compute new status ──
+    // Accumulate onto any prior partial payment rather than overwriting it.
     const totalAmount = Number(invoice.total_amount) || 0
+    const priorPaid = Number(invoice.paid_amount) || 0
+    const newPaidTotal = Math.round((priorPaid + paidAmount) * 100) / 100
 
-    // Sanity-check: reject paid_amount more than 50% above the invoice total.
-    // Allows small overage (tip, rounded check, etc.) but catches typo-style
-    // entries like an extra zero. Values up to and including 1.5x total pass.
-    if (totalAmount > 0 && paidAmount > totalAmount * 1.5) {
+    // Sanity-check: reject a cumulative paid amount more than 50% above the
+    // invoice total. Allows small overage (tip, rounded check) but catches
+    // typo-style entries like an extra zero.
+    if (totalAmount > 0 && newPaidTotal > totalAmount * 1.5) {
       return NextResponse.json(
         { error: 'Payment exceeds invoice amount by more than 50%' },
         { status: 400 }
@@ -158,7 +167,7 @@ export async function POST(
     }
 
     const newStatus: 'paid' | 'partially_paid' =
-      paidAmount >= totalAmount ? 'paid' : 'partially_paid'
+      newPaidTotal >= totalAmount ? 'paid' : 'partially_paid'
 
     // ── Build the appended notes line ──
     // Example: "[Marked paid 2026-04-30 by check #4521]"
@@ -188,7 +197,10 @@ export async function POST(
       .update({
         status: newStatus,
         paid_date: paidDate,
-        paid_amount: paidAmount,
+        paid_amount: newPaidTotal,
+        // Keep the cents source-of-truth column in lockstep (a DB trigger
+        // backstops this, but writing it explicitly is correct).
+        amount_paid_cents: Math.round(newPaidTotal * 100),
         payment_method: paymentMethod,
         notes: combinedNotes,
       })

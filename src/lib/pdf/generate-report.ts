@@ -34,7 +34,7 @@ interface ReportDataV1 {
   photos?: string[]
 }
 
-type ReportData = ReportDataV2 | ReportDataV1
+export type ReportData = ReportDataV2 | ReportDataV1
 
 function isV2Report(data: ReportData): data is ReportDataV2 {
   return 'version' in data && data.version === 2
@@ -322,6 +322,25 @@ export async function generateReportPdf(
       doc.setTextColor(0, 0, 0)
       y = addWrappedText(doc, reportData.intro, margin, y, contentWidth)
       y += 6
+    }
+
+    // Services performed
+    if (reportData.services_performed?.length) {
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(ar, ag, ab)
+      doc.text('Services Performed', margin, y)
+      y += 6
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(0, 0, 0)
+      for (const item of reportData.services_performed) {
+        if (y > doc.internal.pageSize.getHeight() - 25) { doc.addPage(); y = 25 }
+        doc.text('-', margin, y)
+        y = addWrappedText(doc, item, margin + 5, y, contentWidth - 5)
+        y += 2
+      }
+      y += 4
     }
 
     // Findings as dashed list (exactly like the real report)

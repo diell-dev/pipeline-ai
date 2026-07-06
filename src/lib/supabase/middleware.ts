@@ -28,6 +28,7 @@ const PUBLIC_ROUTES = [
   '/reset-password',
   '/proposals/sign',
   '/equipment/qr',
+  '/pay',
 ] as const
 
 /**

@@ -134,7 +134,7 @@ export async function POST(
         const { data: dbInvoice } = await supabase
           .from('invoices')
           .select(
-            'id, organization_id, invoice_number, total_amount, stripe_checkout_session_id, stripe_payment_link_url'
+            'id, organization_id, invoice_number, total_amount, total_cents, amount_paid_cents, balance_due_cents, status, stripe_checkout_session_id, stripe_payment_link_url'
           )
           .eq('job_id', jobId)
           .maybeSingle()
@@ -424,6 +424,13 @@ function buildEmailHtml({
     ? (report.recommendations as string[]).map((r) => `<li>${escHtml(r)}</li>`).join('')
     : ''
 
+  // V2 report fields (intro + services performed) — without these the
+  // client email showed only "Findings".
+  const introText = typeof report.intro === 'string' ? report.intro : ''
+  const servicesPerformed = Array.isArray(report.services_performed)
+    ? (report.services_performed as string[]).map((sv) => `<li>${escHtml(sv)}</li>`).join('')
+    : ''
+
   const lineItemRows = lineItems
     .map(
       (item) => `
@@ -471,6 +478,13 @@ function buildEmailHtml({
 
       <!-- Report Section -->
       <h2 style="font-size: 18px; color: #1e3a5f; margin-bottom: 12px;">Service Report</h2>
+
+      ${introText ? `<p style="font-size: 14px; color: #555; line-height: 1.6;">${escHtml(introText)}</p>` : ''}
+
+      ${servicesPerformed ? `
+        <h3 style="font-size: 15px; color: #333; margin-bottom: 8px;">Services Performed</h3>
+        <ul style="font-size: 14px; color: #555; line-height: 1.8; padding-left: 20px;">${servicesPerformed}</ul>
+      ` : ''}
 
       ${report.summary ? `<p style="font-size: 14px; color: #555; line-height: 1.6; background: #f8fafc; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #2563eb;">${escHtml(report.summary)}</p>` : ''}
 

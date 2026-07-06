@@ -375,7 +375,8 @@ function InvoiceEditor({
   const totalAmount = subtotal + taxAmount
 
   function handleSave() {
-    const validItems = lineItems.filter((item) => item.service.trim() && item.unit_price > 0)
+    // Keep discount/waiver lines (negative or zero unit_price); drop only blank rows.
+    const validItems = lineItems.filter((item) => item.service.trim())
     if (validItems.length === 0) {
       toast.error('Invoice must have at least one line item')
       return
@@ -805,6 +806,14 @@ export default function JobDetailPage() {
         return
       }
 
+      // Guard: don't approve a job whose report/invoice hasn't been generated
+      // (a submitted or failed-AI job) — the send would 400 and strand it.
+      if (newStatus === 'approved' && !job.ai_report_content) {
+        toast.error('Generate the report before approving.')
+        setActionLoading(false)
+        return
+      }
+
       const { error } = await supabase
         .from('jobs')
         .update(updateData)
@@ -885,8 +894,33 @@ export default function JobDetailPage() {
     }
   }
 
+  async function handleSend() {
+    if (!job) return
+    setActionLoading(true)
+    try {
+      const sendRes = await fetch(`/api/jobs/${job.id}/send`, { method: 'POST' })
+      const sendResult = await sendRes.json()
+      if (sendResult.alreadySent) {
+        toast.success('Already sent to client')
+      } else if (sendRes.ok && sendResult.success) {
+        toast.success(`Sent to ${sendResult.sentTo}`)
+      } else {
+        toast.error(sendResult.error || 'Email send failed — try again')
+      }
+      await refreshJob()
+    } catch {
+      toast.error('Failed to send email — try again')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   async function handleRegenerate() {
     if (!job) return
+    if (['sent', 'completed'].includes(job.status)) {
+      toast.error('This job was already sent — regenerating is disabled.')
+      return
+    }
     setRegenerating(true)
     try {
       const supabase = createClient()
@@ -1046,8 +1080,34 @@ export default function JobDetailPage() {
         )}
       </div>
 
+      {/* Approved-but-not-sent recovery — lets a manager (re)send when the
+          auto-send failed, instead of stranding an approved job. */}
+      {canApprove && job.status === 'approved' && !job.sent_at && (
+        <Card className="border-emerald-300 bg-emerald-50 shadow-sm">
+          <CardContent className="py-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="font-semibold text-emerald-900">Approved — not yet sent</h3>
+                <p className="text-sm text-emerald-800 mt-0.5">
+                  This job is approved but the client hasn&apos;t received the report and invoice yet.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 w-full sm:w-auto"
+                onClick={handleSend}
+                disabled={actionLoading}
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Send to client
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Approval Banner — surfaces approve/reject prominently for managers when job is awaiting review */}
-      {canApprove && ['submitted', 'pending_review', 'revised'].includes(job.status) && (
+      {canApprove && ['pending_review', 'revised'].includes(job.status) && (
         <Card className="border-amber-300 bg-gradient-to-r from-amber-50 to-yellow-50 shadow-sm">
           <CardContent className="py-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1362,7 +1422,7 @@ export default function JobDetailPage() {
                     Edit Report
                   </Button>
                 )}
-                {canApprove && !editingReport && (
+                {canApprove && !editingReport && !['sent', 'completed'].includes(job.status) && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1837,7 +1897,7 @@ export default function JobDetailPage() {
       )}
 
       {/* Action Buttons — Approval workflow for owners/managers */}
-      {(canApprove || canReject) && ['submitted', 'pending_review', 'revised'].includes(job.status) && (
+      {(canApprove || canReject) && ['pending_review', 'revised'].includes(job.status) && (
         <Card id="approval-actions" className="border-amber-200">
           <CardHeader>
             <CardTitle className="text-sm">Approval Actions</CardTitle>

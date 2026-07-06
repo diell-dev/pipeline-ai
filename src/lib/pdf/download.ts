@@ -6,7 +6,7 @@
  */
 import JSZip from 'jszip'
 import { generateInvoicePdf } from './generate-invoice'
-import { generateReportPdf } from './generate-report'
+import { generateReportPdf, type ReportData } from './generate-report'
 import type { Organization } from '@/types/database'
 
 interface DownloadJobData {
@@ -41,7 +41,23 @@ function buildInvoiceData(inv: Record<string, unknown>) {
   }
 }
 
-function buildReportData(report: Record<string, unknown>) {
+function buildReportData(report: Record<string, unknown>): ReportData {
+  const isV2 =
+    report.version === 2 ||
+    Array.isArray(report.services_performed) ||
+    typeof report.intro === 'string'
+  if (isV2) {
+    return {
+      version: 2,
+      intro: (report.intro as string) || '',
+      services_performed: (report.services_performed as string[]) || [],
+      findings: (report.findings as string[]) || [],
+      tech_notes_raw: (report.tech_notes_raw as string) || '',
+      generated_by: (report.generated_by as string) || 'AI',
+      generated_at: (report.generated_at as string) || '',
+      photos: (report.photos as string[]) || [],
+    }
+  }
   return {
     summary: (report.summary as string) || '',
     work_performed: (report.work_performed as string[]) || [],

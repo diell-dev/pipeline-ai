@@ -11,6 +11,7 @@ import { hasFeature } from '@/lib/tier-limits'
 import {
   LayoutDashboard,
   ClipboardList,
+  Inbox,
   Users,
   Building2,
   Wrench,
@@ -52,6 +53,7 @@ const navItems: NavItem[] = [
   // Casting because the Permission union may not yet include the new keys when this file is type-checked.
   { label: 'Equipment', href: '/equipment', icon: QrCode, permission: 'equipment:view' as Parameters<typeof hasPermission>[1] },
   { label: 'Clients', href: '/clients', icon: Building2, permission: 'clients:view' },
+  { label: 'Requests', href: '/service-requests', icon: Inbox, permission: 'service_requests:view' },
   { label: 'Services', href: '/services', icon: Wrench, permission: 'services:view' },
   { label: 'Invoices', href: '/invoices', icon: FileText, anyPermission: ['invoices:view_all', 'invoices:view_own'] },
   { label: 'Finances', href: '/finances', icon: DollarSign, anyPermission: ['financials:view', 'financials:view_limited'] },

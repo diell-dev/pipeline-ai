@@ -9,10 +9,11 @@ import Link from 'next/link'
 import { useAuthStore } from '@/stores/auth-store'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, formatDate } from '@/lib/books/format'
-import { ReceiptText, CalendarClock, FileSignature, ChevronRight, Wrench } from 'lucide-react'
+import { ReceiptText, CalendarClock, FileSignature, ChevronRight, Wrench, Plus } from 'lucide-react'
 
 interface JobRow { id: string; service_date: string; scheduled_time: string | null; status: string; sites: { name: string | null; address: string | null } | null }
 
@@ -70,9 +71,14 @@ export default function PortalHome() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Welcome{company ? `, ${company}` : ''}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Your jobs, invoices, and upcoming visits — all in one place.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Welcome{company ? `, ${company}` : ''}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Your jobs, invoices, and upcoming visits — all in one place.</p>
+        </div>
+        <Link href="/portal/request">
+          <Button size="sm" className="h-9 shrink-0"><Plus className="mr-1.5 h-4 w-4" />Request service</Button>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

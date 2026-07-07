@@ -6,14 +6,14 @@
  */
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Wrench, ReceiptText, CalendarClock } from 'lucide-react'
+import { Home, Wrench, ReceiptText, MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const TABS = [
   { href: '/portal', label: 'Home', icon: Home, exact: true },
   { href: '/portal/service', label: 'Service', icon: Wrench, exact: false },
   { href: '/portal/invoices', label: 'Invoices', icon: ReceiptText, exact: false },
-  { href: '/portal/visits', label: 'Visits', icon: CalendarClock, exact: false },
+  { href: '/portal/more', label: 'More', icon: MoreHorizontal, exact: false },
 ] as const
 
 function isActive(pathname: string, href: string, exact: boolean) {

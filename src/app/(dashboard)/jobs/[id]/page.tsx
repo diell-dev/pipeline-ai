@@ -1760,7 +1760,7 @@ export default function JobDetailPage() {
             <div className="absolute top-full left-0 mt-1 bg-popover border rounded-lg shadow-lg z-50 py-1 w-56">
               <button
                 className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
-                onClick={() => {
+                onClick={async () => {
                   setShowDownloadMenu(false)
                   const dlData = {
                     invoiceContent: job.ai_invoice_content as Record<string, unknown>,
@@ -1773,8 +1773,12 @@ export default function JobDetailPage() {
                     techName: job.submitter?.full_name || '',
                     jobId: job.id,
                   }
-                  downloadInvoicePdf(dlData, organization)
-                  toast.success('Invoice PDF downloaded')
+                  try {
+                    await downloadInvoicePdf(dlData, organization)
+                    toast.success('Invoice PDF downloaded')
+                  } catch {
+                    toast.error('Failed to generate invoice PDF')
+                  }
                 }}
               >
                 <Receipt className="h-4 w-4 text-muted-foreground" />

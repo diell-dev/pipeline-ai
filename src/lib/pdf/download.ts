@@ -95,10 +95,10 @@ function triggerDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-export function downloadInvoicePdf(data: DownloadJobData, org: Organization) {
+export async function downloadInvoicePdf(data: DownloadJobData, org: Organization) {
   const invoiceData = buildInvoiceData(data.invoiceContent)
   const jobContext = buildJobContext(data)
-  const doc = generateInvoicePdf(invoiceData, jobContext, org)
+  const doc = await generateInvoicePdf(invoiceData, jobContext, org)
   const blob = doc.output('blob')
   triggerDownload(blob, `Invoice-${invoiceData.invoice_number}.pdf`)
 }
@@ -116,8 +116,10 @@ export async function downloadBothAsZip(data: DownloadJobData, org: Organization
   const reportData = buildReportData(data.reportContent)
   const jobContext = buildJobContext(data)
 
-  const invoiceDoc = generateInvoicePdf(invoiceData, jobContext, org)
-  const reportDoc = await generateReportPdf(reportData, jobContext, org)
+  const [invoiceDoc, reportDoc] = await Promise.all([
+    generateInvoicePdf(invoiceData, jobContext, org),
+    generateReportPdf(reportData, jobContext, org),
+  ])
 
   const zip = new JSZip()
   zip.file(`Invoice-${invoiceData.invoice_number}.pdf`, invoiceDoc.output('arraybuffer'))

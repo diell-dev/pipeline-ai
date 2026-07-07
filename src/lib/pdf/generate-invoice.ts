@@ -54,9 +54,103 @@ interface CompanyInfo {
   website?: string
   address?: string
   logoUrl?: string
+  /**
+   * Optional pre-loaded base64 data URL for the logo (e.g.
+   * `data:image/png;base64,…`). When present, themes render the actual
+   * image inside the header; when absent, they fall back to the company
+   * name text so the PDF still generates offline.
+   *
+   * We take a data URL rather than fetching inside the generator because
+   * jspdf is a browser-only sync-friendly library — the caller loads the
+   * URL asynchronously once (see `loadLogoDataUrl` below) and hands the
+   * result in.
+   */
+  logoDataUrl?: string
   primaryColor: string
   accentColor: string
   secondaryColor?: string
+}
+
+/**
+ * Detect the image format string jspdf recognises from a base64 data
+ * URL. Defaults to PNG which preserves transparency — the common case
+ * for uploaded logos.
+ */
+function detectLogoFormat(dataUrl: string): 'PNG' | 'JPEG' {
+  if (dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg')) {
+    return 'JPEG'
+  }
+  return 'PNG'
+}
+
+/**
+ * Measure a data-URL image so we can preserve aspect ratio when
+ * embedding it in the PDF. Falls back to a safe rectangle if the
+ * browser can't decode it (e.g. jsdom in tests). Browser-only.
+ */
+async function measureImage(dataUrl: string): Promise<{ w: number; h: number }> {
+  return await new Promise((resolve) => {
+    if (typeof window === 'undefined' || typeof window.Image === 'undefined') {
+      resolve({ w: 240, h: 120 })
+      return
+    }
+    const img = new window.Image()
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight })
+    img.onerror = () => resolve({ w: 240, h: 120 })
+    img.src = dataUrl
+  })
+}
+
+/**
+ * Public helper — fetch a logo URL and turn it into a base64 data URL
+ * that jspdf can embed. Returns null on any failure (CORS, 404, decode
+ * error) so callers can proceed without the image rather than aborting
+ * the whole PDF export. Browser-only.
+ */
+export async function loadLogoDataUrl(url: string): Promise<string | null> {
+  try {
+    if (typeof window === 'undefined') return null
+    const res = await fetch(url, { mode: 'cors' })
+    if (!res.ok) return null
+    const blob = await res.blob()
+    return await new Promise<string | null>((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const result = reader.result
+        resolve(typeof result === 'string' ? result : null)
+      }
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Synchronously paint the logo image at a target position. Uses the
+ * pre-measured aspect ratio the caller resolved on mount (we can't call
+ * async code from inside jspdf's paint pipeline). Silently no-ops if
+ * the browser handed us a data URL jspdf refuses to decode.
+ */
+function paintLogo(
+  doc: jsPDF,
+  dataUrl: string,
+  x: number,
+  y: number,
+  maxW: number,
+  maxH: number,
+  intrinsic: { w: number; h: number },
+): { w: number; h: number } {
+  const ratio = Math.min(maxW / intrinsic.w, maxH / intrinsic.h, 1)
+  const w = intrinsic.w * ratio
+  const h = intrinsic.h * ratio
+  try {
+    doc.addImage(dataUrl, detectLogoFormat(dataUrl), x, y, w, h)
+    return { w, h }
+  } catch {
+    return { w: 0, h: 0 }
+  }
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -72,6 +166,15 @@ function isLightColor(hex: string): boolean {
 }
 
 // ===== HEADER/FOOTER RENDERER =====
+/**
+ * Cached intrinsic dimensions of the logo image. Populated once at the
+ * start of `generateInvoicePdf` so paint calls stay sync.
+ */
+interface LogoAssets {
+  dataUrl: string
+  intrinsic: { w: number; h: number }
+}
+
 function renderPillar(
   doc: jsPDF,
   pillar: DocPillar,
@@ -79,6 +182,7 @@ function renderPillar(
   y: number,
   width: number,
   company: CompanyInfo,
+  logo: LogoAssets | null,
   pageNum?: number,
   totalPages?: number,
 ) {
@@ -86,14 +190,34 @@ function renderPillar(
 
   const align = pillar.alignment
 
-  if (pillar.type === 'logo' && company.logoUrl) {
-    // Logo rendering would need base64 image - we'll show company name as fallback
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'bold')
-    doc.text(company.name, align === 'right' ? x + width : align === 'center' ? x + width / 2 : x, y, {
-      align,
-    })
+  if (pillar.type === 'logo' && logo) {
+    // Paint the real image inside a modest footer/header pillar. We keep
+    // the box small (32×10 mm) so a wordmark logo still reads in the
+    // footer strip; the theme-specific header logo is painted separately
+    // at a larger size (see paintLogo calls in each theme generator).
+    const maxW = 32
+    const maxH = 10
+    const ratio = Math.min(maxW / logo.intrinsic.w, maxH / logo.intrinsic.h, 1)
+    const w = logo.intrinsic.w * ratio
+    const h = logo.intrinsic.h * ratio
+    const logoX =
+      align === 'right' ? x + width - w : align === 'center' ? x + (width - w) / 2 : x
+    try {
+      doc.addImage(logo.dataUrl, detectLogoFormat(logo.dataUrl), logoX, y - h + 2, w, h)
+    } catch {
+      // Fall back to name text if jspdf refuses the encoded image.
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text(
+        company.name,
+        align === 'right' ? x + width : align === 'center' ? x + width / 2 : x,
+        y,
+        { align },
+      )
+    }
   } else if (pillar.type === 'logo') {
+    // No image handed in — degrade to company name text so the pillar
+    // still communicates identity.
     doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
     doc.text(company.name, align === 'right' ? x + width : align === 'center' ? x + width / 2 : x, y, {
@@ -124,6 +248,7 @@ function renderHeaderFooter(
   doc: jsPDF,
   layout: DocHeaderFooterLayout | undefined,
   company: CompanyInfo,
+  logo: LogoAssets | null,
   yPos: number,
   pageNum: number,
   totalPages: number,
@@ -134,9 +259,9 @@ function renderHeaderFooter(
   const contentWidth = pageWidth - 2 * margin
   const pillarWidth = contentWidth / 3
 
-  renderPillar(doc, layout.left, margin, yPos, pillarWidth, company, pageNum, totalPages)
-  renderPillar(doc, layout.center, margin + pillarWidth, yPos, pillarWidth, company, pageNum, totalPages)
-  renderPillar(doc, layout.right, margin + 2 * pillarWidth, yPos, pillarWidth, company, pageNum, totalPages)
+  renderPillar(doc, layout.left, margin, yPos, pillarWidth, company, logo, pageNum, totalPages)
+  renderPillar(doc, layout.center, margin + pillarWidth, yPos, pillarWidth, company, logo, pageNum, totalPages)
+  renderPillar(doc, layout.right, margin + 2 * pillarWidth, yPos, pillarWidth, company, logo, pageNum, totalPages)
 }
 
 // ===== THANK-YOU PARAGRAPH RENDERER =====
@@ -185,6 +310,7 @@ function generateModern(
   invoice: InvoiceData,
   job: JobContext,
   company: CompanyInfo,
+  logo: LogoAssets | null,
   settings: OrganizationSettings,
 ) {
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -200,12 +326,32 @@ function generateModern(
   doc.setFillColor(ar, ag, ab)
   doc.rect(0, 45, pageWidth, 3, 'F')
 
-  // Company name in header
+  // Company name / logo in header. When we have a logo image we paint it
+  // inside the coloured bar (max 22 mm tall) and set the company name
+  // beside it so the letterhead reads unambiguously.
   const textColor = isLightColor(company.primaryColor) ? [30, 30, 30] : [255, 255, 255]
   doc.setTextColor(textColor[0], textColor[1], textColor[2])
-  doc.setFontSize(18)
+
+  let nameX = margin
+  if (logo) {
+    const painted = paintLogo(doc, logo.dataUrl, margin, 10, 34, 26, logo.intrinsic)
+    if (painted.w > 0) {
+      nameX = margin + painted.w + 6
+    }
+  }
+
+  doc.setFontSize(16)
   doc.setFont('helvetica', 'bold')
-  doc.text(company.name, margin, 22)
+  doc.text(company.name, nameX, 22)
+
+  // Company contact strip under the name (address + email + website)
+  const contactParts = [company.address, company.phone, company.email, company.website]
+    .filter((v): v is string => Boolean(v))
+  if (contactParts.length > 0) {
+    doc.setFontSize(7.5)
+    doc.setFont('helvetica', 'normal')
+    doc.text(contactParts.join('  •  '), nameX, 30)
+  }
 
   // INVOICE title
   doc.setFontSize(11)
@@ -332,7 +478,7 @@ function generateModern(
 
   // Footer
   const pageHeight = doc.internal.pageSize.getHeight()
-  renderHeaderFooter(doc, settings.footer, company, pageHeight - 10, 1, 1)
+  renderHeaderFooter(doc, settings.footer, company, logo, pageHeight - 10, 1, 1)
 }
 
 function generateClassic(
@@ -340,6 +486,7 @@ function generateClassic(
   invoice: InvoiceData,
   job: JobContext,
   company: CompanyInfo,
+  logo: LogoAssets | null,
   settings: OrganizationSettings,
 ) {
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -347,10 +494,21 @@ function generateClassic(
 
   let y = 20
 
-  // Company name
+  // Company header — logo image (if provided) above the name; otherwise
+  // name-only. Classic keeps the top clean without a coloured bar so the
+  // logo sits directly on the paper.
+  let nameY = y
+  if (logo) {
+    const painted = paintLogo(doc, logo.dataUrl, margin, y, 60, 20, logo.intrinsic)
+    if (painted.h > 0) {
+      nameY = y + painted.h + 4
+    }
+  }
+
   doc.setFontSize(16)
   doc.setFont('helvetica', 'bold')
-  doc.text(company.name, margin, y)
+  doc.text(company.name, margin, nameY)
+  y = nameY
 
   // INVOICE on right
   doc.setFontSize(22)
@@ -361,7 +519,9 @@ function generateClassic(
   y += 5
   doc.setFontSize(8)
   doc.setFont('helvetica', 'normal')
-  const infoLine = [company.phone, company.email, company.website].filter(Boolean).join('  •  ')
+  const infoLine = [company.address, company.phone, company.email, company.website]
+    .filter(Boolean)
+    .join('  •  ')
   if (infoLine) doc.text(infoLine, margin, y)
 
   y += 3
@@ -463,7 +623,7 @@ function generateClassic(
 
   // Footer
   const pageHeight = doc.internal.pageSize.getHeight()
-  renderHeaderFooter(doc, settings.footer, company, pageHeight - 10, 1, 1)
+  renderHeaderFooter(doc, settings.footer, company, logo, pageHeight - 10, 1, 1)
 }
 
 function generateMinimal(
@@ -471,6 +631,7 @@ function generateMinimal(
   invoice: InvoiceData,
   job: JobContext,
   company: CompanyInfo,
+  logo: LogoAssets | null,
   settings: OrganizationSettings,
 ) {
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -482,6 +643,16 @@ function generateMinimal(
   const [ar, ag, ab] = hexToRgb(company.accentColor)
   doc.setFillColor(ar, ag, ab)
   doc.rect(0, 0, pageWidth, 1.5, 'F')
+
+  // Minimal logo — small mark tucked at the top-left when provided.
+  if (logo) {
+    const painted = paintLogo(doc, logo.dataUrl, margin, y - 10, 40, 14, logo.intrinsic)
+    if (painted.h > 0) {
+      // Push the name-block starting Y past the logo so text doesn't
+      // overlap. Minimal stays airy: no drop shadow, just clearance.
+      y = Math.max(y, y - 10 + painted.h + 4)
+    }
+  }
 
   // Company name - lightweight
   doc.setFontSize(11)
@@ -582,7 +753,7 @@ function generateMinimal(
   y = renderThankYou(doc, invoice.thank_you, y + 5, margin, pageWidth - 2 * margin, [ar, ag, ab])
 
   const pageHeight = doc.internal.pageSize.getHeight()
-  renderHeaderFooter(doc, settings.footer, company, pageHeight - 10, 1, 1)
+  renderHeaderFooter(doc, settings.footer, company, logo, pageHeight - 10, 1, 1)
 }
 
 function generateBold(
@@ -590,6 +761,7 @@ function generateBold(
   invoice: InvoiceData,
   job: JobContext,
   company: CompanyInfo,
+  logo: LogoAssets | null,
   settings: OrganizationSettings,
 ) {
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -605,19 +777,30 @@ function generateBold(
   doc.setFillColor(ar, ag, ab)
   doc.rect(0, 65, pageWidth, 5, 'F')
 
-  // Header text
+  // Header text + optional logo. Bold wants the mark large — we cap it
+  // at 40 mm tall so it dominates the coloured block, and shift the
+  // company name to the right of the logo when present.
   const textColor = isLightColor(company.primaryColor) ? [0, 0, 0] : [255, 255, 255]
   doc.setTextColor(textColor[0], textColor[1], textColor[2])
-  doc.setFontSize(24)
+
+  let nameX = margin
+  if (logo) {
+    const painted = paintLogo(doc, logo.dataUrl, margin, 10, 45, 40, logo.intrinsic)
+    if (painted.w > 0) {
+      nameX = margin + painted.w + 8
+    }
+  }
+
+  doc.setFontSize(22)
   doc.setFont('helvetica', 'bold')
-  doc.text(company.name, margin, 28)
+  doc.text(company.name, nameX, 28)
 
   doc.setFontSize(14)
-  doc.text('INVOICE', margin, 42)
+  doc.text('INVOICE', nameX, 42)
 
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
-  doc.text(`#${invoice.invoice_number}`, margin, 52)
+  doc.text(`#${invoice.invoice_number}`, nameX, 52)
 
   doc.setFontSize(12)
   doc.text(`$${invoice.total_amount.toFixed(2)}`, pageWidth - margin, 35, { align: 'right' })
@@ -709,15 +892,26 @@ function generateBold(
   y = renderThankYou(doc, invoice.thank_you, y, margin, pageWidth - 2 * margin, [ar, ag, ab])
 
   const pageHeight = doc.internal.pageSize.getHeight()
-  renderHeaderFooter(doc, settings.footer, company, pageHeight - 10, 1, 1)
+  renderHeaderFooter(doc, settings.footer, company, logo, pageHeight - 10, 1, 1)
 }
 
 // ===== MAIN EXPORT =====
-export function generateInvoicePdf(
+/**
+ * Generate the invoice PDF and return the jsPDF instance. Async because
+ * loading a remote logo requires a fetch + FileReader roundtrip; the
+ * browser resolves the intrinsic image dimensions once so the theme
+ * generators stay sync inside jspdf's paint pipeline.
+ *
+ * Existing callers (jobs page, portal) that don't await this were
+ * previously fine because the function was sync — we now return a
+ * Promise, so those call-sites need to `await` the result. See
+ * `src/lib/pdf/download.ts` for the plumbing.
+ */
+export async function generateInvoicePdf(
   invoiceData: InvoiceData,
   jobContext: JobContext,
   org: Organization,
-): jsPDF {
+): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' })
   const settings = (org.settings || {}) as OrganizationSettings
   const theme: InvoiceTheme = settings.invoice_theme || 'modern'
@@ -734,18 +928,28 @@ export function generateInvoicePdf(
     secondaryColor: org.secondary_color || undefined,
   }
 
+  // Resolve the logo up front so paint calls can stay sync.
+  let logo: LogoAssets | null = null
+  if (company.logoUrl) {
+    const dataUrl = await loadLogoDataUrl(company.logoUrl)
+    if (dataUrl) {
+      const intrinsic = await measureImage(dataUrl)
+      logo = { dataUrl, intrinsic }
+    }
+  }
+
   switch (theme) {
     case 'classic':
-      generateClassic(doc, invoiceData, jobContext, company, settings)
+      generateClassic(doc, invoiceData, jobContext, company, logo, settings)
       break
     case 'minimal':
-      generateMinimal(doc, invoiceData, jobContext, company, settings)
+      generateMinimal(doc, invoiceData, jobContext, company, logo, settings)
       break
     case 'bold':
-      generateBold(doc, invoiceData, jobContext, company, settings)
+      generateBold(doc, invoiceData, jobContext, company, logo, settings)
       break
     default:
-      generateModern(doc, invoiceData, jobContext, company, settings)
+      generateModern(doc, invoiceData, jobContext, company, logo, settings)
   }
 
   return doc

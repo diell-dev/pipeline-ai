@@ -59,7 +59,9 @@ import {
   type InvoicePreviewLine,
   type InvoicePreviewOrg,
 } from '@/components/books/invoice-preview'
-import { generateInvoicePdf } from '@/lib/books/invoice-pdf'
+import { generateInvoicePdf } from '@/lib/pdf/generate-invoice'
+import type { Organization, OrganizationSettings } from '@/types/database'
+import type { OrgBrand } from '@/app/api/books/org-brand/route'
 
 interface Invoice extends InvoicePreviewInvoice {
   organization_id: string
@@ -107,6 +109,10 @@ export default function BooksInvoiceDetailPage({
   const [prev, setPrev] = useState<Adjacent | null>(null)
   const [next, setNext] = useState<Adjacent | null>(null)
   const [org, setOrg] = useState<InvoicePreviewOrg | null>(null)
+  // Full org-brand payload (includes accent/secondary colors + settings)
+  // — needed by the PDF generator to honour theme + logo + header/footer
+  // layout. Preview only cares about the subset in `InvoicePreviewOrg`.
+  const [orgBrand, setOrgBrand] = useState<OrgBrand | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
   const [confirmVoid, setConfirmVoid] = useState(false)
@@ -137,7 +143,20 @@ export default function BooksInvoiceDetailPage({
       // stalls behind branding.
       if (orgRes.ok) {
         const orgJson = await orgRes.json()
-        setOrg(orgJson.org as InvoicePreviewOrg)
+        const brand = orgJson.org as OrgBrand
+        setOrgBrand(brand)
+        // The preview only reads the subset defined by InvoicePreviewOrg
+        // — the extra fields (accent_color, settings) are for the PDF.
+        setOrg({
+          id: brand.id,
+          name: brand.name,
+          logo_url: brand.logo_url,
+          primary_color: brand.primary_color,
+          company_phone: brand.company_phone,
+          company_email: brand.company_email,
+          company_website: brand.company_website,
+          company_address: brand.company_address,
+        })
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load')
@@ -220,21 +239,100 @@ export default function BooksInvoiceDetailPage({
     if (!invoice) return
     setExporting(true)
     try {
-      // Org may not have loaded (endpoint failed). Fall back to a
-      // minimal brand so the PDF still generates rather than throwing.
-      const brand: InvoicePreviewOrg =
-        org ??
-        {
-          id: invoice.organization_id,
-          name: invoice.clients?.company_name ?? 'Invoice',
-          logo_url: null,
-          primary_color: '#05093d',
-          company_phone: null,
-          company_email: null,
-          company_website: null,
-          company_address: null,
-        }
-      const blob = await generateInvoicePdf(invoice, lines, brand)
+      // Build the shapes the shared /lib/pdf/generate-invoice.ts expects
+      // — it was designed for the field-ops job flow (dollars, not cents;
+      // job-based site info), so we adapt the books-mode invoice here.
+      // The generator honours org.settings.invoice_theme and paints the
+      // logo + brand-colored header for us.
+
+      const subtotalDollars = invoice.subtotal_cents / 100
+      const taxAmountDollars = invoice.tax_amount_cents / 100
+      const taxRatePct =
+        invoice.subtotal_cents > 0
+          ? Number(
+              ((invoice.tax_amount_cents / invoice.subtotal_cents) * 100).toFixed(3)
+            )
+          : 0
+
+      const invoiceData = {
+        invoice_number: invoice.invoice_number,
+        due_date:
+          invoice.due_date ?? invoice.invoice_date ?? new Date().toISOString(),
+        line_items: lines.map((l) => ({
+          service: l.description ?? 'Service',
+          code: l.account?.code ?? '',
+          quantity: Number(l.quantity) || 1,
+          unit_price: l.unit_price_cents / 100,
+          total: l.total_cents / 100,
+        })),
+        subtotal: subtotalDollars,
+        tax_rate: taxRatePct,
+        tax_amount: taxAmountDollars,
+        total_amount: invoice.total_cents / 100,
+        payment_terms:
+          invoice.payment_terms_text ??
+          (invoice.due_date ? 'due_on_date' : 'due_on_receipt'),
+        thank_you: invoice.notes_for_customer ?? undefined,
+      }
+
+      // Books-mode invoices may not have a backing job. We synthesize a
+      // JobContext from the client record so the generator still has
+      // sensible bill-to / service-location values to render. When a
+      // job exists we could enrich this later; for now the client's
+      // billing address stands in for both.
+      const clientAddress = invoice.clients?.billing_address ?? ''
+      const contactEmail =
+        invoice.clients?.billing_contact_email ??
+        invoice.clients?.primary_contact_email ??
+        ''
+
+      const jobContext = {
+        clientName: invoice.clients?.company_name ?? '—',
+        clientContact: contactEmail,
+        clientAddress: clientAddress || undefined,
+        siteName: invoice.clients?.company_name ?? '',
+        siteAddress: clientAddress,
+        serviceDate: invoice.invoice_date,
+        jobId: invoice.job_id ?? '',
+      }
+
+      // Build a full Organization from the /api/books/org-brand payload.
+      // The generator only reads the fields listed here — we cast the
+      // rest of the Organization shape (limits, Stripe, timestamps) as
+      // zero-value defaults so TypeScript stays happy without pulling
+      // the whole row from the server.
+      const brand = orgBrand
+      const settings: OrganizationSettings = brand?.settings ?? {}
+      const org: Organization = {
+        id: brand?.id ?? invoice.organization_id,
+        name: brand?.name ?? invoice.clients?.company_name ?? 'Invoice',
+        slug: '',
+        tier: 'basic',
+        logo_url: brand?.logo_url ?? null,
+        primary_color: brand?.primary_color ?? '#05093d',
+        accent_color: brand?.accent_color ?? '#2563eb',
+        secondary_color: brand?.secondary_color ?? null,
+        company_phone: brand?.company_phone ?? null,
+        company_email: brand?.company_email ?? null,
+        company_website: brand?.company_website ?? null,
+        company_address: brand?.company_address ?? null,
+        settings,
+        max_users: 0,
+        max_ai_generations_per_month: 0,
+        storage_limit_gb: 0,
+        stripe_customer_id: null,
+        stripe_subscription_id: null,
+        stripe_account_id: null,
+        stripe_account_status: null,
+        stripe_charges_enabled: false,
+        stripe_payouts_enabled: false,
+        books_enabled_at: null,
+        created_at: '',
+        updated_at: '',
+      }
+
+      const doc = await generateInvoicePdf(invoiceData, jobContext, org)
+      const blob = doc.output('blob')
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url

@@ -71,12 +71,12 @@ export default function PortalInvoiceDetail() {
     }
   }
 
-  function download() {
+  async function download() {
     if (!inv || !organization) { toast.error('Could not generate the PDF right now.'); return }
     const subtotal = inv.subtotal_cents / 100
     const taxRate = inv.subtotal_cents > 0 ? Number(((inv.tax_amount_cents / inv.subtotal_cents) * 100).toFixed(3)) : 8.875
     try {
-      downloadInvoicePdf(
+      await downloadInvoicePdf(
         {
           invoiceContent: {
             invoice_number: inv.invoice_number,

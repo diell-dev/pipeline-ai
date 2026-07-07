@@ -15,6 +15,7 @@ import { BrandProvider } from '@/components/providers/brand-provider'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { LogOut } from 'lucide-react'
+import { PortalTabs, PortalBottomNav } from '@/components/portal/portal-nav'
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const { isLoading, user, organization, clearSession } = useAuthStore()
@@ -58,12 +59,16 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 <p className="truncate text-xs text-muted-foreground">Client Portal</p>
               </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={signOut} className="h-9">
-              <LogOut className="mr-1.5 h-4 w-4" /> Sign out
-            </Button>
+            <div className="flex items-center gap-2">
+              <PortalTabs />
+              <Button variant="ghost" size="sm" onClick={signOut} className="h-9">
+                <LogOut className="mr-1.5 h-4 w-4" /> Sign out
+              </Button>
+            </div>
           </div>
         </header>
         <main className="mx-auto max-w-3xl px-4 py-6 pb-24">{children}</main>
+        <PortalBottomNav />
       </div>
     </BrandProvider>
   )

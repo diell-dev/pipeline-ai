@@ -13,9 +13,19 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (user) {
-    redirect('/dashboard')
-  } else {
+  if (!user) {
     redirect('/login')
   }
+
+  // Route client-portal logins to /portal; everyone else to the staff app.
+  const { data: profile } = await supabase
+    .from('users')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle<{ role: string }>()
+
+  if (profile?.role === 'client') {
+    redirect('/portal')
+  }
+  redirect('/dashboard')
 }

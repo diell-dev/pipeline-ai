@@ -1,6 +1,7 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { useEffect } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { AppHeader } from '@/components/layout/app-header'
@@ -15,7 +16,8 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { isLoading } = useAuthStore()
+  const { isLoading, user } = useAuthStore()
+  const router = useRouter()
   // Phase F: re-key the <main> on pathname so the page-fade-in keyframe
   // replays on every route change. No layout shift — purely opacity + 4px
   // translateY. Reduced-motion users get the final state instantly.
@@ -25,6 +27,11 @@ export default function DashboardLayout({
   // keyframe (`md:page-fade-in`) — mobile uses motion/react and lets the
   // CSS class no-op via the `md:` prefix.
   const pathname = usePathname()
+
+  // Client-portal logins never belong in the staff dashboard.
+  useEffect(() => {
+    if (!isLoading && user?.role === 'client') router.replace('/portal')
+  }, [isLoading, user, router])
 
   if (isLoading) {
     return (

@@ -42,6 +42,7 @@ import {
   FileText,
   DollarSign,
   AlertCircle,
+  UserPlus,
 } from 'lucide-react'
 import type { Client, Site, SiteType, PipeMaterial, DrainType, InvoiceStatus } from '@/types/database'
 import { useSwipeBack } from '@/hooks/use-swipe-back'
@@ -76,6 +77,7 @@ export default function ClientDetailPage() {
 
   const canEditClient = user?.role ? hasPermission(user.role, 'clients:edit') : false
   const canCreateSite = user?.role ? hasPermission(user.role, 'sites:create') : false
+  const canInvitePortal = user?.role ? hasPermission(user.role, 'clients:invite_portal') : false
 
   const [client, setClient] = useState<Client | null>(null)
   const [sites, setSites] = useState<Site[]>([])
@@ -83,6 +85,9 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true)
   const [showAddSite, setShowAddSite] = useState(false)
   const [savingSite, setSavingSite] = useState(false)
+  const [showInvite, setShowInvite] = useState(false)
+  const [inviting, setInviting] = useState(false)
+  const [inviteForm, setInviteForm] = useState({ email: '', full_name: '' })
 
   // New site form
   const [siteForm, setSiteForm] = useState({
@@ -97,6 +102,26 @@ export default function ClientDetailPage() {
     known_issues: '',
     equipment_notes: '',
   })
+
+  async function handleInvitePortal(e: React.FormEvent) {
+    e.preventDefault()
+    setInviting(true)
+    try {
+      const res = await fetch(`/api/clients/${clientId}/invite-portal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(inviteForm),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to invite')
+      toast.success(data.reactivated ? 'Portal access re-enabled' : `Invite sent to ${inviteForm.email}`)
+      setShowInvite(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to invite')
+    } finally {
+      setInviting(false)
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -291,6 +316,21 @@ export default function ClientDetailPage() {
             Client details and site management
           </p>
         </div>
+        {canInvitePortal && (
+          <Button
+            variant="outline"
+            className="ml-auto h-10 shrink-0"
+            onClick={() => {
+              setInviteForm({
+                email: client.primary_contact_email || '',
+                full_name: client.primary_contact_name || '',
+              })
+              setShowInvite(true)
+            }}
+          >
+            <UserPlus className="mr-2 h-4 w-4" /> Invite to portal
+          </Button>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -632,6 +672,50 @@ export default function ClientDetailPage() {
                   </>
                 ) : (
                   'Add Site'
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invite to client portal */}
+      <Dialog open={showInvite} onOpenChange={setShowInvite}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite to client portal</DialogTitle>
+            <DialogDescription>
+              Give {client.company_name} a secure login to see their jobs, reports, invoices, and upcoming visits. You can invite more than one contact.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleInvitePortal} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="invite_name">Contact name</Label>
+              <Input
+                id="invite_name"
+                value={inviteForm.full_name}
+                onChange={(e) => setInviteForm((f) => ({ ...f, full_name: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="invite_email">Email</Label>
+              <Input
+                id="invite_email"
+                type="email"
+                required
+                value={inviteForm.email}
+                onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowInvite(false)} disabled={inviting}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={inviting || !inviteForm.email}>
+                {inviting ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Inviting…</>
+                ) : (
+                  'Send invite'
                 )}
               </Button>
             </DialogFooter>

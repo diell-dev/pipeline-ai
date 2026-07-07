@@ -122,6 +122,7 @@ export interface Organization {
 export interface User {
   id: string
   organization_id: string
+  client_id: string | null // set only for role='client' (portal login)
   email: string
   full_name: string
   role: UserRole

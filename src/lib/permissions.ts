@@ -38,6 +38,7 @@ export type Permission =
   | 'clients:create'
   | 'clients:edit'
   | 'clients:delete'
+  | 'clients:invite_portal' // provision a client portal login (managers+)
   // Sites
   | 'sites:view'
   | 'sites:create'
@@ -81,6 +82,9 @@ export type Permission =
   | 'equipment:manage_qr_batches'
   | 'service_requests:view'
   | 'service_requests:manage'
+  | 'service_requests:create' // client submits a service request
+  // Client portal
+  | 'portal:access'
   // Bookkeeping (Migration 015 — Business tier)
   | 'bookkeeping:view'
   | 'bookkeeping:edit'
@@ -96,7 +100,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'crews:manage', 'recurring:manage',
     'proposals:create', 'proposals:view_own', 'proposals:view_all',
     'proposals:approve', 'proposals:send', 'proposals:delete', 'proposals:convert',
-    'clients:view', 'clients:create', 'clients:edit', 'clients:delete',
+    'clients:view', 'clients:create', 'clients:edit', 'clients:delete', 'clients:invite_portal',
     'sites:view', 'sites:create', 'sites:edit',
     'services:view', 'services:manage',
     'pricing:view', 'pricing:manage',
@@ -118,7 +122,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'crews:manage', 'recurring:manage',
     'proposals:create', 'proposals:view_own', 'proposals:view_all',
     'proposals:approve', 'proposals:send', 'proposals:delete', 'proposals:convert',
-    'clients:view', 'clients:create', 'clients:edit', 'clients:delete',
+    'clients:view', 'clients:create', 'clients:edit', 'clients:delete', 'clients:invite_portal',
     'sites:view', 'sites:create', 'sites:edit',
     'services:view', 'services:manage',
     'pricing:view', 'pricing:manage',
@@ -140,7 +144,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'crews:manage', 'recurring:manage',
     'proposals:create', 'proposals:view_own', 'proposals:view_all',
     'proposals:approve', 'proposals:send', 'proposals:convert',
-    'clients:view', 'clients:create', 'clients:edit',
+    'clients:view', 'clients:create', 'clients:edit', 'clients:invite_portal',
     'sites:view', 'sites:create', 'sites:edit',
     'services:view',
     'pricing:view',
@@ -169,9 +173,14 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   ],
 
   client: [
+    'portal:access',
+    'jobs:view_own',
+    'proposals:view_own',
     'invoices:view_own',
     'documents:view_own',
     'documents:request_revision',
+    'service_requests:view',
+    'service_requests:create',
   ],
 }
 

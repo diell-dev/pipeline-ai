@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useAuthStore } from '@/stores/auth-store'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
-import { StatusBadge } from '@/components/ui/status-badge'
+import { PortalStatus } from '@/components/portal/portal-status'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SkeletonList } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/ui/page-header'
@@ -59,7 +59,7 @@ export default function PortalProposalsPage() {
                       <Button size="sm" className="h-9">Review &amp; approve</Button>
                     </Link>
                   ) : (
-                    <StatusBadge status={p.status} type="proposal" />
+                    <PortalStatus kind="proposal" status={p.status} />
                   )}
                 </CardContent>
               </Card>

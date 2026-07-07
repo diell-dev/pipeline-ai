@@ -10,7 +10,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { StatusBadge } from '@/components/ui/status-badge'
+import { PortalStatus } from '@/components/portal/portal-status'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, formatDate } from '@/lib/books/format'
 import { ReceiptText, CalendarClock, FileSignature, ChevronRight, Wrench, Plus } from 'lucide-react'
@@ -121,7 +121,7 @@ export default function PortalHome() {
                       <p className="text-xs text-muted-foreground">{formatDate(j.service_date)}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <StatusBadge status={j.status} type="job" />
+                      <PortalStatus kind="job" status={j.status} />
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </CardContent>

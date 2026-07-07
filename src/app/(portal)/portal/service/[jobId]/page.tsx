@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
-import { StatusBadge } from '@/components/ui/status-badge'
+import { PortalStatus } from '@/components/portal/portal-status'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate } from '@/lib/books/format'
@@ -63,7 +63,7 @@ export default function PortalJobDetail() {
       <div>
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-semibold text-foreground">{job.sites?.name || 'Service visit'}</h1>
-          <StatusBadge status={job.status} type="job" />
+          <PortalStatus kind="job" status={job.status} />
         </div>
         <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
           <MapPin className="h-3.5 w-3.5" /> {job.sites?.address || 'N/A'} · {formatDate(job.service_date)}

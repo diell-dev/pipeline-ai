@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useAuthStore } from '@/stores/auth-store'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
-import { StatusBadge } from '@/components/ui/status-badge'
+import { PortalStatus } from '@/components/portal/portal-status'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SkeletonList } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/ui/page-header'
@@ -74,7 +74,7 @@ export default function PortalServicePage() {
                     <p className="text-xs text-muted-foreground">{formatDate(j.service_date)}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <StatusBadge status={j.status} type="job" />
+                    <PortalStatus kind="job" status={j.status} />
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </div>
                 </CardContent>

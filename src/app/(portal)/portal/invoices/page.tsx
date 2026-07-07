@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useAuthStore } from '@/stores/auth-store'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
-import { StatusBadge } from '@/components/ui/status-badge'
+import { PortalStatus } from '@/components/portal/portal-status'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SkeletonList } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/ui/page-header'
@@ -35,7 +35,7 @@ function InvoiceRow({ inv }: { inv: InvRow }) {
               <p className="text-sm font-semibold text-foreground">{formatCurrency(inv.total_cents)}</p>
               {inv.balance_due_cents > 0
                 ? <p className="text-xs text-red-600">{formatCurrency(inv.balance_due_cents)} due</p>
-                : <StatusBadge status={inv.status} type="invoice" />}
+                : <PortalStatus kind="invoice" status={inv.status} />}
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </div>

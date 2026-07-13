@@ -131,6 +131,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY || !process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json(
+        {
+          error:
+            'Server not fully configured for this environment — SUPABASE_SERVICE_ROLE_KEY / ANTHROPIC_API_KEY must be enabled for Preview in Vercel.',
+        },
+        { status: 503 }
+      )
+    }
+
     // ── Input ──
     const form = await request.formData()
     const audio = form.get('audio')

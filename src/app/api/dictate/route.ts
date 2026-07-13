@@ -1,0 +1,264 @@
+/**
+ * POST /api/dictate
+ *
+ * Voice dictation for field techs — speak in any supported language,
+ * get structured English back.
+ *
+ * Flow:
+ *   1. Receive recorded audio (multipart/form-data)
+ *   2. Transcribe with OpenAI Whisper (auto-detects spoken language;
+ *      whisper-1 is the default because it covers Albanian, which the
+ *      newer gpt-4o-transcribe models do not officially support)
+ *   3. Claude translates to English and, in "job" mode, extracts
+ *      structured fields (tech notes, matching catalog services, priority)
+ *   4. Return both the original-language transcript and the English result
+ *      so the original can be kept for the record
+ *
+ * Modes:
+ *   - mode=field → { text } — clean English text for a single input field
+ *   - mode=job   → { techNotes, services[], priority } — fills the New Job form
+ *
+ * Env:
+ *   OPENAI_API_KEY  (required — returns 503 with a clear message if missing)
+ *   STT_MODEL       (optional, defaults to 'whisper-1')
+ */
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import Anthropic from '@anthropic-ai/sdk'
+import { getApiUser } from '@/lib/api-auth'
+import { checkRateLimit } from '@/lib/rate-limit'
+
+export const maxDuration = 60
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ServiceClient = SupabaseClient<any, 'public', any>
+
+function getServiceClient(): ServiceClient {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  return createClient(url, serviceKey)
+}
+
+const MAX_AUDIO_BYTES = 4 * 1024 * 1024 // ~4MB ≈ 15+ min of opus; Vercel body limit is 4.5MB
+const MIN_AUDIO_SECONDS = 1
+
+interface WhisperResult {
+  text: string
+  language: string // full language name, e.g. "albanian"
+  duration: number // seconds
+}
+
+async function transcribe(audio: File, apiKey: string): Promise<WhisperResult> {
+  const model = process.env.STT_MODEL || 'whisper-1'
+  const form = new FormData()
+  form.append('file', audio, audio.name || 'audio.webm')
+  form.append('model', model)
+  form.append('response_format', 'verbose_json')
+  // Decoding bias toward trade vocabulary (helps with jargon + loanwords)
+  form.append(
+    'prompt',
+    'Sewer and drain service job: hydro jetting, snaking, clean-out, backwater valve, catch basin, main line, trap, camera inspection.'
+  )
+
+  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form,
+  })
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    if (res.status === 401) {
+      throw new DictateError(503, 'Transcription service key is invalid — check OPENAI_API_KEY.')
+    }
+    console.error('Whisper API error:', res.status, body.slice(0, 500))
+    throw new DictateError(502, 'Transcription service is unavailable right now. Please try again.')
+  }
+
+  const data = (await res.json()) as WhisperResult
+  return data
+}
+
+class DictateError extends Error {
+  status: number
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
+
+interface CatalogEntry {
+  id: string
+  code: string
+  name: string
+}
+
+interface JobExtraction {
+  detected_language: string
+  tech_notes: string
+  priority: 'normal' | 'urgent' | 'emergency' | null
+  services: { id: string; quantity: number }[]
+}
+
+interface FieldExtraction {
+  detected_language: string
+  text: string
+}
+
+function parseClaudeJson<T>(raw: string): T {
+  // Strip markdown fences if the model added them (same pattern as jobs/generate)
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim()
+  return JSON.parse(cleaned) as T
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    // ── Auth ──
+    const auth = await getApiUser()
+    if (!auth.authenticated) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
+    }
+    // Paid AI call — throttle per user
+    if (!checkRateLimit(`dictate:${auth.userId}`, { limit: 20, windowMs: 60_000 })) {
+      return NextResponse.json({ error: 'Too many requests — slow down.' }, { status: 429 })
+    }
+
+    const openaiKey = process.env.OPENAI_API_KEY
+    if (!openaiKey) {
+      return NextResponse.json(
+        { error: 'Voice dictation is not configured yet (missing OPENAI_API_KEY).' },
+        { status: 503 }
+      )
+    }
+
+    // ── Input ──
+    const form = await request.formData()
+    const audio = form.get('audio')
+    const mode = form.get('mode') === 'job' ? 'job' : 'field'
+
+    if (!(audio instanceof File) || audio.size === 0) {
+      return NextResponse.json({ error: 'No audio received.' }, { status: 400 })
+    }
+    if (audio.size > MAX_AUDIO_BYTES) {
+      return NextResponse.json(
+        { error: 'Recording is too long — please keep it under 5 minutes.' },
+        { status: 400 }
+      )
+    }
+
+    // ── Step 1: transcribe in the original language ──
+    const whisper = await transcribe(audio, openaiKey)
+
+    // Guard against Whisper hallucinating text from silence/noise
+    if (whisper.duration < MIN_AUDIO_SECONDS || !whisper.text.trim()) {
+      return NextResponse.json(
+        { error: "Didn't catch that — please try again and speak a bit longer." },
+        { status: 400 }
+      )
+    }
+
+    // ── Step 2: Claude translates + extracts ──
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+    if (mode === 'field') {
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1500,
+        system:
+          'You process voice dictations from field technicians at a sewer & drain service company. ' +
+          'Techs may speak Albanian, Russian, Polish, Spanish, Ukrainian, or English. ' +
+          'Translate the transcript into clear, professional English field notes. ' +
+          'Keep every fact: measurements, pipe sizes, materials, addresses, part names, prices. ' +
+          'Remove filler words and false starts. Do not add anything that was not said. ' +
+          'If the transcript is already English, just clean it up. ' +
+          'Reply ONLY with JSON: {"detected_language": "<language name in English>", "text": "<english text>"}',
+        messages: [
+          {
+            role: 'user',
+            content: `Whisper detected language: ${whisper.language}\n\nTranscript:\n${whisper.text}`,
+          },
+        ],
+      })
+      const raw = response.content[0].type === 'text' ? response.content[0].text : ''
+      const parsed = parseClaudeJson<FieldExtraction>(raw)
+
+      return NextResponse.json({
+        mode,
+        detectedLanguage: parsed.detected_language,
+        originalTranscript: whisper.text,
+        text: parsed.text,
+      })
+    }
+
+    // mode === 'job' → also match services from the org's catalog
+    const supabase = getServiceClient()
+    const { data: catalog } = await supabase
+      .from('service_catalog')
+      .select('id, code, name')
+      .eq('organization_id', auth.organizationId)
+      .eq('is_active', true)
+
+    const catalogList = ((catalog as CatalogEntry[] | null) || [])
+      .map((s) => `${s.id} | ${s.code} | ${s.name}`)
+      .join('\n')
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2000,
+      system:
+        'You process voice dictations from field technicians at a sewer & drain service company. ' +
+        'Techs may speak Albanian, Russian, Polish, Spanish, Ukrainian, or English. ' +
+        'Your job: translate to professional English and extract structured job data. ' +
+        'Rules:\n' +
+        '- tech_notes: everything the tech said, as clear English field notes. Keep ALL facts ' +
+        '(measurements, pipe sizes, materials, addresses, conditions found, work performed, client remarks). ' +
+        'Do not summarize away details. Do not invent details.\n' +
+        '- services: ONLY services from the provided catalog that clearly match work the tech described, ' +
+        'with quantity if stated (default 1). If nothing clearly matches, return []. Never guess.\n' +
+        '- priority: "urgent" or "emergency" ONLY if the tech explicitly indicates urgency ' +
+        '(e.g. sewage backing up into home, flooding, health hazard). Otherwise null.\n' +
+        'Reply ONLY with JSON: {"detected_language": "<language name in English>", ' +
+        '"tech_notes": "<english notes>", "priority": "normal"|"urgent"|"emergency"|null, ' +
+        '"services": [{"id": "<catalog id>", "quantity": <number>}]}',
+      messages: [
+        {
+          role: 'user',
+          content:
+            `Whisper detected language: ${whisper.language}\n\n` +
+            `Service catalog (id | code | name):\n${catalogList || '(empty catalog)'}\n\n` +
+            `Transcript:\n${whisper.text}`,
+        },
+      ],
+    })
+
+    const raw = response.content[0].type === 'text' ? response.content[0].text : ''
+    const parsed = parseClaudeJson<JobExtraction>(raw)
+
+    // Validate service ids against the real catalog — never trust extraction blindly
+    const validIds = new Set(((catalog as CatalogEntry[] | null) || []).map((s) => s.id))
+    const services = (parsed.services || [])
+      .filter((s) => validIds.has(s.id))
+      .map((s) => ({ id: s.id, quantity: Math.max(1, Math.min(99, Math.round(s.quantity || 1))) }))
+
+    const priority =
+      parsed.priority === 'urgent' || parsed.priority === 'emergency' ? parsed.priority : null
+
+    return NextResponse.json({
+      mode,
+      detectedLanguage: parsed.detected_language,
+      originalTranscript: whisper.text,
+      techNotes: parsed.tech_notes,
+      priority,
+      services,
+    })
+  } catch (err) {
+    if (err instanceof DictateError) {
+      return NextResponse.json({ error: err.message }, { status: err.status })
+    }
+    console.error('Dictation error:', err)
+    return NextResponse.json(
+      { error: 'Something went wrong processing the recording. Please try again.' },
+      { status: 500 }
+    )
+  }
+}

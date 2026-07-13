@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { DictateJobCard, DictateFieldButton, type DictationResult } from '@/components/dictation/dictate-button'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { PhotoUpload } from '@/components/jobs/photo-upload'
@@ -196,6 +197,34 @@ export default function NewJobPage() {
     ])
     setServiceSearch('')
     setShowServiceDropdown(false)
+  }
+
+  function applyDictation(result: DictationResult) {
+    // Append notes — never overwrite what the tech already typed
+    if (result.techNotes) {
+      setTechNotes((prev) => (prev ? `${prev}\n\n${result.techNotes}` : result.techNotes))
+    }
+    if (result.priority) setPriority(result.priority)
+    // Add suggested services that aren't already on the job
+    for (const s of result.services) {
+      const svc = services.find((c) => c.id === s.id)
+      if (!svc) continue
+      setSelectedServices((prev) =>
+        prev.some((existing) => existing.id === svc.id)
+          ? prev
+          : [
+              ...prev,
+              {
+                id: svc.id,
+                name: svc.name,
+                code: svc.code,
+                unit_price: svc.default_price,
+                quantity: s.quantity,
+                isCustom: false,
+              },
+            ]
+      )
+    }
   }
 
   function addCustomService() {
@@ -796,10 +825,18 @@ export default function NewJobPage() {
           </CardContent>
         </Card>
 
+        {/* Voice dictation — speak the whole job, AI fills the form */}
+        <DictateJobCard services={services} onApply={applyDictation} />
+
         {/* Tech Notes */}
         <Card>
           <CardHeader className="p-4 sm:p-6">
-            <CardTitle className="text-base">Technician Notes</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-base">Technician Notes</CardTitle>
+              <DictateFieldButton
+                onText={(t) => setTechNotes((prev) => (prev ? `${prev}\n${t}` : t))}
+              />
+            </div>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <Textarea

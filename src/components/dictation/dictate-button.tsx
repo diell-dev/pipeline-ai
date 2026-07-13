@@ -78,8 +78,15 @@ function useRecorder(onBlob: (blob: Blob) => void) {
           return s + 1
         })
       }, 1000)
-    } catch {
-      toast.error('Microphone access denied — enable it in your browser settings.')
+    } catch (err) {
+      const name = err instanceof DOMException ? err.name : ''
+      if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+        toast.error('No microphone found on this device.')
+      } else if (name === 'NotAllowedError' || name === 'SecurityError') {
+        toast.error('Microphone blocked — click the mic icon in the address bar and allow access.')
+      } else {
+        toast.error(`Could not start recording${name ? ` (${name})` : ''} — try reloading the page.`)
+      }
     }
   }, [cleanup, onBlob])
 

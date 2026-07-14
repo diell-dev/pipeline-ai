@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge'
 import type { ServiceCatalogItem, JobPriority } from '@/types/database'
 
 const MAX_SECONDS = 300 // 5 min cap — matches the server's size limit
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024 // server + Vercel body ceiling
 
 // ────────────────────────────── recorder hook ──────────────────────────────
 
@@ -55,7 +56,11 @@ function useRecorder(onBlob: (blob: Blob) => void) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const mimeType = pickMimeType()
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      // 64 kbps keeps 5 min well under the 4MB ceiling (iOS AAC defaults can exceed it)
+      const recorder = new MediaRecorder(
+        stream,
+        mimeType ? { mimeType, audioBitsPerSecond: 64_000 } : { audioBitsPerSecond: 64_000 }
+      )
       chunksRef.current = []
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data)
@@ -73,6 +78,7 @@ function useRecorder(onBlob: (blob: Blob) => void) {
         setSeconds((s) => {
           if (s + 1 >= MAX_SECONDS) {
             toast.info('Maximum recording length reached.')
+            setState('processing')
             recorderRef.current?.stop()
           }
           return s + 1
@@ -120,19 +126,30 @@ async function postDictation(blob: Blob, mode: 'field' | 'job') {
 // ─────────────────────────── per-field mic button ───────────────────────────
 
 export function DictateFieldButton({ onText }: { onText: (english: string) => void }) {
-  const { state, setState, seconds, start, stop } = useRecorder(async (blob) => {
+  const { state, setState, seconds, start, stop } = useRecorder((blob) => void processBlob(blob))
+
+  async function processBlob(blob: Blob) {
+    if (blob.size > MAX_UPLOAD_BYTES) {
+      toast.error('Recording is too large to upload — please keep it a bit shorter.')
+      setState('idle')
+      return
+    }
+    setState('processing')
     try {
       const data = await postDictation(blob, 'field')
       onText(data.text)
       if (data.detectedLanguage && data.detectedLanguage.toLowerCase() !== 'english') {
         toast.success(`Translated from ${data.detectedLanguage}`)
       }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Dictation failed.')
-    } finally {
       setState('idle')
+    } catch (err) {
+      // Keep the recording — a dropped connection shouldn't cost the tech their words
+      setState('idle')
+      toast.error(err instanceof Error ? err.message : 'Dictation failed.', {
+        action: { label: 'Retry', onClick: () => void processBlob(blob) },
+      })
     }
-  })
+  }
 
   if (state === 'processing') {
     return (
@@ -188,16 +205,27 @@ export function DictateJobCard({
   onApply: (result: DictationResult) => void
 }) {
   const [result, setResult] = useState<DictationResult | null>(null)
-  const { state, setState, seconds, start, stop } = useRecorder(async (blob) => {
+  const { state, setState, seconds, start, stop } = useRecorder((blob) => void processBlob(blob))
+
+  async function processBlob(blob: Blob) {
+    if (blob.size > MAX_UPLOAD_BYTES) {
+      toast.error('Recording is too large to upload — please keep it a bit shorter.')
+      setState('idle')
+      return
+    }
+    setState('processing')
     try {
       const data = await postDictation(blob, 'job')
       setResult(data as DictationResult)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Dictation failed.')
-    } finally {
       setState('idle')
+    } catch (err) {
+      // Keep the recording — a dropped connection shouldn't cost the tech their words
+      setState('idle')
+      toast.error(err instanceof Error ? err.message : 'Dictation failed.', {
+        action: { label: 'Retry', onClick: () => void processBlob(blob) },
+      })
     }
-  })
+  }
 
   const matchedServices = (result?.services || [])
     .map((s) => {

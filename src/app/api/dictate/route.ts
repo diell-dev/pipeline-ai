@@ -25,7 +25,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
-import { getApiUser } from '@/lib/api-auth'
+import { getApiUser, hasPermission } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/rate-limit'
 
 export const maxDuration = 60
@@ -60,11 +60,17 @@ async function transcribe(audio: File, apiKey: string): Promise<WhisperResult> {
     'Sewer and drain service job: hydro jetting, snaking, clean-out, backwater valve, catch basin, main line, trap, camera inspection.'
   )
 
-  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
-  })
+  let res: Response
+  try {
+    res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+      signal: AbortSignal.timeout(45_000),
+    })
+  } catch {
+    throw new DictateError(502, 'Transcription service timed out. Please try again.')
+  }
 
   if (!res.ok) {
     const body = await res.text().catch(() => '')
@@ -110,7 +116,15 @@ interface FieldExtraction {
 function parseClaudeJson<T>(raw: string): T {
   // Strip markdown fences if the model added them (same pattern as jobs/generate)
   const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim()
-  return JSON.parse(cleaned) as T
+  try {
+    return JSON.parse(cleaned) as T
+  } catch {
+    // Model prefixed prose — fall back to the outermost JSON object
+    const start = cleaned.indexOf('{')
+    const end = cleaned.lastIndexOf('}')
+    if (start === -1 || end <= start) throw new Error('No JSON object in model reply')
+    return JSON.parse(cleaned.slice(start, end + 1)) as T
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -119,6 +133,11 @@ export async function POST(request: NextRequest) {
     const auth = await getApiUser()
     if (!auth.authenticated) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
+    }
+    // Paid AI endpoint — staff only. Portal clients have no dictation UI and
+    // must not be able to burn AI credits or read the org's client list.
+    if (!hasPermission(auth.role, 'jobs:create')) {
+      return NextResponse.json({ error: 'Not allowed.' }, { status: 403 })
     }
     // Paid AI call — throttle per user
     if (!checkRateLimit(`dictate:${auth.userId}`, { limit: 20, windowMs: 60_000 })) {
@@ -169,6 +188,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Usage trace for cost attribution — never log the transcript itself
+    console.log(
+      `dictate: user=${auth.userId} mode=${mode} audioSec=${Math.round(whisper.duration)} lang=${whisper.language}`
+    )
+
     // ── Step 2: Claude translates + extracts ──
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -198,7 +222,7 @@ export async function POST(request: NextRequest) {
         mode,
         detectedLanguage: parsed.detected_language,
         originalTranscript: whisper.text,
-        text: parsed.text,
+        text: typeof parsed.text === 'string' ? parsed.text : '',
       })
     }
 
@@ -302,7 +326,7 @@ export async function POST(request: NextRequest) {
       mode,
       detectedLanguage: parsed.detected_language,
       originalTranscript: whisper.text,
-      techNotes: parsed.tech_notes,
+      techNotes: typeof parsed.tech_notes === 'string' ? parsed.tech_notes : '',
       priority,
       services,
       clientId: matchedClient?.id ?? null,

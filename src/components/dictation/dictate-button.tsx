@@ -174,6 +174,10 @@ export interface DictationResult {
   techNotes: string
   priority: JobPriority | null
   services: { id: string; quantity: number }[]
+  clientId: string | null
+  clientName: string | null
+  siteId: string | null
+  siteName: string | null
 }
 
 export function DictateJobCard({
@@ -234,6 +238,16 @@ export function DictateJobCard({
               {result.techNotes}
             </p>
           </div>
+
+          {(result.clientName || result.siteName) && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">Client / Building</p>
+              <div className="flex flex-wrap gap-1.5">
+                {result.clientName && <Badge variant="outline">{result.clientName}</Badge>}
+                {result.siteName && <Badge variant="outline">{result.siteName}</Badge>}
+              </div>
+            </div>
+          )}
 
           {matchedServices.length > 0 && (
             <div>

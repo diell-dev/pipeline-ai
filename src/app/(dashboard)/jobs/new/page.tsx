@@ -12,7 +12,7 @@
  * 6. Type tech notes
  * 7. Submit → status becomes "submitted" → AI auto-generates report + invoice
  */
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
@@ -64,6 +64,8 @@ export default function NewJobPage() {
   // Form state
   const [clientId, setClientId] = useState('')
   const [siteId, setSiteId] = useState('')
+  // Site matched by dictation — selected once the client's sites finish loading
+  const pendingSiteIdRef = useRef<string | null>(null)
   const [serviceDate, setServiceDate] = useState(
     prefilledDate || new Date().toISOString().split('T')[0]
   )
@@ -160,6 +162,11 @@ export default function NewJobPage() {
         toast.error('Failed to load sites')
       } else {
         setSites(data || [])
+        const pending = pendingSiteIdRef.current
+        if (pending && (data || []).some((s) => s.id === pending)) {
+          setSiteId(pending)
+        }
+        pendingSiteIdRef.current = null
       }
       setLoadingSites(false)
     }
@@ -200,6 +207,15 @@ export default function NewJobPage() {
   }
 
   function applyDictation(result: DictationResult) {
+    // Select client/building if the tech named them — never override a manual pick
+    if (result.clientId) {
+      if (!clientId) {
+        pendingSiteIdRef.current = result.siteId
+        setClientId(result.clientId)
+      } else if (clientId === result.clientId && result.siteId && !siteId) {
+        setSiteId(result.siteId)
+      }
+    }
     // Append notes — never overwrite what the tech already typed
     if (result.techNotes) {
       setTechNotes((prev) => (prev ? `${prev}\n\n${result.techNotes}` : result.techNotes))

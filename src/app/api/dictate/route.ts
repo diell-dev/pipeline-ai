@@ -98,6 +98,8 @@ interface JobExtraction {
   tech_notes: string
   priority: 'normal' | 'urgent' | 'emergency' | null
   services: { id: string; quantity: number }[]
+  client_id: string | null
+  site_id: string | null
 }
 
 interface FieldExtraction {
@@ -208,8 +210,33 @@ export async function POST(request: NextRequest) {
       .eq('organization_id', auth.organizationId)
       .eq('is_active', true)
 
+    const { data: clientRows } = await supabase
+      .from('clients')
+      .select('id, company_name')
+      .eq('organization_id', auth.organizationId)
+      .is('deleted_at', null)
+      .order('company_name')
+      .limit(300)
+
+    const { data: siteRows } = await supabase
+      .from('sites')
+      .select('id, client_id, name, address, borough')
+      .eq('organization_id', auth.organizationId)
+      .is('deleted_at', null)
+      .order('name')
+      .limit(500)
+
+    const clients = (clientRows as { id: string; company_name: string }[] | null) || []
+    const sites =
+      (siteRows as { id: string; client_id: string; name: string; address: string; borough: string | null }[] | null) || []
+
     const catalogList = ((catalog as CatalogEntry[] | null) || [])
       .map((s) => `${s.id} | ${s.code} | ${s.name}`)
+      .join('\n')
+
+    const clientList = clients.map((c) => `${c.id} | ${c.company_name}`).join('\n')
+    const siteList = sites
+      .map((st) => `${st.id} | client:${st.client_id} | ${st.name} | ${st.address}${st.borough ? ` (${st.borough})` : ''}`)
       .join('\n')
 
     const response = await anthropic.messages.create({
@@ -227,15 +254,23 @@ export async function POST(request: NextRequest) {
         'with quantity if stated (default 1). If nothing clearly matches, return []. Never guess.\n' +
         '- priority: "urgent" or "emergency" ONLY if the tech explicitly indicates urgency ' +
         '(e.g. sewage backing up into home, flooding, health hazard). Otherwise null.\n' +
+        '- client_id: if the tech names a client/company (or a building that appears in the sites list), ' +
+        'pick the matching client from the client list. Fuzzy match is OK (spoken names are approximate, ' +
+        'e.g. "Manhattan Towers" matches "Manhattan Towers LLC"), but if nothing plausibly matches, use null. Never invent ids.\n' +
+        '- site_id: if a specific building/site from the sites list is named or clearly implied, pick it ' +
+        '(it must belong to the matched client). Otherwise null. If only a building is named, derive the client from that site.\n' +
         'Reply ONLY with JSON: {"detected_language": "<language name in English>", ' +
         '"tech_notes": "<english notes>", "priority": "normal"|"urgent"|"emergency"|null, ' +
-        '"services": [{"id": "<catalog id>", "quantity": <number>}]}',
+        '"services": [{"id": "<catalog id>", "quantity": <number>}], ' +
+        '"client_id": "<client id>"|null, "site_id": "<site id>"|null}',
       messages: [
         {
           role: 'user',
           content:
             `Whisper detected language: ${whisper.language}\n\n` +
             `Service catalog (id | code | name):\n${catalogList || '(empty catalog)'}\n\n` +
+            `Clients (id | company name):\n${clientList || '(none)'}\n\n` +
+            `Sites (id | client | name | address):\n${siteList || '(none)'}\n\n` +
             `Transcript:\n${whisper.text}`,
         },
       ],
@@ -253,6 +288,16 @@ export async function POST(request: NextRequest) {
     const priority =
       parsed.priority === 'urgent' || parsed.priority === 'emergency' ? parsed.priority : null
 
+    // Client/site: validate against real rows, never trust extraction blindly.
+    // If only a site matched, derive its client. If the site doesn't belong
+    // to the matched client, drop the site (keep the client).
+    const matchedSite = sites.find((st) => st.id === parsed.site_id) || null
+    let matchedClient = clients.find((c) => c.id === parsed.client_id) || null
+    if (!matchedClient && matchedSite) {
+      matchedClient = clients.find((c) => c.id === matchedSite.client_id) || null
+    }
+    const site = matchedSite && matchedClient && matchedSite.client_id === matchedClient.id ? matchedSite : null
+
     return NextResponse.json({
       mode,
       detectedLanguage: parsed.detected_language,
@@ -260,6 +305,10 @@ export async function POST(request: NextRequest) {
       techNotes: parsed.tech_notes,
       priority,
       services,
+      clientId: matchedClient?.id ?? null,
+      clientName: matchedClient?.company_name ?? null,
+      siteId: site?.id ?? null,
+      siteName: site?.name ?? null,
     })
   } catch (err) {
     if (err instanceof DictateError) {

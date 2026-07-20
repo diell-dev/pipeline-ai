@@ -10,7 +10,8 @@ import { PortalStatus } from '@/components/portal/portal-status'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate } from '@/lib/books/format'
-import { ArrowLeft, MapPin } from 'lucide-react'
+import { ArrowLeft, MapPin, ImageOff } from 'lucide-react'
+import { useSignedPhotos } from '@/hooks/use-signed-photos'
 
 interface Report { intro?: string; services_performed?: string[]; findings?: string[]; summary?: string; work_performed?: string[]; recommendations?: string[]; tech_notes_raw?: string }
 interface JobDetail {
@@ -98,19 +99,67 @@ export default function PortalJobDetail() {
         </CardContent>
       </Card>
 
-      {photos.length > 0 && (
-        <div>
-          <h2 className="mb-2 text-sm font-semibold text-foreground">Photos</h2>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {photos.map((url, i) => (
-              <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-lg border">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt={`Service photo ${i + 1}`} className="aspect-square w-full object-cover transition-transform hover:scale-105" loading="lazy" />
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
+      {photos.length > 0 && <PortalPhotoGrid photos={photos} />}
+    </div>
+  )
+}
+
+/**
+ * S1: job-photos is a private bucket, so the stored refs are exchanged for
+ * short-lived signed URLs. The signing endpoint re-checks — against this
+ * client's own RLS — that the owning job is actually theirs, so a client can
+ * never pull another customer's property photos.
+ */
+function PortalPhotoGrid({ photos }: { photos: string[] }) {
+  const { signed } = useSignedPhotos(photos)
+
+  return (
+    <div>
+      <h2 className="mb-2 text-sm font-semibold text-foreground">Photos</h2>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {photos.map((ref, i) => {
+          const url = signed[ref]
+
+          if (url === undefined) {
+            return (
+              <div
+                key={i}
+                className="aspect-square w-full animate-pulse rounded-lg border bg-muted"
+              />
+            )
+          }
+
+          if (url === null) {
+            return (
+              <div
+                key={i}
+                className="flex aspect-square w-full items-center justify-center rounded-lg border bg-muted"
+                title="This photo is unavailable"
+              >
+                <ImageOff className="h-5 w-5 text-muted-foreground/50" />
+              </div>
+            )
+          }
+
+          return (
+            <a
+              key={i}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block overflow-hidden rounded-lg border"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={url}
+                alt={`Service photo ${i + 1}`}
+                className="aspect-square w-full object-cover transition-transform hover:scale-105"
+                loading="lazy"
+              />
+            </a>
+          )
+        })}
+      </div>
     </div>
   )
 }

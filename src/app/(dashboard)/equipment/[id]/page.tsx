@@ -15,6 +15,7 @@
  *   - scan log
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSignedPhotos } from '@/hooks/use-signed-photos'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuthStore } from '@/stores/auth-store'
@@ -196,6 +197,20 @@ export default function EquipmentDetailPage() {
   const [aiLookupLoading, setAiLookupLoading] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [lightbox, setLightbox] = useState<string | null>(null)
+
+  // S1: equipment-photos is a private bucket — exchange stored refs for
+  // short-lived signed URLs before rendering.
+  // Reads through `data` rather than the destructured `equipment`, because
+  // that destructuring happens after this component's early returns and hooks
+  // must run unconditionally.
+  const equipmentPhotoRefs = useMemo(
+    () =>
+      [data?.equipment?.unit_photo_url, data?.equipment?.data_plate_photo_url].filter(
+        (u): u is string => typeof u === 'string' && u.length > 0
+      ),
+    [data?.equipment?.unit_photo_url, data?.equipment?.data_plate_photo_url]
+  )
+  const { signed: signedEquipmentPhotos } = useSignedPhotos(equipmentPhotoRefs)
   const [aiOpen, setAiOpen] = useState(true)
   const [scansOpen, setScansOpen] = useState(false)
   const [expandedInspections, setExpandedInspections] = useState<Set<string>>(new Set())
@@ -580,36 +595,18 @@ export default function EquipmentDetailPage() {
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {equipment.unit_photo_url && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Unit</p>
-                  <button
-                    type="button"
-                    onClick={() => setLightbox(equipment.unit_photo_url!)}
-                    className="aspect-square rounded-lg overflow-hidden border bg-muted w-full"
-                  >
-                    <img
-                      src={equipment.unit_photo_url}
-                      alt="Unit"
-                      className="h-full w-full object-cover"
-                    />
-                  </button>
-                </div>
+                <EquipmentPhoto
+                  label="Unit"
+                  src={signedEquipmentPhotos[equipment.unit_photo_url]}
+                  onOpen={setLightbox}
+                />
               )}
               {equipment.data_plate_photo_url && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Data plate</p>
-                  <button
-                    type="button"
-                    onClick={() => setLightbox(equipment.data_plate_photo_url!)}
-                    className="aspect-square rounded-lg overflow-hidden border bg-muted w-full"
-                  >
-                    <img
-                      src={equipment.data_plate_photo_url}
-                      alt="Data plate"
-                      className="h-full w-full object-cover"
-                    />
-                  </button>
-                </div>
+                <EquipmentPhoto
+                  label="Data plate"
+                  src={signedEquipmentPhotos[equipment.data_plate_photo_url]}
+                  onOpen={setLightbox}
+                />
               )}
             </div>
           </CardContent>
@@ -892,6 +889,45 @@ export default function EquipmentDetailPage() {
             refresh()
           }}
         />
+      )}
+    </div>
+  )
+}
+
+/**
+ * A single equipment photo tile. `src` is undefined while the signed URL is
+ * being fetched and null when it isn't available — neither should render a
+ * broken <img> pointing at a now-private object (audit S1).
+ */
+function EquipmentPhoto({
+  label,
+  src,
+  onOpen,
+}: {
+  label: string
+  src: string | null | undefined
+  onOpen: (url: string) => void
+}) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground mb-1">{label}</p>
+      {src ? (
+        <button
+          type="button"
+          onClick={() => onOpen(src)}
+          className="aspect-square rounded-lg overflow-hidden border bg-muted w-full"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt={label} className="h-full w-full object-cover" />
+        </button>
+      ) : (
+        <div className="flex aspect-square w-full items-center justify-center rounded-lg border bg-muted">
+          {src === null ? (
+            <ImageIcon className="h-5 w-5 text-muted-foreground/40" />
+          ) : (
+            <div className="h-full w-full animate-pulse rounded-lg bg-muted-foreground/10" />
+          )}
+        </div>
       )}
     </div>
   )

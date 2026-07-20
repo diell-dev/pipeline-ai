@@ -377,8 +377,8 @@ export default function EquipmentScanPage() {
         return null
       }
 
-      const { data: pub } = supabase.storage.from('equipment-photos').getPublicUrl(path)
-      return pub?.publicUrl ?? null
+      // S1: private bucket — store the reference, sign it at display time.
+      return `equipment-photos/${path}`
     } catch (err) {
       console.error('Upload exception', err)
       toast.error('Photo upload failed')

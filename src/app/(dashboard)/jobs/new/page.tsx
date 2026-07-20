@@ -302,11 +302,11 @@ export default function NewJobPage() {
           continue
         }
 
-        const { data: urlData } = supabase.storage
-          .from('job-photos')
-          .getPublicUrl(path)
-
-        urls.push(urlData.publicUrl)
+        // S1: `job-photos` is a private bucket, so a public URL would no
+        // longer resolve. Persist the bucket-relative reference instead and
+        // mint a short-lived signed URL at display time
+        // (see /api/storage/sign + useSignedPhotos).
+        urls.push(`job-photos/${path}`)
       }
 
       return urls

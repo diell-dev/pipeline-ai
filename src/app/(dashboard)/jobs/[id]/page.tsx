@@ -10,7 +10,7 @@
  * - Manual edits are tracked with edited_by, edited_at metadata
  * - All: view status timeline
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
@@ -55,6 +55,7 @@ import { JobActivityTimeline } from '@/components/jobs/activity-timeline'
 import { InspectionChecklist, type Inspection } from '@/components/equipment/inspection-checklist'
 import type { Job, JobStatus, JobPriority } from '@/types/database'
 import { useSwipeBack } from '@/hooks/use-swipe-back'
+import { useSignedPhotos, signPhotoRefs } from '@/hooks/use-signed-photos'
 
 // Equipment shape we render in the linked-equipment section. Loose because
 // the backend agent is still finalising the types in database.ts.
@@ -561,6 +562,11 @@ export default function JobDetailPage() {
   const [showRejectForm, setShowRejectForm] = useState(false)
   const [showRevisionForm, setShowRevisionForm] = useState(false)
   const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null)
+
+  // S1: job-photos is a private bucket now, so the stored refs have to be
+  // exchanged for short-lived signed URLs before they can be rendered.
+  const photoRefs = useMemo(() => (job?.photos as string[] | undefined) ?? [], [job?.photos])
+  const { signed: signedPhotos } = useSignedPhotos(photoRefs)
   const [regenerating, setRegenerating] = useState(false)
   const [services, setServices] = useState<ServiceCatalogItem[]>([])
 
@@ -1252,19 +1258,35 @@ export default function JobDetailPage() {
         <CardContent>
           {job.photos && job.photos.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-              {job.photos.map((url, idx) => (
-                <div
-                  key={idx}
-                  className="aspect-square rounded-lg overflow-hidden border bg-muted cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
-                  onClick={() => setLightboxPhoto(url)}
-                >
-                  <img
-                    src={url}
-                    alt={`Job photo ${idx + 1}`}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-              ))}
+              {job.photos.map((url, idx) => {
+                const src = signedPhotos[url]
+                return (
+                  <div
+                    key={idx}
+                    className={`aspect-square rounded-lg overflow-hidden border bg-muted transition-all ${
+                      src ? 'cursor-pointer hover:ring-2 hover:ring-blue-500' : ''
+                    }`}
+                    onClick={src ? () => setLightboxPhoto(src) : undefined}
+                  >
+                    {src ? (
+                      <img
+                        src={src}
+                        alt={`Job photo ${idx + 1}`}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      // undefined = still signing, null = not permitted / missing
+                      <div className="flex h-full w-full items-center justify-center">
+                        {src === null ? (
+                          <ImageIcon className="h-5 w-5 text-muted-foreground/40" />
+                        ) : (
+                          <div className="h-full w-full animate-pulse bg-muted-foreground/10" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">No photos attached</p>
@@ -1790,10 +1812,17 @@ export default function JobDetailPage() {
                   setShowDownloadMenu(false)
                   setDownloading(true)
                   try {
-                    // Merge job photos into report content so they appear in the PDF
+                    // Merge job photos into report content so they appear in the PDF.
+                    // S1: the PDF generator fetches each image's bytes, and the
+                    // bucket is private now — resolve to signed URLs right here,
+                    // immediately before the fetch, so the TTL is never a factor.
                     const reportContent = { ...(job.ai_report_content as Record<string, unknown>) }
                     if (!reportContent.photos && job.photos && (job.photos as string[]).length > 0) {
-                      reportContent.photos = job.photos
+                      const map = await signPhotoRefs(job.photos as string[])
+                      const usable = (job.photos as string[])
+                        .map((ref) => map[ref])
+                        .filter((u): u is string => typeof u === 'string')
+                      if (usable.length > 0) reportContent.photos = usable
                     }
                     const dlData = {
                       invoiceContent: job.ai_invoice_content as Record<string, unknown>,
@@ -1825,10 +1854,17 @@ export default function JobDetailPage() {
                   setShowDownloadMenu(false)
                   setDownloading(true)
                   try {
-                    // Merge job photos into report content so they appear in the PDF
+                    // Merge job photos into report content so they appear in the PDF.
+                    // S1: the PDF generator fetches each image's bytes, and the
+                    // bucket is private now — resolve to signed URLs right here,
+                    // immediately before the fetch, so the TTL is never a factor.
                     const reportContent = { ...(job.ai_report_content as Record<string, unknown>) }
                     if (!reportContent.photos && job.photos && (job.photos as string[]).length > 0) {
-                      reportContent.photos = job.photos
+                      const map = await signPhotoRefs(job.photos as string[])
+                      const usable = (job.photos as string[])
+                        .map((ref) => map[ref])
+                        .filter((u): u is string => typeof u === 'string')
+                      if (usable.length > 0) reportContent.photos = usable
                     }
                     const dlData = {
                       invoiceContent: job.ai_invoice_content as Record<string, unknown>,

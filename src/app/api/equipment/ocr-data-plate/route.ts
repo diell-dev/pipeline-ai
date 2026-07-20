@@ -33,7 +33,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { getApiUser, hasPermission } from '@/lib/api-auth'
-import { checkRateLimit } from '@/lib/rate-limit'
+import { enforceRateLimit } from '@/lib/rate-limit'
 import { extractDataPlate, MAX_DATA_PLATE_PHOTO_BYTES } from '@/lib/equipment-ai'
 
 export async function POST(request: NextRequest) {
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
   if (!hasPermission(auth.role, 'equipment:edit')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
-  if (!checkRateLimit(`equip-ocr:${auth.userId}`, { limit: 20, windowMs: 60_000 })) {
+  if (!(await enforceRateLimit(`equip-ocr:${auth.userId}`, { limit: 20, windowMs: 60_000 }))) {
     return NextResponse.json({ error: 'Too many requests — slow down.' }, { status: 429 })
   }
 

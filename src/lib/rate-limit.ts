@@ -1,16 +1,31 @@
 /**
- * Simple in-memory token-bucket rate limiter.
+ * Rate limiting — distributed when configured, in-memory otherwise.
  *
- * Per-instance only — no Redis, no cross-instance coordination. This is
- * acceptable on Vercel because cold starts naturally give attackers a fresh
- * bucket only when they hit a brand-new lambda; sustained abuse from a single
- * IP still gets throttled within the lifetime of the warm instance.
+ * Audit S10 (2026-07-20)
+ * ----------------------
+ * The original implementation was a per-instance in-memory token bucket. On
+ * Vercel every concurrent lambda holds its own Map, so an attacker spread
+ * across instances effectively multiplies every limit by the number of warm
+ * instances. That was documented and accepted at low traffic; this module now
+ * upgrades to a shared counter in Upstash Redis when the environment provides
+ * one, and transparently degrades to the old in-memory behaviour when it
+ * doesn't (local dev, previews, or before Upstash is provisioned).
  *
- * Use it like:
- *   const ip = getClientIp(request)
- *   if (!checkRateLimit(`public-proposal:${token}:${ip}`, { limit: 30, windowMs: 60_000 })) {
- *     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
- *   }
+ * Configuration (optional):
+ *   UPSTASH_REDIS_REST_URL
+ *   UPSTASH_REDIS_REST_TOKEN
+ * Both come from the Upstash console. With neither set, behaviour is
+ * identical to before — no crash, no config ceremony.
+ *
+ * Deliberate design choices:
+ *   - Fixed window, not sliding. Simpler, one round-trip, and precise enough
+ *     for abuse control (the edge case is a 2x burst across a window
+ *     boundary, which none of these limits care about).
+ *   - FAIL OPEN on Redis errors, but fall back to the in-memory limiter in the
+ *     same call so there is always *some* ceiling. A Redis outage must never
+ *     take down invoicing.
+ *   - The in-memory path stays synchronous so nothing regresses if Upstash is
+ *     unavailable mid-request.
  */
 import { NextRequest } from 'next/server'
 
@@ -46,8 +61,10 @@ export interface RateLimitOptions {
 }
 
 /**
- * Returns true if the request is within the rate limit, false if it should
- * be rejected. Increments the bucket on every call.
+ * Synchronous, per-instance limiter. Still exported because it is the
+ * fallback path and is useful in non-async contexts.
+ *
+ * Returns true when the request is within the limit.
  */
 export function checkRateLimit(key: string, opts: RateLimitOptions): boolean {
   ensureCleanup()
@@ -62,6 +79,89 @@ export function checkRateLimit(key: string, opts: RateLimitOptions): boolean {
   }
   existing.count += 1
   return true
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Distributed backend (Upstash Redis REST)
+// ─────────────────────────────────────────────────────────────────
+
+function getUpstashConfig(): { url: string; token: string } | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN
+  if (!url || !token) return null
+  return { url: url.replace(/\/$/, ''), token }
+}
+
+/** True when a shared limiter is configured. Useful for health output. */
+export function isDistributedRateLimitEnabled(): boolean {
+  return getUpstashConfig() !== null
+}
+
+/**
+ * One round-trip: INCR the counter and, when it's the first hit of a window,
+ * attach the expiry. Upstash's REST pipeline endpoint runs both atomically
+ * enough for our purposes (INCR is atomic; a lost PEXPIRE would only mean the
+ * key lingers, which the next INCR==1 branch repairs).
+ */
+async function incrementRedis(
+  key: string,
+  windowMs: number,
+  cfg: { url: string; token: string }
+): Promise<number | null> {
+  try {
+    const res = await fetch(`${cfg.url}/pipeline`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${cfg.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify([
+        ['INCR', key],
+        ['PEXPIRE', key, String(windowMs), 'NX'],
+      ]),
+      // Never let the limiter itself become the latency problem.
+      signal: AbortSignal.timeout(1_000),
+      cache: 'no-store',
+    })
+
+    if (!res.ok) return null
+
+    const body = (await res.json()) as Array<{ result?: unknown; error?: string }>
+    const first = Array.isArray(body) ? body[0] : null
+    const count = first && typeof first.result === 'number' ? first.result : null
+    return count
+  } catch {
+    // Timeout, DNS failure, Upstash outage — caller falls back.
+    return null
+  }
+}
+
+/**
+ * Distributed rate limit check. Use this in API route handlers.
+ *
+ * Returns true when the request is within the limit, false when it should be
+ * rejected with a 429.
+ */
+export async function enforceRateLimit(
+  key: string,
+  opts: RateLimitOptions
+): Promise<boolean> {
+  const cfg = getUpstashConfig()
+  if (!cfg) {
+    return checkRateLimit(key, opts)
+  }
+
+  // Namespaced so a shared Upstash database can host more than this app.
+  const redisKey = `rl:${key}:${Math.floor(Date.now() / opts.windowMs)}`
+  const count = await incrementRedis(redisKey, opts.windowMs, cfg)
+
+  if (count === null) {
+    // Redis unreachable — degrade to the per-instance limiter rather than
+    // letting the request through unchecked.
+    return checkRateLimit(key, opts)
+  }
+
+  return count <= opts.limit
 }
 
 /**

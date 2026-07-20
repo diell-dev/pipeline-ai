@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getApiUser, hasPermission, canAccessOrg } from '@/lib/api-auth'
+import { todayInTimeZone, getOrgTimeZone } from '@/lib/timezone'
 
 export async function POST(
   _request: NextRequest,
@@ -49,7 +50,8 @@ export async function POST(
       )
     }
 
-    const today = new Date().toISOString().slice(0, 10)
+    // G4: calendar date in the ORG's timezone, not UTC.
+    const today = todayInTimeZone(await getOrgTimeZone(supabase, proposal.organization_id))
     const techNotes = `From signed proposal:\n\n${proposal.issue_description}\n\nProposed solution:\n${proposal.proposed_solution}`
 
     // Create the job row

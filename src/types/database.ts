@@ -83,6 +83,12 @@ export interface Organization {
   name: string
   slug: string // URL-friendly identifier
   tier: SubscriptionTier
+  /**
+   * IANA timezone (audit G4, migration 031). Authoritative for every
+   * date-only value: service_date, invoice/payment dates, accounting periods,
+   * and any "today" in the UI. Never derive those from UTC.
+   */
+  timezone: string
   // Branding
   logo_url: string | null
   primary_color: string // hex, e.g. "#05093d"
@@ -129,6 +135,10 @@ export interface User {
   phone: string | null
   avatar_url: string | null
   is_active: boolean
+  /** S8: true while the user still holds an emailed temporary password. */
+  must_change_password: boolean
+  /** S8: when the current password was issued or last changed. */
+  password_set_at: string | null
   created_at: string
   updated_at: string
 }

@@ -14,6 +14,7 @@
 import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
 import { createClient } from '@/lib/supabase/client'
+import { todayInTimeZone } from '@/lib/timezone'
 import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SkeletonList } from '@/components/ui/skeleton'
@@ -28,8 +29,9 @@ interface Visit {
   sites: { name: string | null; address: string | null } | null
 }
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10)
+/** G4: "today" must be the org's calendar day, never UTC's. */
+function todayIso(timeZone?: string | null): string {
+  return todayInTimeZone(timeZone)
 }
 
 function VisitCard({ v, tone = 'brand' }: { v: Visit; tone?: 'brand' | 'amber' }) {
@@ -68,7 +70,7 @@ function VisitCard({ v, tone = 'brand' }: { v: Visit; tone?: 'brand' | 'amber' }
 }
 
 export default function PortalVisitsPage() {
-  const { user } = useAuthStore()
+  const { user, organization } = useAuthStore()
   const [loading, setLoading] = useState(true)
   const [upcoming, setUpcoming] = useState<Visit[]>([])
   const [awaitingReschedule, setAwaitingReschedule] = useState<Visit[]>([])
@@ -88,7 +90,7 @@ export default function PortalVisitsPage() {
         .eq('status', 'scheduled')
         .order('service_date', { ascending: true })
       const all = (data as unknown as Visit[]) ?? []
-      const today = todayIso()
+      const today = todayIso(organization?.timezone)
       setUpcoming(all.filter((v) => v.service_date >= today))
       // Past-dated ones — most recent first so the least-stale shows up top
       setAwaitingReschedule(

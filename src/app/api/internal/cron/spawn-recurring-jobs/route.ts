@@ -16,6 +16,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
+import { todayInTimeZone, addDays, DEFAULT_TIMEZONE } from '@/lib/timezone'
 
 // Service-role: this is a system route, runs across all orgs.
 function getServiceClient() {
@@ -25,6 +26,17 @@ function getServiceClient() {
     throw new Error('Missing SUPABASE env vars')
   }
   return createServiceClient(url, serviceKey)
+}
+
+/**
+ * Constant-time string comparison so a token can't be recovered by timing the
+ * response. Length is compared first (leaks only length, which is fixed here).
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
 }
 
 // Force Node.js runtime (Edge can't run for the time we need).
@@ -64,22 +76,46 @@ interface ServiceCatalogItem {
 
 export async function POST(request: NextRequest) {
   // ── Auth check ──
-  // Two accepted paths so the nightly job can't silently 401 forever:
-  //   1. Authorization: Bearer ${CRON_SECRET} (Vercel injects this when the
-  //      CRON_SECRET env var is set).
-  //   2. The x-vercel-cron header, which Vercel strips from inbound external
-  //      requests, so its presence means a genuine platform cron invocation.
-  //      This covers deployments where CRON_SECRET was never configured.
-  const auth = request.headers.get('authorization')
-  const secretOk =
-    !!process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`
-  const isVercelCron = request.headers.has('x-vercel-cron')
-  if (!secretOk && !isVercelCron) {
+  // ONLY the CRON_SECRET bearer token is accepted. Vercel injects this header
+  // automatically when CRON_SECRET is set as a project env var; it is the only
+  // mechanism Vercel documents as a security boundary.
+  //
+  // Audit S2 (2026-07-20): we previously ALSO accepted the mere presence of an
+  // `x-vercel-cron` header as proof of a platform invocation. That header is
+  // documented as informational (it carries the schedule expression) and Vercel
+  // never promises to strip it from inbound external requests — so the fallback
+  // silently nullified the configured secret. Removed; fail closed instead.
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret) {
+    console.error('CRON_SECRET not configured — refusing to run the recurring-job spawner')
+    return NextResponse.json({ error: 'Cron not configured' }, { status: 500 })
+  }
+  if (!timingSafeEqual(request.headers.get('authorization') ?? '', `Bearer ${cronSecret}`)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const supabase = getServiceClient()
-  const today = new Date().toISOString().slice(0, 10)
+
+  // G4: every date below is a CALENDAR date, so it must be computed in the
+  // organisation's timezone — not UTC. The cron fires at 06:00 UTC (2am ET),
+  // where UTC and New York already disagree about what "today" is.
+  // Orgs are loaded lazily per schedule; this platform-wide value is only the
+  // coarse pre-filter bound.
+  const orgTimezones = new Map<string, string>()
+  async function timezoneFor(orgId: string): Promise<string> {
+    const cached = orgTimezones.get(orgId)
+    if (cached) return cached
+    const { data } = await supabase
+      .from('organizations')
+      .select('timezone')
+      .eq('id', orgId)
+      .maybeSingle<{ timezone: string | null }>()
+    const tz = data?.timezone || DEFAULT_TIMEZONE
+    orgTimezones.set(orgId, tz)
+    return tz
+  }
+
+  const today = todayInTimeZone(DEFAULT_TIMEZONE)
   const errors: Array<{ schedule_id: string; error: string }> = []
   let spawned = 0
   let advanced = 0
@@ -90,9 +126,7 @@ export async function POST(request: NextRequest) {
     // advance_creation_days window. We compare against today + 14 days as a
     // safe upper bound, then filter precisely below per-row using the
     // schedule's own advance_creation_days.
-    const horizon = new Date()
-    horizon.setUTCDate(horizon.getUTCDate() + 14)
-    const horizonStr = horizon.toISOString().slice(0, 10)
+    const horizonStr = addDays(today, 14)
 
     const { data: schedules, error: scheduleErr } = await supabase
       .from('recurring_job_schedules')
@@ -109,9 +143,10 @@ export async function POST(request: NextRequest) {
         // Only spawn if next_occurrence_date is within this pattern's
         // own advance window. (We pre-filtered to a safe upper bound; this
         // is the precise check.)
-        const advanceDate = new Date()
-        advanceDate.setUTCDate(advanceDate.getUTCDate() + (schedule.advance_creation_days || 7))
-        const advanceStr = advanceDate.toISOString().slice(0, 10)
+        // Per-org "today": a pattern belonging to a west-coast tenant must
+        // not spawn a day early just because the server clock is in UTC.
+        const orgToday = todayInTimeZone(await timezoneFor(schedule.organization_id))
+        const advanceStr = addDays(orgToday, schedule.advance_creation_days || 7)
         if (schedule.next_occurrence_date > advanceStr) {
           continue
         }
@@ -132,7 +167,7 @@ export async function POST(request: NextRequest) {
           // Advancing a FUTURE occurrence here would move the schedule forward
           // an extra step on a same-day manual re-run and spawn the next one
           // early. (L7)
-          if (schedule.next_occurrence_date <= today) {
+          if (schedule.next_occurrence_date <= orgToday) {
             await advanceNext(supabase, schedule)
             advanced++
           }

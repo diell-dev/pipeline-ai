@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { headers } from 'next/headers'
 import { Geist, Geist_Mono } from 'next/font/google'
 import Script from 'next/script'
 import { Providers } from '@/components/providers'
@@ -74,11 +75,17 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Audit S9: middleware mints a per-request nonce and puts it on both the
+  // CSP response header and this request header. Next.js applies it to its
+  // own bootstrap scripts automatically (it reads the CSP request header);
+  // any inline script WE render has to opt in explicitly, below.
+  const nonce = (await headers()).get('x-nonce') ?? undefined
+
   return (
     <html
       lang="en"
@@ -86,7 +93,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <Providers>{children}</Providers>
+        <Providers nonce={nonce}>{children}</Providers>
         {/*
           Phase M4.3 — register the offline-shell service worker. Production
           only so dev/HMR doesn't fight the SW cache. The SW itself lives at
@@ -95,7 +102,7 @@ export default function RootLayout({
           We use afterInteractive so registration doesn't block first paint.
         */}
         {process.env.NODE_ENV === 'production' && (
-          <Script id="sw-register" strategy="afterInteractive">{`
+          <Script id="sw-register" strategy="afterInteractive" nonce={nonce}>{`
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', function () {
                 navigator.serviceWorker

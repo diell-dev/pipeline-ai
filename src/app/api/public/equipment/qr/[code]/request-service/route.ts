@@ -9,7 +9,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { enforceRateLimit, getClientIp } from '@/lib/rate-limit'
 import type { ServiceRequestUrgency } from '@/types/database'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -48,7 +48,7 @@ export async function POST(
   }
 
   const ip = getClientIp(request)
-  if (!checkRateLimit(`equipment-service-req:${safeCode}:${ip}`, { limit: 5, windowMs: 60_000 })) {
+  if (!(await enforceRateLimit(`equipment-service-req:${safeCode}:${ip}`, { limit: 5, windowMs: 60_000 }))) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
 

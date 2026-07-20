@@ -1,8 +1,59 @@
 import { type NextRequest } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 
+/**
+ * Audit S9 (2026-07-20) — nonce-based Content-Security-Policy.
+ *
+ * The old policy shipped `script-src 'self' 'unsafe-inline' 'unsafe-eval'`,
+ * which means the CSP provided essentially no XSS protection: any injected
+ * <script> would have executed. We now mint a random nonce per request and
+ * allow only scripts carrying it.
+ *
+ * Two details that make this work with Next.js:
+ *   1. The CSP is echoed onto the REQUEST headers as well as the response.
+ *      Next.js looks for it there and stamps the nonce onto the framework's
+ *      own inline bootstrap/hydration scripts.
+ *   2. `strict-dynamic` lets those nonce'd bootstrap scripts load the rest of
+ *      the chunk graph, which would otherwise need every chunk URL allow-listed.
+ *
+ * Kept deliberately:
+ *   - `style-src 'unsafe-inline'`. React writes inline style attributes and
+ *     Tailwind injects a style tag; locking this down needs 'unsafe-hashes'
+ *     plus per-render hashing for no meaningful gain, since style injection
+ *     is not a script-execution vector here.
+ *   - `'unsafe-eval'` in DEVELOPMENT only. React Refresh / HMR needs it; the
+ *     production bundle does not.
+ */
+function buildCsp(nonce: string, isDev: boolean): string {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https://*.supabase.co",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.upstash.io",
+    "font-src 'self' data:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "worker-src 'self' blob:",
+    ...(isDev ? [] : ['upgrade-insecure-requests']),
+  ].join('; ')
+}
+
 export async function middleware(request: NextRequest) {
-  return await updateSession(request)
+  const isDev = process.env.NODE_ENV !== 'production'
+  const nonce = crypto.randomUUID().replace(/-/g, '')
+  const csp = buildCsp(nonce, isDev)
+
+  const response = await updateSession(request, { nonce, csp })
+
+  // Redirects carry no HTML body, so a CSP on them is pointless noise —
+  // but harmless and simpler to always set.
+  response.headers.set('Content-Security-Policy', csp)
+  response.headers.set('x-nonce', nonce)
+
+  return response
 }
 
 export const config = {

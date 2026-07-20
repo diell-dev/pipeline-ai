@@ -61,6 +61,7 @@ import {
 } from '@/components/books/invoice-preview'
 import { generateInvoicePdf } from '@/lib/pdf/generate-invoice'
 import type { Organization, OrganizationSettings } from '@/types/database'
+import { DEFAULT_TIMEZONE } from '@/lib/timezone'
 import type { OrgBrand } from '@/app/api/books/org-brand/route'
 
 interface Invoice extends InvoicePreviewInvoice {
@@ -308,6 +309,9 @@ export default function BooksInvoiceDetailPage({
         name: brand?.name ?? invoice.clients?.company_name ?? 'Invoice',
         slug: '',
         tier: 'basic',
+        // PDF generation never does date math off the org row; the real
+        // timezone lives on the server-side organization record.
+        timezone: DEFAULT_TIMEZONE,
         logo_url: brand?.logo_url ?? null,
         primary_color: brand?.primary_color ?? '#05093d',
         accent_color: brand?.accent_color ?? '#2563eb',

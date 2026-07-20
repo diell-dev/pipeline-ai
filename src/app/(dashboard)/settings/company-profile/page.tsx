@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
+import { COMMON_TIMEZONES, DEFAULT_TIMEZONE } from '@/lib/timezone'
 import {
   Building,
   Upload,
@@ -39,6 +40,7 @@ import {
   Check,
   X,
   Hash,
+  Clock,
 } from 'lucide-react'
 import type {
   InvoiceTheme,
@@ -175,6 +177,8 @@ export default function CompanyProfilePage() {
   const [companyEmail, setCompanyEmail] = useState('')
   const [companyWebsite, setCompanyWebsite] = useState('')
   const [companyAddress, setCompanyAddress] = useState('')
+  // G4: drives every date-only value (service dates, invoice/payment dates).
+  const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE)
 
   // Branding
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
@@ -197,6 +201,7 @@ export default function CompanyProfilePage() {
     setCompanyEmail(organization.company_email || '')
     setCompanyWebsite(organization.company_website || '')
     setCompanyAddress(organization.company_address || '')
+    setTimezone(organization.timezone || DEFAULT_TIMEZONE)
     setLogoUrl(organization.logo_url || null)
     setPrimaryColor(organization.primary_color || '#05093d')
     setAccentColor(organization.accent_color || '#00ff85')
@@ -284,6 +289,7 @@ export default function CompanyProfilePage() {
           company_email: companyEmail.trim() || null,
           company_website: companyWebsite.trim() || null,
           company_address: companyAddress.trim() || null,
+          timezone,
           primary_color: primaryColor,
           accent_color: accentColor,
           secondary_color: secondaryColor.trim() || null,
@@ -300,6 +306,7 @@ export default function CompanyProfilePage() {
         company_email: companyEmail.trim() || null,
         company_website: companyWebsite.trim() || null,
         company_address: companyAddress.trim() || null,
+        timezone,
         primary_color: primaryColor,
         accent_color: accentColor,
         secondary_color: secondaryColor.trim() || null,
@@ -393,6 +400,27 @@ export default function CompanyProfilePage() {
                 onChange={(e) => setCompanyAddress(e.target.value)}
                 placeholder="123 Main St, New York, NY 10001"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="timezone" className="flex items-center gap-1">
+                <Clock className="h-3 w-3" /> Time zone
+              </Label>
+              <select
+                id="timezone"
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+              >
+                {COMMON_TIMEZONES.map((tz) => (
+                  <option key={tz} value={tz}>
+                    {tz.replace(/_/g, ' ')}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Used for service dates, invoice dates, and scheduling. Set this to the
+                time zone your crews actually work in.
+              </p>
             </div>
           </div>
         </CardContent>

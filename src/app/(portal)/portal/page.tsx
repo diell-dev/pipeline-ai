@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuthStore } from '@/stores/auth-store'
 import { createClient } from '@/lib/supabase/client'
+import { todayInTimeZone } from '@/lib/timezone'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { PortalStatus } from '@/components/portal/portal-status'
@@ -18,7 +19,7 @@ import { ReceiptText, CalendarClock, FileSignature, ChevronRight, Wrench, Plus }
 interface JobRow { id: string; service_date: string; scheduled_time: string | null; status: string; sites: { name: string | null; address: string | null } | null }
 
 export default function PortalHome() {
-  const { user } = useAuthStore()
+  const { user, organization } = useAuthStore()
   const [loading, setLoading] = useState(true)
   const [company, setCompany] = useState('')
   const [outstanding, setOutstanding] = useState(0)
@@ -32,7 +33,9 @@ export default function PortalHome() {
     ;(async () => {
       setLoading(true)
       const supabase = createClient()
-      const today = new Date().toISOString().slice(0, 10)
+      // G4: the client's day in the org's timezone, not UTC — otherwise a
+      // visit later today disappears from "upcoming" after 8pm ET.
+      const today = todayInTimeZone(organization?.timezone)
       const [clientRes, invRes, nextRes, propRes, recentRes] = await Promise.all([
         supabase.from('clients').select('company_name').eq('id', cid).maybeSingle<{ company_name: string }>(),
         supabase.from('invoices').select('balance_due_cents').eq('client_id', cid).gt('balance_due_cents', 0),

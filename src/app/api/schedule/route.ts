@@ -73,13 +73,16 @@ export async function GET(request: NextRequest) {
     // We use service_date for date-range filtering since scheduled_time may be null
     // for jobs created on-the-fly by techs (without explicit scheduling).
     //
-    // TODO(timezone): service_date is a plain DATE column (no timezone), populated
-    // from the browser's local date when the job was created. scheduled_time is a
-    // TIMESTAMPTZ stored in UTC. A job at 11pm local Sunday with scheduled_time of
-    // 4am Monday UTC will show on Sunday in the jobs list (filtered by service_date)
-    // but on Monday in calendar views derived from scheduled_time. Real fix:
-    // add a service_date_local column derived from org timezone, or always derive
-    // service_date from scheduled_time using the org's stored TZ.
+    // TIMEZONE (audit G4, resolved 2026-07-20): `service_date` is a plain DATE
+    // and `scheduled_time` is a TIMESTAMPTZ. The two used to disagree because
+    // every "today"/date derivation ran in UTC, so an evening job in New York
+    // was filed under the next calendar day.
+    //
+    // Organisations now carry `organizations.timezone` (migration 031) and all
+    // date-only values are derived through `src/lib/timezone.ts` in that zone
+    // — see `todayInTimeZone` / `zonedTimeToUtc`. Callers rendering a calendar
+    // from `scheduled_time` should format it in the org timezone for the same
+    // reason.
     const isSuperAdmin = auth.role === 'super_admin'
     let jobsQ = supabase
       .from('jobs')

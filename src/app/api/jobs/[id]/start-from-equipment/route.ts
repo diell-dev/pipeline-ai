@@ -24,6 +24,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getApiUser, hasPermission, canAccessOrg } from '@/lib/api-auth'
+import { todayInTimeZone, getOrgTimeZone } from '@/lib/timezone'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const VALID_PRIORITIES = new Set(['low', 'normal', 'high', 'urgent'])
@@ -186,7 +187,7 @@ export async function POST(request: NextRequest) {
   // Service date is the date portion of scheduled_time when present, else today.
   const serviceDate = scheduledTime
     ? scheduledTime.slice(0, 10)
-    : new Date().toISOString().slice(0, 10)
+    : todayInTimeZone(await getOrgTimeZone(supabase, equipment.organization_id))
 
   const { data: newJobId, error: rpcErr } = await supabase.rpc('create_job_from_equipment', {
     p_organization_id: equipment.organization_id,

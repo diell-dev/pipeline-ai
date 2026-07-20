@@ -8,7 +8,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { enforceRateLimit, getClientIp } from '@/lib/rate-limit'
 
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -31,7 +31,7 @@ export async function POST(
 
   // ── Rate limit: 30 req/min per IP per token ──
   const ip = getClientIp(request)
-  if (!checkRateLimit(`pub-prop-reject:${token}:${ip}`, { limit: 30, windowMs: 60_000 })) {
+  if (!(await enforceRateLimit(`pub-prop-reject:${token}:${ip}`, { limit: 30, windowMs: 60_000 }))) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
 

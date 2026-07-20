@@ -28,6 +28,7 @@ import { getStripeClient, deriveAccountStatus } from '@/lib/stripe'
 import { postPayment } from '@/lib/books/posting'
 import { STANDARD_ACCOUNTS, getAccountByCode } from '@/lib/books/accounts'
 import { getTierConfig } from '@/lib/tier-limits'
+import { todayInTimeZone, dateInTimeZone, getOrgTimeZone } from '@/lib/timezone'
 import type { SubscriptionTier } from '@/types/database'
 
 // Force the runtime to read raw body — Next.js App Router gives us
@@ -140,7 +141,10 @@ async function handleCheckoutCompleted(
       ? session.payment_intent
       : session.payment_intent?.id ?? null
 
-  const today = new Date().toISOString().slice(0, 10)
+  // G4: paid_date is a calendar date and belongs to the merchant's day, not
+  // UTC's. A 9pm ET payment was previously recorded as tomorrow.
+  const orgTimeZone = await getOrgTimeZone(supabase, invoice.organization_id)
+  const today = todayInTimeZone(orgTimeZone)
 
   const { error: updateErr } = await supabase
     .from('invoices')
@@ -189,6 +193,7 @@ async function handleCheckoutCompleted(
       paymentIntentId,
       invoiceTotalCents: invoice.total_cents ?? null,
       invoiceAmountPaidCents: invoice.amount_paid_cents ?? null,
+      timeZone: orgTimeZone,
     })
   } catch (err) {
     // Belt-and-suspenders — `maybePostStripePaymentToBooks` already
@@ -213,6 +218,8 @@ interface MaybePostInput {
   paymentIntentId: string | null
   invoiceTotalCents: number | null
   invoiceAmountPaidCents: number | null
+  /** G4: org's IANA timezone — payment_date is a calendar date, not an instant. */
+  timeZone: string
 }
 
 /**
@@ -334,8 +341,8 @@ async function maybePostStripePaymentToBooks(
   const currency = (pi?.currency ?? session.currency ?? 'USD').toUpperCase().slice(0, 3)
 
   const paymentDate = pi?.created
-    ? new Date(pi.created * 1000).toISOString().slice(0, 10)
-    : new Date().toISOString().slice(0, 10)
+    ? dateInTimeZone(pi.created * 1000, input.timeZone)
+    : todayInTimeZone(input.timeZone)
 
   // 4. Resolve the deposit-to account: prefer a bank_accounts row of
   // type='stripe' (a user might have provisioned one in B3 settings),

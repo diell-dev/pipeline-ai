@@ -25,7 +25,13 @@ import { useThemeBrand } from '@/hooks/use-theme-brand'
 import { createClient } from '@/lib/supabase/client'
 import type { User, Organization } from '@/types/database'
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  children,
+  nonce,
+}: {
+  children: React.ReactNode
+  nonce?: string
+}) {
   const { theme, setSession, clearSession, setLoading } = useAuthStore()
 
   // Apply brand theme as CSS variables
@@ -99,7 +105,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, [setSession, clearSession, setLoading])
 
   return (
-    <ThemeProvider>
+    <ThemeProvider nonce={nonce}>
       {/* M3: mounted once at the root so every <Tooltip /> in the app shares
        * the same skip-delay group. First tooltip waits 500ms; subsequent
        * tooltips within 1.5s open instantly. Defaults live in

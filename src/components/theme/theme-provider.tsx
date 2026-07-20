@@ -19,7 +19,18 @@
  */
 import { ThemeProvider as NextThemesProvider } from 'next-themes'
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
+export function ThemeProvider({
+  children,
+  nonce,
+}: {
+  children: React.ReactNode
+  /**
+   * CSP nonce (audit S9). next-themes injects a small inline script to apply
+   * the stored theme before first paint; without the nonce that script is
+   * blocked by the strict production CSP and the app flashes light-mode.
+   */
+  nonce?: string
+}) {
   return (
     <NextThemesProvider
       attribute="class"
@@ -27,6 +38,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       enableSystem
       storageKey="pipeline-ai:theme"
       disableTransitionOnChange
+      nonce={nonce}
     >
       {children}
     </NextThemesProvider>

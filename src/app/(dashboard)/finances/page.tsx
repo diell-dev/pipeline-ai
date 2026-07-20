@@ -289,6 +289,11 @@ export default function FinancesPage() {
   }, [organization, isSuperAdmin, statusFilter, clientFilter, dateFrom, dateTo, searchQuery, sortField, sortDir, page])
 
   useEffect(() => {
+    // `loadInvoices` is a useCallback that flips `loading` on before an async
+    // fetch. This is the conventional fetch-on-dependency-change pattern; the
+    // rule wants that work moved into an event handler or a data-fetching
+    // library (React Query / SWR) — a deliberate future refactor, not a bug.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadInvoices()
   }, [loadInvoices])
 

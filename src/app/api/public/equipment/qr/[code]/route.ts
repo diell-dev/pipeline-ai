@@ -11,7 +11,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { enforceRateLimit, getClientIp } from '@/lib/rate-limit'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ServiceClient = SupabaseClient<any, 'public', any>
@@ -33,7 +33,7 @@ export async function GET(
   }
 
   const ip = getClientIp(request)
-  if (!checkRateLimit(`pub-qr-get:${ip}`, { limit: 60, windowMs: 60_000 })) {
+  if (!(await enforceRateLimit(`pub-qr-get:${ip}`, { limit: 60, windowMs: 60_000 }))) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
 

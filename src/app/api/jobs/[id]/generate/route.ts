@@ -23,7 +23,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
 import { getApiUser, canAccessOrg } from '@/lib/api-auth'
-import { checkRateLimit } from '@/lib/rate-limit'
+import { enforceRateLimit } from '@/lib/rate-limit'
+import { claimAiGeneration } from '@/lib/ai-usage'
+import type { SubscriptionTier } from '@/types/database'
 
 // Use service role client (bypasses RLS) for server-side operations
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -48,7 +50,7 @@ export async function POST(
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
     // Throttle the paid AI generation per user (cost abuse defense).
-    if (!checkRateLimit(`job-generate:${auth.userId}`, { limit: 15, windowMs: 60_000 })) {
+    if (!(await enforceRateLimit(`job-generate:${auth.userId}`, { limit: 15, windowMs: 60_000 }))) {
       return NextResponse.json({ error: 'Too many requests — slow down.' }, { status: 429 })
     }
 
@@ -90,6 +92,26 @@ export async function POST(
         { error: `Job is in '${job.status}' status, cannot generate` },
         { status: 400 }
       )
+    }
+
+    // ── G7: monthly AI allowance for the org's tier ──
+    // Claimed BEFORE the paid API calls. Basic tier is capped; professional
+    // and business are unlimited and short-circuit without a round-trip.
+    const { data: orgRow } = await supabase
+      .from('organizations')
+      .select('tier, timezone')
+      .eq('id', job.organization_id)
+      .maybeSingle<{ tier: SubscriptionTier | null; timezone: string | null }>()
+
+    const quota = await claimAiGeneration({
+      supabase,
+      organizationId: job.organization_id,
+      tier: orgRow?.tier,
+      timeZone: orgRow?.timezone,
+      kind: 'report',
+    })
+    if (!quota.allowed) {
+      return NextResponse.json({ error: quota.message }, { status: 402 })
     }
 
     // 2. Set status to 'ai_generating'

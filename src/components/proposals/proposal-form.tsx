@@ -141,6 +141,10 @@ export function ProposalForm({
   // Load sites when client changes
   useEffect(() => {
     if (!values.client_id) {
+      // Clearing dependent state when the parent selection is cleared. The
+      // rule's preferred alternatives (derive during render, or remount via
+      // `key`) would both churn this form's controlled inputs — intentional.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSites([])
       return
     }

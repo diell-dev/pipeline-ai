@@ -26,7 +26,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
 import { getApiUser, hasPermission } from '@/lib/api-auth'
-import { checkRateLimit } from '@/lib/rate-limit'
+import { enforceRateLimit } from '@/lib/rate-limit'
+import { claimAiGeneration } from '@/lib/ai-usage'
+import type { SubscriptionTier } from '@/types/database'
 
 export const maxDuration = 60
 
@@ -140,7 +142,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not allowed.' }, { status: 403 })
     }
     // Paid AI call — throttle per user
-    if (!checkRateLimit(`dictate:${auth.userId}`, { limit: 20, windowMs: 60_000 })) {
+    if (!(await enforceRateLimit(`dictate:${auth.userId}`, { limit: 20, windowMs: 60_000 }))) {
       return NextResponse.json({ error: 'Too many requests — slow down.' }, { status: 429 })
     }
 
@@ -160,6 +162,25 @@ export async function POST(request: NextRequest) {
         },
         { status: 503 }
       )
+    }
+
+    // ── G7: monthly AI allowance ──
+    const meterClient = getServiceClient()
+    const { data: orgRow } = await meterClient
+      .from('organizations')
+      .select('tier, timezone')
+      .eq('id', auth.organizationId)
+      .maybeSingle()
+
+    const quota = await claimAiGeneration({
+      supabase: meterClient,
+      organizationId: auth.organizationId,
+      tier: (orgRow as { tier?: SubscriptionTier } | null)?.tier,
+      timeZone: (orgRow as { timezone?: string } | null)?.timezone,
+      kind: 'dictation',
+    })
+    if (!quota.allowed) {
+      return NextResponse.json({ error: quota.message }, { status: 402 })
     }
 
     // ── Input ──

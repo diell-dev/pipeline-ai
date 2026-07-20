@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getApiUser, hasPermission, canAccessOrg } from '@/lib/api-auth'
+import { todayInTimeZone, getOrgTimeZone } from '@/lib/timezone'
 import type { InspectionResult } from '@/types/database'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -136,7 +137,7 @@ export async function POST(
   // Update last_serviced_date on equipment so the next-due calculation moves.
   await supabase
     .from('equipment')
-    .update({ last_serviced_date: new Date().toISOString().slice(0, 10) })
+    .update({ last_serviced_date: todayInTimeZone(await getOrgTimeZone(supabase, job.organization_id)) })
     .eq('id', equipmentId)
 
   await supabase.from('activity_log').insert({

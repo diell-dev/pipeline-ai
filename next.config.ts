@@ -25,19 +25,11 @@ const nextConfig: NextConfig = {
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(self), geolocation=()' },
           // HSTS — enforce HTTPS for 2 years
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
-          // CSP — restrict resource loading to known origins
-          {
-            key: 'Content-Security-Policy',
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-              "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: blob: https://*.supabase.co",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
-              "font-src 'self'",
-              "frame-ancestors 'none'",
-            ].join('; '),
-          },
+          // NOTE (audit S9, 2026-07-20): Content-Security-Policy is deliberately
+          // NOT set here any more. It is now generated per-request in
+          // middleware.ts so it can carry a fresh nonce, which is what lets us
+          // drop 'unsafe-inline' / 'unsafe-eval' from script-src in production.
+          // A static header here would override the nonce'd one.
         ],
       },
     ];

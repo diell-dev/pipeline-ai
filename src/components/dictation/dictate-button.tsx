@@ -126,8 +126,8 @@ async function postDictation(blob: Blob, mode: 'field' | 'job') {
 // ─────────────────────────── per-field mic button ───────────────────────────
 
 export function DictateFieldButton({ onText }: { onText: (english: string) => void }) {
-  const { state, setState, seconds, start, stop } = useRecorder((blob) => void processBlob(blob))
-
+  // Declared before useRecorder so the callback doesn't reference it before
+  // declaration (function declarations hoist, so this is a pure reorder).
   async function processBlob(blob: Blob) {
     if (blob.size > MAX_UPLOAD_BYTES) {
       toast.error('Recording is too large to upload — please keep it a bit shorter.')
@@ -150,6 +150,8 @@ export function DictateFieldButton({ onText }: { onText: (english: string) => vo
       })
     }
   }
+
+  const { state, setState, seconds, start, stop } = useRecorder((blob) => void processBlob(blob))
 
   if (state === 'processing') {
     return (
@@ -205,8 +207,9 @@ export function DictateJobCard({
   onApply: (result: DictationResult) => void
 }) {
   const [result, setResult] = useState<DictationResult | null>(null)
-  const { state, setState, seconds, start, stop } = useRecorder((blob) => void processBlob(blob))
 
+  // Declared before useRecorder so the callback doesn't reference it before
+  // declaration (function declarations hoist, so this is a pure reorder).
   async function processBlob(blob: Blob) {
     if (blob.size > MAX_UPLOAD_BYTES) {
       toast.error('Recording is too large to upload — please keep it a bit shorter.')
@@ -226,6 +229,8 @@ export function DictateJobCard({
       })
     }
   }
+
+  const { state, setState, seconds, start, stop } = useRecorder((blob) => void processBlob(blob))
 
   const matchedServices = (result?.services || [])
     .map((s) => {

@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getApiUser, hasPermission } from '@/lib/api-auth'
+import { escapeHtml } from '@/lib/escape-html'
 import { canAddUser } from '@/lib/tier-limits'
 import type { SubscriptionTier } from '@/types/database'
 
@@ -74,7 +75,15 @@ export async function POST(req: NextRequest) {
       // Re-activate if previously deactivated
       const { data: reactivated, error: reactivateError } = await supabase
         .from('users')
-        .update({ is_active: true, full_name, phone: phone || null, role })
+        .update({
+          is_active: true,
+          full_name,
+          phone: phone || null,
+          role,
+          // Reactivated accounts re-enter the "prove it's you" path.
+          must_change_password: true,
+          password_set_at: new Date().toISOString(),
+        })
         .eq('id', existing.id)
         .select()
         .single()
@@ -127,6 +136,12 @@ export async function POST(req: NextRequest) {
       email: email.toLowerCase(),
       password: tempPassword,
       email_confirm: true,
+      // S8: mirrored into the JWT so middleware can force the password change
+      // (and expire the temp credential) without a DB query per request.
+      app_metadata: {
+        must_change_password: true,
+        password_set_at: new Date().toISOString(),
+      },
     })
 
     if (authError) {
@@ -151,6 +166,10 @@ export async function POST(req: NextRequest) {
         role,
         phone: phone || null,
         is_active: true,
+        // S8: this account holds an emailed temp password until they set
+        // their own. The login flow forces a change before anything else.
+        must_change_password: true,
+        password_set_at: new Date().toISOString(),
       })
       .select()
       .single()
@@ -166,10 +185,12 @@ export async function POST(req: NextRequest) {
           from: 'Pipeline AI <noreply@pipeline-ai.com>',
           to: email.toLowerCase(),
           subject: `You've been invited to Pipeline AI`,
-          html: `<p>Hi ${full_name},</p>
-                 <p>You have been added to your organization on <strong>Pipeline AI</strong> with the role: <strong>${role.replace('_', ' ')}</strong>.</p>
-                 <p>Your temporary password is: <code style="background:#f5f5f5;padding:4px 8px;border-radius:4px;">${tempPassword}</code></p>
-                 <p>Please log in and change your password immediately.</p>`,
+          // S7: every interpolated value is escaped. `full_name` and `role`
+          // are caller-supplied and were previously injected raw.
+          html: `<p>Hi ${escapeHtml(full_name)},</p>
+                 <p>You have been added to your organization on <strong>Pipeline AI</strong> with the role: <strong>${escapeHtml(role.replace('_', ' '))}</strong>.</p>
+                 <p>Your temporary password is: <code style="background:#f5f5f5;padding:4px 8px;border-radius:4px;">${escapeHtml(tempPassword)}</code></p>
+                 <p>You will be asked to choose your own password the first time you sign in. This temporary password stops working after 7 days.</p>`,
         })
       } catch (emailErr) {
         // Don't fail the invite if email sending fails — log it

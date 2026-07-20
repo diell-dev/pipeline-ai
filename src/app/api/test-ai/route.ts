@@ -7,7 +7,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { getApiUser, hasPermission } from '@/lib/api-auth'
-import { checkRateLimit } from '@/lib/rate-limit'
+import { enforceRateLimit } from '@/lib/rate-limit'
 import Anthropic from '@anthropic-ai/sdk'
 
 export async function POST(request: NextRequest) {
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Cheap throttle per user to keep the AI bill under control.
-    if (!checkRateLimit(`test-ai:${auth.userId}`, { limit: 10, windowMs: 60_000 })) {
+    if (!(await enforceRateLimit(`test-ai:${auth.userId}`, { limit: 10, windowMs: 60_000 }))) {
       return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 

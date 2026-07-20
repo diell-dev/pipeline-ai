@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getApiUser, hasPermission, canAccessOrg } from '@/lib/api-auth'
+import { escapeHtml } from '@/lib/escape-html'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,6 +87,8 @@ export async function POST(
       }
       // Reactivate an existing client login for this client.
       await supabase.from('users').update({ is_active: true, full_name }).eq('id', existing.id)
+      // Note: reactivation keeps the user's EXISTING password (we don't mint a
+      // new one here), so must_change_password is deliberately left untouched.
       await sendInviteEmail(email, full_name, client.company_name, null)
       return NextResponse.json({ success: true, reactivated: true })
     }
@@ -101,6 +104,11 @@ export async function POST(
       email,
       password: tempPassword,
       email_confirm: true,
+      // S8: see team/invite — enforced by middleware from the JWT.
+      app_metadata: {
+        must_change_password: true,
+        password_set_at: new Date().toISOString(),
+      },
     })
     if (authErr || !authData?.user) {
       if (authErr?.message?.includes('already been registered')) {
@@ -122,6 +130,9 @@ export async function POST(
         full_name,
         role: 'client',
         is_active: true,
+        // S8: emailed temp password — force a change at first sign-in.
+        must_change_password: true,
+        password_set_at: new Date().toISOString(),
       })
       .select('id, email, full_name')
       .single()
@@ -155,10 +166,11 @@ async function sendInviteEmail(
     try {
       const { Resend } = await import('resend')
       const resend = new Resend(process.env.RESEND_API_KEY)
-      const esc = (s: string) => s.replace(/[&<>"']/g, (c) =>
-        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
+      // S7: use the single shared escape helper (src/lib/escape-html.ts)
+      // rather than a local copy, so there is one implementation to audit.
+      const esc = escapeHtml
       const pwLine = tempPassword
-        ? `<p>Your temporary password is: <code style="background:#f5f5f5;padding:4px 8px;border-radius:4px;">${esc(tempPassword)}</code><br>You can change it after signing in — or use the magic-link option on the sign-in page instead.</p>`
+        ? `<p>Your temporary password is: <code style="background:#f5f5f5;padding:4px 8px;border-radius:4px;">${esc(tempPassword)}</code><br>You will be asked to choose your own password the first time you sign in. This temporary password stops working after 7 days — you can also use the magic-link option on the sign-in page.</p>`
         : `<p>Sign in with the password you already have, or use the magic-link option on the sign-in page.</p>`
       await resend.emails.send({
         from: 'Pipeline AI <noreply@pipeline-ai.com>',

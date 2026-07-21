@@ -6,11 +6,18 @@
  * Handles drag-and-drop + click-to-upload for job photos.
  * Previews selected images, supports removal, and returns File[] to parent.
  * Does NOT handle Supabase upload — that happens on form submit.
+ *
+ * Audit B1: every picked file is normalised through `prepareImageForUpload`
+ * BEFORE it reaches state, so what the parent uploads is always a format the
+ * whole stack can read. iPhone HEIC shots are transcoded to JPEG here; large
+ * camera images are downscaled. Doing it at selection time also means the
+ * thumbnail below actually renders — a HEIC preview was blank too.
  */
-import { useCallback, useRef, useState } from 'react'
-import { Upload, X, Image as ImageIcon } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Upload, X, Image as ImageIcon, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { prepareImagesForUpload, isHeic } from '@/lib/image-prepare'
 
 interface PhotoUploadProps {
   photos: File[]
@@ -20,6 +27,23 @@ interface PhotoUploadProps {
 }
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
+const ACCEPTED_EXTENSIONS = /\.(jpe?g|png|webp|heic|heif)$/i
+
+/**
+ * Chrome frequently reports an EMPTY `file.type` for .heic files, so a
+ * type-only check silently rejected exactly the format we most need to
+ * accept. Fall back to the extension.
+ */
+function isAcceptedImage(file: File): boolean {
+  const type = (file.type || '').toLowerCase()
+  if (ACCEPTED_TYPES.includes(type)) return true
+  if (!type) return ACCEPTED_EXTENSIONS.test(file.name)
+  return false
+}
+
+function formatKb(bytes: number): string {
+  return `${Math.round(bytes / 1024)} KB`
+}
 
 export function PhotoUpload({
   photos,
@@ -29,30 +53,86 @@ export function PhotoUpload({
 }: PhotoUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [isPreparing, setIsPreparing] = useState(false)
+
+  // One object URL per file, revoked when the file leaves the list. The old
+  // code called createObjectURL inline during render, which minted a fresh
+  // URL on every re-render and never released any of them.
+  const previews = useMemo(() => photos.map((file) => URL.createObjectURL(file)), [photos])
+  useEffect(() => {
+    return () => previews.forEach((url) => URL.revokeObjectURL(url))
+  }, [previews])
 
   const validateAndAdd = useCallback(
-    (files: FileList | File[]) => {
-      const newFiles: File[] = []
+    async (files: FileList | File[]) => {
+      const incoming = Array.from(files)
       const maxBytes = maxSizeMB * 1024 * 1024
+      const accepted: File[] = []
+      let remaining = maxPhotos - photos.length
 
-      for (const file of Array.from(files)) {
-        if (!ACCEPTED_TYPES.includes(file.type)) {
+      if (remaining <= 0) {
+        toast.error(`Maximum ${maxPhotos} photos allowed`)
+        return
+      }
+
+      for (const file of incoming) {
+        if (!isAcceptedImage(file)) {
           toast.error(`${file.name} is not a supported image format`)
           continue
         }
+        // Checked against the ORIGINAL so we never spend time transcoding
+        // something absurd. HEIC shrinks on conversion, so this is generous.
         if (file.size > maxBytes) {
           toast.error(`${file.name} is too large (max ${maxSizeMB}MB)`)
           continue
         }
-        if (photos.length + newFiles.length >= maxPhotos) {
+        if (remaining <= 0) {
           toast.error(`Maximum ${maxPhotos} photos allowed`)
           break
         }
-        newFiles.push(file)
+        accepted.push(file)
+        remaining -= 1
       }
 
-      if (newFiles.length > 0) {
-        onPhotosChange([...photos, ...newFiles])
+      if (accepted.length === 0) return
+
+      const needsConversion = accepted.some(isHeic)
+      setIsPreparing(true)
+      const toastId = needsConversion
+        ? toast.loading(
+            accepted.length > 1 ? 'Converting photos…' : 'Converting photo…',
+            { description: 'iPhone photos are converted so they display everywhere.' }
+          )
+        : undefined
+
+      try {
+        const { prepared, failed } = await prepareImagesForUpload(accepted)
+
+        for (const f of failed) {
+          toast.error(`Couldn't process ${f.name}`, { description: f.reason })
+        }
+
+        if (prepared.length > 0) {
+          onPhotosChange([...photos, ...prepared.map((p) => p.file)])
+
+          const convertedCount = prepared.filter((p) => p.converted).length
+          if (convertedCount > 0) {
+            const before = prepared.reduce((s, p) => s + p.originalBytes, 0)
+            const after = prepared.reduce((s, p) => s + p.finalBytes, 0)
+            toast.success(
+              convertedCount === 1
+                ? 'Photo converted for viewing'
+                : `${convertedCount} photos converted for viewing`,
+              { id: toastId, description: `${formatKb(before)} → ${formatKb(after)}` }
+            )
+          } else if (toastId) {
+            toast.dismiss(toastId)
+          }
+        } else if (toastId) {
+          toast.dismiss(toastId)
+        }
+      } finally {
+        setIsPreparing(false)
       }
     },
     [photos, onPhotosChange, maxPhotos, maxSizeMB]
@@ -62,7 +142,7 @@ export function PhotoUpload({
     e.preventDefault()
     setIsDragging(false)
     if (e.dataTransfer.files.length > 0) {
-      validateAndAdd(e.dataTransfer.files)
+      void validateAndAdd(e.dataTransfer.files)
     }
   }
 
@@ -78,7 +158,7 @@ export function PhotoUpload({
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files && e.target.files.length > 0) {
-      validateAndAdd(e.target.files)
+      void validateAndAdd(e.target.files)
     }
     // Reset input so same file can be re-selected
     e.target.value = ''
@@ -96,19 +176,24 @@ export function PhotoUpload({
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => !isPreparing && inputRef.current?.click()}
         className={`
           relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed
-          px-6 py-8 cursor-pointer transition-colors
+          px-6 py-8 transition-colors
+          ${isPreparing ? 'cursor-wait opacity-70' : 'cursor-pointer'}
           ${isDragging
             ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10'
             : 'border-border bg-muted/40 hover:border-zinc-400 hover:bg-muted dark:hover:border-zinc-500'
           }
         `}
       >
-        <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+        {isPreparing ? (
+          <Loader2 className="h-8 w-8 text-muted-foreground mb-2 animate-spin" />
+        ) : (
+          <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+        )}
         <p className="text-sm font-medium text-foreground">
-          Drop photos here or click to browse
+          {isPreparing ? 'Preparing photos…' : 'Drop photos here or click to browse'}
         </p>
         <p className="text-xs text-muted-foreground mt-1">
           JPG, PNG, WebP, HEIC — max {maxSizeMB}MB each — up to {maxPhotos} photos
@@ -116,7 +201,7 @@ export function PhotoUpload({
         <input
           ref={inputRef}
           type="file"
-          accept={ACCEPTED_TYPES.join(',')}
+          accept={[...ACCEPTED_TYPES, '.heic', '.heif'].join(',')}
           multiple
           onChange={handleFileSelect}
           className="hidden"
@@ -131,8 +216,9 @@ export function PhotoUpload({
               key={`${file.name}-${index}`}
               className="relative group aspect-square rounded-lg overflow-hidden border bg-muted"
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={URL.createObjectURL(file)}
+                src={previews[index]}
                 alt={file.name}
                 className="h-full w-full object-cover"
               />

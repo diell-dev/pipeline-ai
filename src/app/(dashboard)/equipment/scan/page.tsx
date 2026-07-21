@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ClientCombobox } from '@/components/clients/client-combobox'
 import { toast } from 'sonner'
+import { prepareImageForUpload } from '@/lib/image-prepare'
 import jsQR from 'jsqr'
 import {
   Camera,
@@ -387,24 +388,57 @@ export default function EquipmentScanPage() {
   }
 
   async function handleUnitPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const raw = e.target.files?.[0]
+    if (!raw) return
     setUploadingUnit(true)
-    const url = await uploadPhoto(file, 'unit')
-    if (url) setUnitPhotoUrl(url)
+    // B1: transcode iPhone HEIC to JPEG before it reaches storage, otherwise
+    // the photo is stored fine and renders as a blank tile in every browser
+    // except Safari.
+    const file = await prepareOrWarn(raw)
+    if (file) {
+      const url = await uploadPhoto(file, 'unit')
+      if (url) setUnitPhotoUrl(url)
+    }
     setUploadingUnit(false)
     e.target.value = ''
   }
 
+  /**
+   * Normalise a picked image, surfacing a clear error instead of silently
+   * uploading something nobody can view.
+   */
+  async function prepareOrWarn(raw: File): Promise<File | null> {
+    try {
+      const { file, converted, originalBytes, finalBytes } = await prepareImageForUpload(raw)
+      if (converted) {
+        toast.success('Photo converted for viewing', {
+          description: `${Math.round(originalBytes / 1024)} KB → ${Math.round(finalBytes / 1024)} KB`,
+        })
+      }
+      return file
+    } catch (err) {
+      toast.error("Couldn't process that photo", {
+        description: err instanceof Error ? err.message : undefined,
+      })
+      return null
+    }
+  }
+
   async function handleDataPlatePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const raw = e.target.files?.[0]
+    if (!raw) return
     setUploadingPlate(true)
-    const url = await uploadPhoto(file, 'plate')
-    if (url) {
-      setDataPlatePhotoUrl(url)
-      // Run OCR on the data plate
-      await runOcr(file)
+    // B1: convert ONCE here so both the stored object and the OCR call get
+    // JPEG. (runOcr still has its own HEIC guard for safety, but with a
+    // converted file it becomes a pass-through.)
+    const file = await prepareOrWarn(raw)
+    if (file) {
+      const url = await uploadPhoto(file, 'plate')
+      if (url) {
+        setDataPlatePhotoUrl(url)
+        // Run OCR on the data plate
+        await runOcr(file)
+      }
     }
     setUploadingPlate(false)
     e.target.value = ''

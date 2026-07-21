@@ -50,6 +50,12 @@ const SKIP_RESIZE_BELOW_BYTES = 400 * 1024
  */
 const HEIC_TIMEOUT_MS = 60_000
 
+/**
+ * The native path either works almost immediately or not at all, so it gets a
+ * short leash before we fall through to the (much slower) WASM decoder.
+ */
+const NATIVE_DECODE_TIMEOUT_MS = 10_000
+
 export interface PreparedImage {
   file: File
   /** True when the original was HEIC/HEIF and had to be transcoded. */
@@ -101,46 +107,88 @@ function withJpegName(name: string): string {
   return name.replace(/\.(heic|heif|png|webp|jpe?g)$/i, '') + '.jpg'
 }
 
+/** Wrap a promise so a wedged decoder can't hang the UI forever. */
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new ImagePrepareError(message)), ms)),
+  ])
+}
+
 /**
- * Decode a HEIC/HEIF file to a JPEG blob using libheif (via heic2any).
+ * Fast path: let the BROWSER decode the HEIC and re-encode via canvas.
+ *
+ * This is the case that actually matters in the field. Techs shoot on
+ * iPhones and upload from iOS Safari, where HEIC decodes natively — no
+ * WebAssembly, no 2MB library download, near-instant, and it works on a
+ * phone tethered in a basement.
+ *
+ * Returns null when the browser can't decode it (desktop Chrome/Firefox/Edge),
+ * and the caller falls back to the WASM decoder.
  */
-async function heicToJpegBlob(file: File): Promise<Blob> {
-  let heic2any: typeof import('heic2any')
+async function nativeHeicToJpeg(file: File): Promise<Blob | null> {
+  if (typeof createImageBitmap !== 'function') return null
+
+  let bitmap: ImageBitmap
   try {
-    heic2any = (await import('heic2any')).default as unknown as typeof import('heic2any')
+    bitmap = await withTimeout(
+      createImageBitmap(file),
+      NATIVE_DECODE_TIMEOUT_MS,
+      'Native decode timed out'
+    )
   } catch {
-    throw new ImagePrepareError('Could not load the HEIC converter')
+    return null // not decodable here — fall through to WASM
   }
 
-  // Guard against the decoder never settling. This bit us in testing: a CSP
-  // that blocked WebAssembly made the conversion hang indefinitely behind a
-  // spinner instead of throwing, which is the worst possible failure mode for
-  // a tech standing in a basement.
-  const conversion = (heic2any as unknown as (opts: {
-    blob: Blob
-    toType?: string
-    quality?: number
-  }) => Promise<Blob | Blob[]>)({
-    blob: file,
-    toType: 'image/jpeg',
-    quality: JPEG_QUALITY,
-  })
+  try {
+    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(bitmap.width * scale)
+    canvas.height = Math.round(bitmap.height * scale)
 
-  const result = await Promise.race([
-    conversion,
-    new Promise<never>((_, reject) =>
-      setTimeout(
-        () => reject(new ImagePrepareError('Converting this photo took too long — please try again')),
-        HEIC_TIMEOUT_MS
-      )
-    ),
-  ])
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
 
-  // A HEIC container can hold an image sequence (Live Photos); heic2any then
-  // returns an array. The first frame is the still we want.
-  const blob = Array.isArray(result) ? result[0] : result
+    return await canvasToBlob(canvas, JPEG_QUALITY)
+  } finally {
+    bitmap.close?.()
+  }
+}
+
+/**
+ * Fallback: decode with libheif compiled to WebAssembly.
+ *
+ * Uses the `heic-to/csp` build specifically — the default build evaluates a
+ * string as JavaScript, which a strict Content-Security-Policy refuses. Note
+ * this still requires `'wasm-unsafe-eval'` in script-src (see middleware.ts);
+ * without it the decode silently never settles.
+ */
+async function wasmHeicToJpeg(file: File): Promise<Blob> {
+  let heicTo: (args: { blob: Blob; type: string; quality?: number }) => Promise<Blob>
+  try {
+    ;({ heicTo } = await import('heic-to/csp'))
+  } catch {
+    throw new ImagePrepareError('Could not load the photo converter')
+  }
+
+  const blob = await withTimeout(
+    heicTo({ blob: file, type: 'image/jpeg', quality: JPEG_QUALITY }),
+    HEIC_TIMEOUT_MS,
+    'Converting this photo took too long — please try again'
+  )
+
   if (!blob) throw new ImagePrepareError('HEIC conversion produced no image')
   return blob
+}
+
+/**
+ * Decode a HEIC/HEIF file to JPEG — native first, WASM as fallback.
+ */
+async function heicToJpegBlob(file: File): Promise<Blob> {
+  const native = await nativeHeicToJpeg(file)
+  if (native) return native
+  return wasmHeicToJpeg(file)
 }
 
 /**

@@ -43,6 +43,13 @@ const JPEG_QUALITY = 0.85
 /** Files at or below this size skip downscaling entirely. */
 const SKIP_RESIZE_BELOW_BYTES = 400 * 1024
 
+/**
+ * Hard ceiling on a single HEIC decode. Generous — libheif on a 12MP phone
+ * photo is genuinely slow on a mid-range device — but finite, so a broken
+ * decoder surfaces as an error rather than an eternal spinner.
+ */
+const HEIC_TIMEOUT_MS = 60_000
+
 export interface PreparedImage {
   file: File
   /** True when the original was HEIC/HEIF and had to be transcoded. */
@@ -105,7 +112,11 @@ async function heicToJpegBlob(file: File): Promise<Blob> {
     throw new ImagePrepareError('Could not load the HEIC converter')
   }
 
-  const result = await (heic2any as unknown as (opts: {
+  // Guard against the decoder never settling. This bit us in testing: a CSP
+  // that blocked WebAssembly made the conversion hang indefinitely behind a
+  // spinner instead of throwing, which is the worst possible failure mode for
+  // a tech standing in a basement.
+  const conversion = (heic2any as unknown as (opts: {
     blob: Blob
     toType?: string
     quality?: number
@@ -114,6 +125,16 @@ async function heicToJpegBlob(file: File): Promise<Blob> {
     toType: 'image/jpeg',
     quality: JPEG_QUALITY,
   })
+
+  const result = await Promise.race([
+    conversion,
+    new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new ImagePrepareError('Converting this photo took too long — please try again')),
+        HEIC_TIMEOUT_MS
+      )
+    ),
+  ])
 
   // A HEIC container can hold an image sequence (Live Photos); heic2any then
   // returns an array. The first frame is the still we want.

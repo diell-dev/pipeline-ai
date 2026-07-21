@@ -27,7 +27,13 @@ import { updateSession } from '@/lib/supabase/middleware'
 function buildCsp(nonce: string, isDev: boolean): string {
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
+    // 'wasm-unsafe-eval' is required for WebAssembly. The HEIC->JPEG decoder
+    // (audit B1) is WASM, and without this Chrome throws
+    //   "Compiling WebAssembly module violates ... 'unsafe-eval' is not allowed"
+    // — which surfaced as a conversion that hung forever rather than failing.
+    // This directive permits WASM compilation ONLY; it does NOT re-enable
+    // JavaScript eval(), so it is far narrower than 'unsafe-eval'.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https://*.supabase.co",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.upstash.io",

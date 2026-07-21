@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton, SkeletonCard } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
+import { OriginalDocuments } from '@/components/documents/original-documents'
 import {
   ArrowLeft,
   Calendar,
@@ -1415,6 +1416,10 @@ export default function JobDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Verbatim archive of the document originally sent to the client.
+          Historical imports only; content is immutable by design. */}
+      <OriginalDocuments jobId={job.id} />
 
       {/* AI Generated Report */}
       {job.ai_report_content && (

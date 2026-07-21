@@ -732,3 +732,27 @@ export interface EquipmentServiceRequest {
   created_at: string
   updated_at: string
 }
+
+/**
+ * Verbatim archive of historical client-facing documents.
+ *
+ * `verbatim_text` is the exact wording the client received and must never be
+ * rewritten — the report's visual design may change, its content may not.
+ * Written only by the import scripts (service role); read-only in the app.
+ */
+export interface ImportedDocument {
+  id: string
+  organization_id: string
+  doc_type: 'report' | 'invoice' | 'proposal'
+  source_file: string
+  verbatim_text: string
+  text_sha256: string
+  char_count: number
+  document_date: string | null
+  client_id: string | null
+  site_id: string | null
+  job_id: string | null
+  invoice_id: string | null
+  proposal_id: string | null
+  imported_at: string
+}

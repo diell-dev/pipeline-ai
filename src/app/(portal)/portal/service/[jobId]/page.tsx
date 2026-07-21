@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
 import { createClient } from '@/lib/supabase/client'
+import { OriginalDocuments } from '@/components/documents/original-documents'
 import { Card, CardContent } from '@/components/ui/card'
 import { PortalStatus } from '@/components/portal/portal-status'
 import { Button } from '@/components/ui/button'
@@ -98,6 +99,9 @@ export default function PortalJobDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* Exact wording of the report originally sent to the client */}
+      <OriginalDocuments jobId={job.id} />
 
       {photos.length > 0 && <PortalPhotoGrid photos={photos} />}
     </div>

@@ -112,6 +112,9 @@ export async function POST(
         status: 'sent_to_client',
         sent_to_client_at: sentAt,
         sent_to_client_by: auth.userId,
+        // Reset the follow-up reminder clock for this fresh send (a DB trigger
+        // also enforces this as a backstop). See migration 036.
+        last_follow_up_stage: 0,
       })
       .eq('id', id)
       .eq('status', 'admin_approved')

@@ -3,6 +3,10 @@
     {
       "path": "/api/internal/cron/spawn-recurring-jobs",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/internal/cron/proposal-follow-ups",
+      "schedule": "0 7 * * *"
     }
   ]
 }

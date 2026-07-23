@@ -26,6 +26,7 @@ import {
   Eye,
   Building2,
   ChevronDown,
+  Clock,
 } from 'lucide-react'
 import type { Proposal, ProposalStatus } from '@/types/database'
 import { formatDollars, formatDate } from '@/lib/format'
@@ -46,6 +47,36 @@ interface ProposalWithRelations extends Proposal {
   clients?: { company_name: string } | null
   sites?: { name: string; address: string } | null
   creator?: { full_name: string } | null
+}
+
+/**
+ * For a proposal that's been sent to the client but not yet answered, how many
+ * whole days it's been waiting. Returns null for any other state. Staff get an
+ * email nudge at day 3 and day 7 (see the proposal-follow-ups cron); this is
+ * the same signal, surfaced in-app.
+ */
+function awaitingDays(p: ProposalWithRelations): number | null {
+  if (p.status !== 'sent_to_client' || !p.sent_to_client_at) return null
+  const days = Math.floor((Date.now() - new Date(p.sent_to_client_at).getTime()) / 86_400_000)
+  return days >= 0 ? days : null
+}
+
+function AwaitingBadge({ days }: { days: number }) {
+  // Amber once we've started nudging (>=3 days), muted before that.
+  const hot = days >= 3
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+        hot
+          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+          : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+      }`}
+      title="Sent to the client — awaiting their response"
+    >
+      <Clock className="h-3 w-3" />
+      {days === 0 ? 'Sent today' : `Waiting ${days}d`}
+    </span>
+  )
 }
 
 export default function ProposalsPage() {
@@ -293,9 +324,15 @@ export default function ProposalsPage() {
                         </p>
                       )}
                     </div>
-                    <Badge className={`shrink-0 ${statusConf.className}`} variant="outline">
-                      {statusConf.label}
-                    </Badge>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <Badge className={statusConf.className} variant="outline">
+                        {statusConf.label}
+                      </Badge>
+                      {(() => {
+                        const d = awaitingDays(p)
+                        return d !== null ? <AwaitingBadge days={d} /> : null
+                      })()}
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
@@ -357,6 +394,10 @@ export default function ProposalsPage() {
                       <Badge className={statusConf.className} variant="outline">
                         {statusConf.label}
                       </Badge>
+                      {(() => {
+                        const d = awaitingDays(p)
+                        return d !== null ? <div className="mt-1"><AwaitingBadge days={d} /></div> : null
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
                       <Calendar className="h-3 w-3 inline mr-1" />

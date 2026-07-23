@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton, SkeletonCard } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import {
   ArrowLeft,
@@ -31,6 +32,7 @@ import {
   Hash,
   Copy,
   ExternalLink,
+  XCircle,
 } from 'lucide-react'
 import type {
   Proposal,
@@ -82,6 +84,8 @@ export default function ProposalDetailPage() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showDeclineForm, setShowDeclineForm] = useState(false)
+  const [declineReason, setDeclineReason] = useState('')
 
   const loadProposal = useCallback(async () => {
     const supabase = createClient()
@@ -165,6 +169,31 @@ export default function ProposalDetailPage() {
       await loadProposal()
     }
     setActionLoading(null)
+  }
+  async function handleDecline() {
+    const reason = declineReason.trim()
+    if (!reason) {
+      toast.error('Please enter a reason')
+      return
+    }
+    setActionLoading('decline')
+    try {
+      const res = await fetch(`/api/proposals/${id}/decline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to record decline')
+      toast.success('Marked as not accepted')
+      setShowDeclineForm(false)
+      setDeclineReason('')
+      await loadProposal()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setActionLoading(null)
+    }
   }
   async function handleDelete() {
     setActionLoading('delete')
@@ -303,6 +332,16 @@ export default function ProposalDetailPage() {
               <ArrowRightCircle className="h-4 w-4 mr-1" /> Convert to Job
             </Button>
           )}
+          {['admin_approved', 'sent_to_client'].includes(proposal.status) && canApprove && (
+            <Button
+              variant="outline"
+              onClick={() => setShowDeclineForm((v) => !v)}
+              disabled={actionLoading === 'decline'}
+              className="h-10 w-full sm:w-auto"
+            >
+              <XCircle className="h-4 w-4 mr-1" /> Mark as Not Accepted
+            </Button>
+          )}
           {!['expired', 'cancelled', 'converted_to_job', 'client_approved'].includes(proposal.status) && canApprove && (
             <Button
               variant="outline"
@@ -324,6 +363,43 @@ export default function ProposalDetailPage() {
           )}
         </div>
       </div>
+
+      {showDeclineForm && (
+        <Card className="border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10">
+          <CardContent className="p-4 space-y-3">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+              Record why the client isn&apos;t moving forward
+            </p>
+            <Textarea
+              value={declineReason}
+              onChange={(e) => setDeclineReason(e.target.value)}
+              placeholder="e.g. Client went with another contractor / decided to hold off / price too high"
+              rows={3}
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground">
+              This marks the proposal as not accepted and stops follow-up reminders.
+              The reason is saved for your records.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                onClick={handleDecline}
+                disabled={actionLoading === 'decline' || !declineReason.trim()}
+                className="h-10 w-full sm:w-auto"
+              >
+                {actionLoading === 'decline' ? 'Saving…' : 'Save as not accepted'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => { setShowDeclineForm(false); setDeclineReason('') }}
+                className="h-10 w-full sm:w-auto"
+              >
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {showDeleteConfirm && (
         <Card className="border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10">
@@ -348,6 +424,25 @@ export default function ProposalDetailPage() {
                 Cancel
               </Button>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Not-accepted reason (client rejected online OR staff-recorded) */}
+      {proposal.status === 'client_rejected' && proposal.client_rejection_reason && (
+        <Card className="border-red-200 dark:border-red-500/30">
+          <CardHeader className="pb-2 p-4 sm:p-6">
+            <CardTitle className="text-sm flex items-center gap-2 text-red-700 dark:text-red-300">
+              <XCircle className="h-4 w-4" /> Not accepted
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-6 pt-0 space-y-1">
+            <p className="text-sm whitespace-pre-wrap">{proposal.client_rejection_reason}</p>
+            {proposal.client_rejected_at && (
+              <p className="text-xs text-muted-foreground">
+                Recorded {new Date(proposal.client_rejected_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

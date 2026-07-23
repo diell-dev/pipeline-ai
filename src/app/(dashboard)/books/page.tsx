@@ -26,7 +26,6 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { KPICard } from '@/components/ui/kpi-card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, formatDate } from '@/lib/books/format'
-import { currentMonthRange, fmt } from '@/lib/books/format-helpers'
 import {
   TrendingUp, TrendingDown, Wallet, FileText, ReceiptText,
   CreditCard, Banknote, BookOpen, ArrowRight, Sparkles, X,
@@ -121,35 +120,13 @@ export default function BooksDashboardPage() {
     }
     setNeedsSetup(false)
 
-    const { start, end } = currentMonthRange()
-
-    // 2. Revenue + expense entries for the current month — read via the
-    //    journal_entry_lines + chart_of_accounts join.
-    const [accountsRes, entriesRes, monthLinesRes, recentEntriesRes] = await Promise.all([
-      supabase
-        .from('chart_of_accounts')
-        .select('id, type, subtype, code')
-        .eq('organization_id', organization.id)
-        .is('deleted_at', null),
-
-      // current-month posted JE ids
-      supabase
-        .from('journal_entries')
-        .select('id')
-        .eq('organization_id', organization.id)
-        .gte('entry_date', start)
-        .lte('entry_date', end)
-        .is('deleted_at', null)
-        .not('posted_at', 'is', null),
-
-      // last-180-days entries for the chart
-      supabase
-        .from('journal_entries')
-        .select('id, entry_date')
-        .eq('organization_id', organization.id)
-        .gte('entry_date', isoDaysAgo(180))
-        .is('deleted_at', null)
-        .not('posted_at', 'is', null),
+    // KPIs + 6-month series come from a single SQL aggregate
+    // (books_dashboard_kpis). This replaced three un-paginated client-side
+    // reads of journal_entry_lines that hit PostgREST's 1000-row cap and
+    // silently truncated — which showed a phantom ~$646k AR (real value $0),
+    // $0 cash, and a near-empty chart for any org past ~1000 ledger lines.
+    const [{ data: kpiData, error: kpiErr }, recentEntriesRes] = await Promise.all([
+      supabase.rpc('books_dashboard_kpis', { p_org_id: organization.id }),
 
       supabase
         .from('journal_entries')
@@ -161,126 +138,38 @@ export default function BooksDashboardPage() {
         .limit(10),
     ])
 
-    const accounts = (accountsRes.data ?? []) as Array<{
-      id: string; type: string; subtype: string; code: string
-    }>
-    const accountById = new Map(accounts.map((a) => [a.id, a]))
-
-    const arAccount = accounts.find((a) => a.code === '1100')
-    const apAccount = accounts.find((a) => a.code === '2000')
-    const cashAccountIds = accounts
-      .filter((a) => a.subtype === 'cash' || a.subtype === 'bank')
-      .map((a) => a.id)
-
-    const monthEntryIds = (entriesRes.data ?? []).map((e) => (e as { id: string }).id)
-    const recentEntries = (recentEntriesRes.data ?? []) as RecentEntry[]
-
-    // Now load JE lines for the relevant entry sets.
-    let monthRevenue = 0
-    let monthExpenses = 0
-    if (monthEntryIds.length > 0) {
-      const { data } = await supabase
-        .from('journal_entry_lines')
-        .select('account_id, debit_cents, credit_cents')
-        .in('journal_entry_id', monthEntryIds)
-      for (const l of (data ?? []) as Array<{
-        account_id: string; debit_cents: number; credit_cents: number
-      }>) {
-        const acct = accountById.get(l.account_id)
-        if (!acct) continue
-        if (acct.type === 'income') monthRevenue += l.credit_cents - l.debit_cents
-        if (acct.type === 'expense') monthExpenses += l.debit_cents - l.credit_cents
-      }
+    if (kpiErr) {
+      console.error('books_dashboard_kpis failed:', kpiErr.message)
     }
 
-    // Outstanding AR / AP — sum balances on those accounts (debit-credit).
-    let outstandingAR = 0
-    let outstandingAP = 0
-    let cashOnHand = 0
-    const monetaryAccountIds = [
-      ...(arAccount ? [arAccount.id] : []),
-      ...(apAccount ? [apAccount.id] : []),
-      ...cashAccountIds,
-    ]
-    if (monetaryAccountIds.length > 0) {
-      const { data } = await supabase
-        .from('journal_entry_lines')
-        .select(
-          'account_id, debit_cents, credit_cents, journal_entry:journal_entry_id (organization_id, deleted_at, posted_at)'
-        )
-        .in('account_id', monetaryAccountIds)
-      // Supabase types the joined relation as an array even when the FK
-      // is single-valued, so we accept both shapes and normalize.
-      type LineRow = {
-        account_id: string
-        debit_cents: number
-        credit_cents: number
-        journal_entry:
-          | { organization_id: string; deleted_at: string | null; posted_at: string | null }
-          | { organization_id: string; deleted_at: string | null; posted_at: string | null }[]
-          | null
-      }
-      for (const l of (data ?? []) as unknown as LineRow[]) {
-        const parent = Array.isArray(l.journal_entry) ? l.journal_entry[0] : l.journal_entry
-        if (!parent || parent.deleted_at || !parent.posted_at) continue
-        if (parent.organization_id !== organization.id) continue
-        if (arAccount && l.account_id === arAccount.id) {
-          outstandingAR += l.debit_cents - l.credit_cents
-        } else if (apAccount && l.account_id === apAccount.id) {
-          outstandingAP += l.credit_cents - l.debit_cents
-        } else if (cashAccountIds.includes(l.account_id)) {
-          cashOnHand += l.debit_cents - l.credit_cents
-        }
-      }
+    const k = (kpiData ?? {}) as {
+      month_revenue_cents?: number
+      month_expenses_cents?: number
+      ar_cents?: number
+      ap_cents?: number
+      cash_cents?: number
+      series?: Array<{ month: string; revenue_cents: number; expenses_cents: number }>
     }
+
+    const monthRevenue = k.month_revenue_cents ?? 0
+    const monthExpenses = k.month_expenses_cents ?? 0
 
     setKpis({
       revenueMonth: monthRevenue,
       expensesMonth: monthExpenses,
       netMonth: monthRevenue - monthExpenses,
-      outstandingAR,
-      outstandingAP,
-      cashOnHand,
+      outstandingAR: k.ar_cents ?? 0,
+      outstandingAP: k.ap_cents ?? 0,
+      cashOnHand: k.cash_cents ?? 0,
     })
 
-    setRecent(recentEntries)
+    setRecent((recentEntriesRes.data ?? []) as RecentEntry[])
 
-    // Build the 6-month series.
-    const monthIds = ((monthLinesRes.data ?? []) as Array<{ id: string; entry_date: string }>)
-    const idToDate = new Map(monthIds.map((m) => [m.id, m.entry_date]))
-    let monthlyLines: Array<{
-      journal_entry_id: string; account_id: string; debit_cents: number; credit_cents: number
-    }> = []
-    if (monthIds.length > 0) {
-      const { data } = await supabase
-        .from('journal_entry_lines')
-        .select('journal_entry_id, account_id, debit_cents, credit_cents')
-        .in('journal_entry_id', monthIds.map((m) => m.id))
-      monthlyLines = (data ?? []) as typeof monthlyLines
-    }
-
-    const buckets = new Map<string, { revenue: number; expenses: number }>()
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date()
-      d.setMonth(d.getMonth() - i)
-      const key = `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, '0')}`
-      buckets.set(key, { revenue: 0, expenses: 0 })
-    }
-    for (const line of monthlyLines) {
-      const acct = accountById.get(line.account_id)
-      if (!acct) continue
-      const date = idToDate.get(line.journal_entry_id)
-      if (!date) continue
-      const key = date.slice(0, 7) // YYYY-MM
-      const bucket = buckets.get(key)
-      if (!bucket) continue
-      if (acct.type === 'income') bucket.revenue += line.credit_cents - line.debit_cents
-      if (acct.type === 'expense') bucket.expenses += line.debit_cents - line.credit_cents
-    }
-    const monthlyData: MonthlyPoint[] = Array.from(buckets.entries()).map(([k, v]) => {
-      const [y, m] = k.split('-').map(Number)
-      const label = new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'short' })
-      return { label, revenue: v.revenue, expenses: v.expenses }
+    // 6-month revenue-vs-expenses series (cents), already bucketed by SQL.
+    const monthlyData: MonthlyPoint[] = (k.series ?? []).map((pt) => {
+      const [y, m] = pt.month.split('-').map(Number)
+      const label = new Date(y, (m ?? 1) - 1, 1).toLocaleString('en-US', { month: 'short' })
+      return { label, revenue: pt.revenue_cents, expenses: pt.expenses_cents }
     })
     setMonthly(monthlyData)
     setLoading(false)
@@ -476,12 +365,6 @@ function sourceLink(e: RecentEntry): string | null {
     case 'payment': return `/books/payments/${e.source_id}`
     default: return null
   }
-}
-
-function isoDaysAgo(n: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  return fmt(d)
 }
 
 function MiniBarChart({ data }: { data: MonthlyPoint[] }) {
